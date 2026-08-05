@@ -1,0 +1,104 @@
+# =============================================================================
+# Actualiza los precios y publica el screener en GitHub Pages.
+#
+# Corre de lunes a viernes a las 22:30 hora argentina (01:30 UTC del dia
+# siguiente), o sea despues del cierre de Nueva York. Tambien se puede
+# disparar a mano desde la pestaña Actions -> Run workflow.
+#
+# PARA DEJARLO ANDANDO
+# 1. Subi el proyecto a un repo de GitHub (puede ser privado; Pages funciona
+#    igual si tu cuenta lo permite).
+# 2. Settings -> Actions -> General -> Workflow permissions:
+#    marcá "Read and write permissions".
+# 3. Settings -> Pages -> Source: "Deploy from a branch", rama "gh-pages", "/".
+# 4. Actions -> "Actualizar el screener" -> Run workflow (la primera vez a mano).
+# 5. Tu URL queda en https://TU-USUARIO.github.io/TU-REPO/
+#
+# El sitio se publica con force_orphan, asi que la rama gh-pages guarda un solo
+# commit: el repo no se infla aunque se actualice todos los dias.
+# =============================================================================
+
+name: Actualizar el screener
+
+on:
+  schedule:
+    - cron: "30 1 * * 2-6"      # martes a sabado 01:30 UTC = lun a vie 22:30 ART
+  workflow_dispatch:
+    inputs:
+      barras:
+        description: "Barras diarias por simbolo"
+        default: "400"
+      sin_fundamentales:
+        description: "Saltear sector/float (mas rapido)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: screener
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      # Yahoo corta mas seguido a las IPs de los servidores que a una conexion
+      # hogareña. Si falla, se reintenta dos veces antes de darse por vencido.
+      - name: Bajar los precios y armar el sitio
+        id: build
+        run: |
+          set -e
+          BARRAS="${{ github.event.inputs.barras || '400' }}"
+          EXTRA=""
+          if [ "${{ github.event.inputs.sin_fundamentales }}" = "true" ]; then
+            EXTRA="--sin-fundamentales"
+          fi
+          for intento in 1 2 3; do
+            echo "::group::Intento $intento"
+            if python generar_sitio.py --barras "$BARRAS" $EXTRA; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Fallo el intento $intento, espero 90s"
+            sleep 90
+          done
+          echo "No pude bajar los datos despues de 3 intentos"
+          exit 1
+
+      - name: Revisar que el sitio tenga sentido
+        run: |
+          python - <<'PY'
+          import json, sys, pathlib
+          d = json.loads(pathlib.Path("sitio/datos.json").read_text())
+          n = len(d["simbolos"])
+          print(f"simbolos: {n}  ·  ultimo cierre: {d['ultimo_cierre']}")
+          if n < 300:
+              sys.exit(f"[X] Solo {n} simbolos: la descarga vino incompleta, no publico")
+          faltan = d.get("faltantes", [])
+          if faltan:
+              print(f"sin datos ({len(faltan)}): {', '.join(faltan)}")
+          PY
+
+      - name: Publicar en GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./sitio
+          publish_branch: gh-pages
+          force_orphan: true          # un solo commit: el repo no crece
+          commit_message: "Datos del ${{ github.run_number }}"
