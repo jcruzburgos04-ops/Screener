@@ -1,0 +1,5 @@
+# Lo unico que hace falta para bajar los precios.
+# El servidor local usa solo la biblioteca estandar de Python.
+pandas>=2.0
+numpy>=1.24
+yfinance>=0.2.40

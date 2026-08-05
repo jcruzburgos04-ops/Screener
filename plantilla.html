@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screener ASH</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Un screener es un instrumento de lectura. Fondo de tinta, monoespaciada para
+   que las columnas de numeros se alineen a ojo, y color solo donde significa
+   algo: verde = bulls arriba, rojo = bears arriba, ambar = lo que tocas vos.
+   --------------------------------------------------------------------------- */
+:root{
+  --tinta:#0F141B; --panel:#161D26; --panel2:#1C2531; --borde:#26303E;
+  --hueso:#E9E5DB; --tenue:#8492A5; --apagado:#5C6878;
+  --alcista:#4FB286; --bajista:#CF4B3E; --ambar:#E0A458;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --panel-w:296px;
+}
+*{box-sizing:border-box}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--tinta)}
+::-webkit-scrollbar-thumb{background:#2E3947;border-radius:5px;border:2px solid var(--tinta)}
+::-webkit-scrollbar-thumb:hover{background:#3C4959}
+body{margin:0;background:var(--tinta);color:var(--hueso);font-family:var(--sans);
+  font-size:13px;display:flex;height:100vh;overflow:hidden}
+body.compacto{--panel-w:0px}
+
+/* ---------------------------- panel de configuracion ---------------------- */
+aside{width:var(--panel-w);flex:none;background:var(--panel);
+  border-right:1px solid var(--borde);overflow-y:auto;overflow-x:hidden;
+  transition:width .18s ease;padding-bottom:3rem}
+body.compacto aside{border-right:none}
+aside .interior{width:296px}
+.cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.95rem 1rem .85rem;
+  border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--panel);z-index:6}
+.cabecera-panel h1{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;
+  font-weight:600;text-transform:uppercase;margin:0;flex:1}
+details{border-bottom:1px solid var(--borde)}
+summary{font-family:var(--mono);font-size:.69rem;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--tenue);padding:.72rem 1rem;cursor:pointer;user-select:none;list-style:none;
+  display:flex;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'+';margin-right:.55rem;color:var(--ambar);width:.6em}
+details[open]>summary::before{content:'−'}
+details[open]>summary{color:var(--hueso)}
+summary .cuenta{margin-left:auto;color:var(--ambar);font-size:.66rem;letter-spacing:.05em}
+.cuerpo{padding:.1rem 1rem 1.1rem}
+label{display:block;font-size:.71rem;color:var(--tenue);margin:.7rem 0 .26rem;
+  display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+label b{color:var(--ambar);font-family:var(--mono);font-weight:500}
+input,select{width:100%;background:var(--tinta);color:var(--hueso);
+  border:1px solid var(--borde);border-radius:2px;padding:.4rem .5rem;
+  font-family:var(--mono);font-size:.79rem}
+input:focus,select:focus{outline:none;border-color:var(--ambar)}
+input[type=range]{padding:0;border:none;background:transparent;accent-color:var(--ambar);height:18px}
+.par{display:flex;gap:.5rem}.par>div{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:.28rem;margin-top:.3rem}
+.chip{font-family:var(--mono);font-size:.69rem;padding:.24rem .48rem;border-radius:2px;
+  border:1px solid var(--borde);color:var(--apagado);cursor:pointer;user-select:none;
+  transition:border-color .12s,color .12s}
+.chip:hover{color:var(--hueso)}
+.chip.on{border-color:var(--ambar);color:var(--ambar)}
+.nota{color:var(--apagado);font-size:.71rem;line-height:1.55;margin:.65rem 0 0}
+.nota code{color:var(--ambar);font-family:var(--mono)}
+button{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--panel2);color:var(--hueso);border:1px solid var(--borde);border-radius:2px;
+  padding:.45rem .7rem;cursor:pointer;width:100%;margin-top:.65rem}
+button:hover{border-color:var(--ambar);color:var(--ambar)}
+.icono{width:26px;height:26px;padding:0;margin:0;display:grid;place-items:center;
+  font-size:.9rem;letter-spacing:0}
+
+/* --------------------------------- principal ------------------------------ */
+main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.marca{display:flex;align-items:center;gap:.9rem;padding:.8rem 1.1rem;
+  border-bottom:1px solid var(--borde)}
+.marca .titulo{font-family:var(--mono);font-size:.74rem;letter-spacing:.2em;
+  text-transform:uppercase;font-weight:600}
+.marca .firma{font-family:var(--mono);font-size:.71rem;color:var(--tenue);
+  letter-spacing:.04em;flex:1}
+.marca .firma em{color:var(--ambar);font-style:normal}
+.kpis{display:flex;gap:1px;background:var(--borde);border-bottom:1px solid var(--borde)}
+.kpi{flex:1;background:var(--tinta);padding:.6rem 1.1rem;min-width:0}
+.kpi span{display:block;font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi b{font-family:var(--mono);font-size:1.3rem;font-weight:500}
+.barra{display:flex;align-items:center;gap:.75rem;padding:.5rem 1.1rem;
+  border-bottom:1px solid var(--borde)}
+.barra input[type=search]{width:230px}
+.barra .sep{flex:1}
+.barra .nota{margin:0;white-space:nowrap}
+
+.tabla-wrap{flex:1;overflow:auto;min-height:100px}
+body.sin-grafico .detalle{display:none}
+main{position:relative}
+.desplegable{position:absolute;right:1.1rem;top:46px;z-index:30;display:none;
+  width:360px;max-height:72vh;overflow:auto;background:var(--panel);
+  border:1px solid var(--borde);border-radius:3px;padding:.85rem .95rem 1rem;
+  box-shadow:0 10px 30px rgba(0,0,0,.55)}
+.desplegable.abierto{display:block}
+.dcab{display:flex;align-items:center;gap:.4rem;padding-bottom:.6rem;
+  border-bottom:1px solid var(--borde);margin-bottom:.6rem}
+.dcab b{flex:1;font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--tenue);font-weight:500}
+.dgrupo{font-family:var(--mono);font-size:.63rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--apagado);margin:.75rem 0 .35rem}
+#btnCols b{color:var(--ambar);font-weight:600}
+.tind{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.75rem}
+.tind td{padding:.3rem .35rem;border-bottom:1px solid rgba(38,48,62,.6);cursor:pointer}
+.tind tr:hover td{background:var(--panel2)}
+.tind tr.sel td{background:var(--panel2);box-shadow:inset 2px 0 0 var(--ambar)}
+.tind .der{text-align:right}
+.tind .verde{display:inline-block;width:44px;height:6px;background:#222C39;
+  vertical-align:middle;border-radius:1px;position:relative}
+.tind .verde i{position:absolute;left:0;top:0;height:100%;background:var(--alcista);border-radius:1px}
+.marca select{width:auto;max-width:190px;font-size:.72rem;padding:.3rem .4rem}
+.estrella{cursor:pointer;color:#39434F;font-size:.95rem;line-height:1;user-select:none}
+.estrella:hover{color:var(--tenue)}
+.estrella.on{color:var(--ambar)}
+.enlace{color:var(--tenue);text-decoration:none;font-family:var(--mono);font-size:.72rem;
+  border:1px solid var(--borde);border-radius:2px;padding:.25rem .5rem}
+.enlace:hover{border-color:var(--ambar);color:var(--ambar)}
+.mini{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;
+  background:none;border:1px solid var(--borde);color:var(--tenue);border-radius:2px;
+  padding:.28rem .55rem;width:auto;margin:0;cursor:pointer}
+.mini:hover{border-color:var(--ambar);color:var(--ambar)}
+table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mono);font-size:.775rem}
+thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-weight:500;
+  font-size:.62rem;letter-spacing:.09em;text-transform:uppercase;text-align:right;
+  padding:.5rem .5rem;border-bottom:1px solid var(--borde);cursor:pointer;
+  white-space:nowrap;z-index:3;user-select:none}
+thead th:hover{color:var(--hueso)}
+thead th.izq{text-align:left}
+thead th.act{color:var(--ambar)}
+tbody td{padding:.34rem .5rem;text-align:right;border-bottom:1px solid rgba(38,48,62,.55);
+  white-space:nowrap}
+tbody td.izq{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--panel2)}
+tbody tr.sel td{background:var(--panel2)}
+tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
+th:first-child,td:first-child{position:sticky;left:0;background:var(--tinta);z-index:2}
+thead th:first-child{z-index:4;background:var(--panel)}
+tbody tr:hover td:first-child,tbody tr.sel td:first-child{background:var(--panel2)}
+.up{color:var(--alcista)}.dn{color:var(--bajista)}.gris{color:var(--apagado)}
+.tk{font-weight:600;letter-spacing:.02em}
+.mon{font-size:.64rem;color:var(--apagado);letter-spacing:.06em}
+.fuerza{display:inline-block;width:52px;height:6px;background:#222C39;position:relative;
+  vertical-align:middle;border-radius:1px}
+.fuerza i{position:absolute;top:0;height:100%;border-radius:1px}
+.fuerza::after{content:'';position:absolute;left:26px;top:-1px;width:1px;height:8px;background:#36424F}
+.vacio{padding:3.5rem 1.1rem;color:var(--tenue);text-align:center;line-height:1.7}
+
+/* --------------------------------- detalle -------------------------------- */
+.detalle{border-top:1px solid var(--borde);background:var(--panel);flex:none;position:relative}
+.detalle .cab{display:flex;align-items:center;gap:.9rem;padding:.5rem 1.1rem}
+.detalle h2{font-family:var(--mono);font-size:.92rem;margin:0;letter-spacing:.05em}
+.detalle .meta{color:var(--tenue);font-size:.73rem;flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.tf{display:flex;gap:.28rem}
+canvas{display:block;width:100%;cursor:crosshair}
+#avisoCarga{display:none;background:#1A2733;border-bottom:1px solid var(--borde);
+  color:var(--hueso);font-family:var(--mono);font-size:.76rem;padding:.5rem 1.1rem}
+#avisoCarga .barra-prog{height:3px;background:#26303E;border-radius:2px;margin-top:.45rem;
+  overflow:hidden}
+#avisoCarga .barra-prog i{display:block;height:100%;background:var(--ambar);width:0;
+  transition:width .3s}
+.check{display:flex;align-items:center;gap:.45rem;color:var(--tenue);font-size:.71rem;
+  margin:.6rem 0 0;cursor:pointer}
+.check input{width:auto;margin:0;accent-color:var(--ambar)}
+#avisoDemo{display:none;background:#3A1A16;border-bottom:1px solid var(--bajista);
+  color:#F0C8C2;font-family:var(--mono);font-size:.76rem;padding:.55rem 1.1rem;
+  letter-spacing:.03em;line-height:1.6}
+#avisoDemo b{color:var(--bajista);letter-spacing:.12em}
+#avisoDemo code{color:var(--ambar)}
+#globo{position:absolute;pointer-events:none;background:#0B0F15;border:1px solid var(--borde);
+  border-radius:2px;padding:.4rem .55rem;font-family:var(--mono);font-size:.7rem;
+  line-height:1.55;white-space:pre;opacity:0;transition:opacity .1s;z-index:9}
+</style>
+</head>
+<body>
+
+<aside><div class="interior">
+  <div class="cabecera-panel">
+    <h1>Screener ASH</h1>
+    <button class="icono" id="btnCerrar" title="Ocultar el panel  ·  tecla [">‹</button>
+  </div>
+
+  <details open><summary>ASH</summary><div class="cuerpo">
+    <label>Indicator Method</label>
+    <select id="ashModo"><option>RSI</option><option>STOCHASTIC</option><option>ADX</option></select>
+    <label>MV</label>
+    <select id="ashMa"><option>EMA</option><option>WMA</option><option>SMA</option>
+      <option>SMMA</option><option>HMA</option><option>ALMA</option></select>
+    <div class="par">
+      <div><label>Period of Evaluation</label><input type="number" id="ashLen" value="16" min="2" max="200"></div>
+      <div><label>Period of Smoothing</label><input type="number" id="ashSmooth" value="4" min="1" max="100"></div>
+    </div>
+    <div class="par" id="almaBox" style="display:none">
+      <div><label>ALMA offset</label><input type="number" id="almaOff" value="0.85" step="0.01" min="0" max="1"></div>
+      <div><label>ALMA sigma</label><input type="number" id="almaSig" value="6" step="0.5" min="1"></div>
+    </div>
+    <p class="nota">La columna ASH es <code>SmthBulls − SmthBears</code> con signo:
+      positiva = la verde por encima de la roja.</p>
+  </div></details>
+
+  <details><summary>Otros indicadores</summary><div class="cuerpo">
+    <label>EMAs</label><div class="chips" id="chipsEma"></div>
+    <div class="par">
+      <div><label>ADR ruedas</label><input type="number" id="adrLen" value="20" min="2"></div>
+      <div><label>RSI período</label><input type="number" id="rsiLen" value="14" min="2"></div>
+    </div>
+    <div class="par">
+      <div><label>ATR período</label><input type="number" id="atrLen" value="14" min="2"></div>
+      <div><label>ADX período</label><input type="number" id="adxLen" value="14" min="2"></div>
+    </div>
+  </div></details>
+
+  <details open><summary>Filtros <span class="cuenta" id="cuentaFiltros"></span></summary>
+  <div class="cuerpo">
+    <label>Volumen promedio 20d (acciones)</label>
+    <input type="number" id="fVol" value="300000" step="50000">
+    <label>Volumen promedio 20d (USD)</label>
+    <input type="number" id="fDVol" value="5000000" step="1000000">
+    <label>Volumen relativo mínimo <b id="lRelVol">off</b></label>
+    <input type="range" id="fRelVol" min="0" max="10" step="0.1" value="0">
+    <label>ADR % mínimo <b id="lAdr">off</b></label>
+    <input type="range" id="fAdr" min="0" max="15" step="0.1" value="0">
+    <div class="par">
+      <div><label>RSI mín</label><input type="number" id="fRsiMin" value="0" min="0" max="100"></div>
+      <div><label>RSI máx</label><input type="number" id="fRsiMax" value="100" min="0" max="100"></div>
+    </div>
+    <label>Precio sobre EMA20</label>
+    <select id="fEma20"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>Precio sobre EMA50</label>
+    <select id="fEma50"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>EMA20 sobre EMA50</label>
+    <select id="fCruce"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>ASH diario positivo</label>
+    <select id="fAshD"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>ASH semanal positivo</label>
+    <select id="fAshW"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>ASH diario creciendo</label>
+    <select id="fAshCrece"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <label>Cruce alcista de hace ≤ N ruedas <b id="lCruce">off</b></label>
+    <input type="range" id="fCruceMax" min="0" max="40" value="0">
+    <label>Precio mínimo (USD)</label><input type="number" id="fPrecio" value="5" step="1">
+    <label>Float máximo ($M) <b id="lFloat">off</b></label>
+    <input type="number" id="fFloat" value="0" step="100">
+    <label>RS rank mínimo <b id="lRs">off</b></label>
+    <input type="range" id="fRs" min="1" max="99" value="1">
+    <button id="btnReset">Limpiar filtros</button>
+  </div></details>
+
+  <details><summary>Grupos <span class="cuenta" id="cuentaGrupos"></span></summary>
+  <div class="cuerpo">
+    <div class="chips" id="chipsGrupo"></div>
+    <button id="btnGrupos">Todos / ninguno</button>
+  </div></details>
+
+  <details><summary>Filtros guardados <span class="cuenta" id="cuentaPerfiles"></span></summary>
+  <div class="cuerpo">
+    <label>Elegir uno</label>
+    <select id="selPerfil"><option value="">—</option></select>
+    <label>Guardar el estado actual como</label>
+    <input type="text" id="nomPerfil" placeholder="momentum semanal">
+    <button id="btnGuardar">Guardar</button>
+    <button id="btnBorrar">Borrar el seleccionado</button>
+    <p class="nota">Guarda los filtros, los parámetros del ASH, las EMAs, los grupos
+      y el orden de la tabla. Los cinco de arriba vienen listos; los tuyos quedan
+      en el almacenamiento del navegador, en esta máquina.</p>
+  </div></details>
+
+  <details open><summary>Datos</summary><div class="cuerpo">
+    <p class="nota" id="infoDatos"></p>
+    <div id="cajaServidor" style="display:none">
+      <label>Historial a descargar</label>
+      <select id="srvPeriodo"><option>2y</option><option selected>3y</option>
+        <option>5y</option><option>10y</option></select>
+      <label class="check"><input type="checkbox" id="srvFund" checked>
+        traer sector, float y market cap</label>
+      <button id="btnActualizar">Actualizar los datos ahora</button>
+      <button id="btnCompleto">Rehacer todo el historial</button>
+      <label class="check"><input type="checkbox" id="srvAuto" checked>
+        al abrir, actualizar solo si están viejos</label>
+    </div>
+    <p class="nota" id="infoFaltantes"></p>
+    <p class="nota" id="cajaArchivo">Este archivo tiene los datos adentro, así que
+      no se actualiza solo. Para que se actualicen con un botón, arrancá con
+      <code>servidor.py</code> (o el acceso directo <code>iniciar</code>).</p>
+    <button id="btnCsv">Bajar la tabla en CSV</button>
+    <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
+      <code>[</code> oculta el panel · <code>G</code> oculta el gráfico<br>
+      <code>Columnas ▾</code> arriba a la derecha elige qué ver<br>
+      <code>/</code> buscar · <code>Esc</code> limpiar la búsqueda<br>
+      <code>↑ ↓</code> mover la selección · <code>F</code> marcar favorito</p>
+  </div></details>
+</div></aside>
+
+<main>
+  <div id="avisoCarga"><span id="txtCarga"></span><div class="barra-prog"><i id="barraCarga"></i></div></div>
+  <div id="avisoDemo"></div>
+  <div class="marca">
+    <button class="icono" id="btnAbrir" title="Mostrar el panel  ·  tecla [">›</button>
+    <span class="titulo">Screener ASH</span>
+    <span class="firma" id="firma"></span>
+    <select id="selRapido" title="Filtros guardados"></select>
+    <div class="tf">
+      <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
+      <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
+      <span class="chip" id="btnInd" title="Ranking de industrias">Industrias ▾</span>
+      <span class="chip" id="btnCols" title="Elegir qué columnas ver">Columnas <b id="cuentaCols"></b> ▾</span>
+    </div>
+  </div>
+  <div class="desplegable" id="panelInd">
+    <div class="dcab">
+      <b>Industrias · ordenadas por fuerza relativa</b>
+      <span class="chip" id="indTodas">Todas</span>
+    </div>
+    <table class="tind" id="tablaInd"></table>
+    <p class="nota">Tocá una para ver sólo esos papeles. <b style="color:var(--tenue)">RS</b>
+      es la mediana de rendimiento a 3 meses de la industria contra las demás;
+      <b style="color:var(--tenue)">verde</b> es qué parte de ella tiene el ASH
+      diario positivo. Sólo se rankean industrias con dos papeles o más.</p>
+  </div>
+  <div class="desplegable" id="panelCols">
+    <div class="dcab">
+      <b>Qué columnas mostrar</b>
+      <span class="chip" id="colEsencial">Las de siempre</span>
+      <span class="chip" id="colTodo">Todas</span>
+    </div>
+    <div id="chipsCols"></div>
+    <p class="nota">La selección se guarda sola y viaja dentro de los filtros
+      guardados.<br><b style="color:var(--tenue)">RS industria</b>: dónde está su
+      industria contra las demás (1 a 99). <b style="color:var(--tenue)">Industria
+      en verde</b>: qué parte de esa industria tiene el ASH diario positivo.</p>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span>En el universo</span><b id="kUni">—</b></div>
+    <div class="kpi"><span>Pasan el filtro</span><b id="kFil">—</b></div>
+    <div class="kpi"><span>ASH diario +</span><b id="kD">—</b></div>
+    <div class="kpi"><span>ASH semanal +</span><b id="kW">—</b></div>
+    <div class="kpi"><span>Los dos +</span><b id="kDW">—</b></div>
+    <div class="kpi"><span>Cruce ≤ 5 ruedas</span><b id="kX">—</b></div>
+  </div>
+  <div class="barra">
+    <input type="search" id="buscar" placeholder="Buscar ticker, nombre o CEDEAR">
+    <span class="nota" id="resumenFiltro"></span>
+    <button class="mini" id="btnCopiar" title="Para pegar en una watchlist">Copiar tickers</button>
+    <button class="mini" id="btnGuardarRapido">Guardar estos filtros</button>
+    <span class="sep"></span>
+    <span class="nota" id="estado"></span>
+  </div>
+  <div class="tabla-wrap"><table id="tabla"><thead></thead><tbody></tbody></table></div>
+  <div class="detalle">
+    <div class="cab">
+      <h2 id="detTicker">—</h2>
+      <div class="meta" id="detMeta"></div>
+      <a class="enlace" id="linkTV" target="_blank" rel="noopener">TradingView ↗</a>
+      <div class="tf">
+        <span class="chip on" data-tf="d">Diario</span>
+        <span class="chip" data-tf="w">Semanal</span>
+        <span class="chip" id="chipCerrarGraf" title="Ocultar el gráfico · tecla G">✕</span>
+      </div>
+    </div>
+    <canvas id="grafico" height="286"></canvas>
+    <div id="globo"></div>
+  </div>
+</main>
+
+<!-- =======================================================================
+     MOTOR — matematica pura, sin DOM. Traduccion a JavaScript de screener.py,
+     incluido el ASH del Pine "Absolute Strength Histogram v2 | jh".
+     Verificado contra la version Python: error relativo maximo 1e-14.
+     ======================================================================= -->
+<script id="motor">
+/* ---------- medias moviles (las seis del Pine) ---------- */
+function sma(x,n){const o=new Array(x.length).fill(NaN);let s=0,malos=0;
+  for(let i=0;i<x.length;i++){const v=x[i];isFinite(v)?s+=v:malos++;
+    if(i>=n){const w=x[i-n];isFinite(w)?s-=w:malos--;}
+    if(i>=n-1&&malos===0)o[i]=s/n;}return o;}
+
+function ema(x,n){const o=new Array(x.length).fill(NaN),a=2/(n+1);let p=NaN;
+  for(let i=0;i<x.length;i++){const v=x[i];if(!isFinite(v)){o[i]=NaN;continue;}
+    p=isFinite(p)?a*v+(1-a)*p:v;o[i]=p;}return o;}
+
+function rma(x,n){const o=new Array(x.length).fill(NaN),a=1/n;let p=NaN;
+  for(let i=0;i<x.length;i++){const v=x[i];if(!isFinite(v)){o[i]=NaN;continue;}
+    p=isFinite(p)?a*v+(1-a)*p:v;o[i]=p;}return o;}
+
+function wma(x,n){const o=new Array(x.length).fill(NaN),den=n*(n+1)/2;
+  for(let i=n-1;i<x.length;i++){let s=0,ok=true;
+    for(let k=0;k<n;k++){const v=x[i-n+1+k];if(!isFinite(v)){ok=false;break;}s+=v*(k+1);}
+    o[i]=ok?s/den:NaN;}return o;}
+
+function alma(x,n,off,sig){const w=[],m=off*(n-1),d=n/sig;let tot=0;
+  for(let i=0;i<n;i++){const p=Math.exp(-((i-m)*(i-m))/(2*d*d));w.push(p);tot+=p;}
+  const o=new Array(x.length).fill(NaN);
+  for(let i=n-1;i<x.length;i++){let s=0,ok=true;
+    for(let k=0;k<n;k++){const v=x[i-n+1+k];if(!isFinite(v)){ok=false;break;}s+=v*w[k];}
+    o[i]=ok?s/tot:NaN;}return o;}
+
+function hma(x,n){const mitad=Math.floor(n/2),raiz=Math.round(Math.sqrt(n));
+  const a=wma(x,mitad),b=wma(x,n),c=x.map((_,i)=>2*a[i]-b[i]);return wma(c,raiz);}
+
+// SMMA tal cual esta escrita en el Pine: NO es recursiva, usa la WMA anterior.
+function smma(x,n){const w=wma(x,n),s=sma(x,n),o=new Array(x.length).fill(NaN);
+  for(let i=0;i<x.length;i++){const p=i>0?w[i-1]:NaN;
+    o[i]=isFinite(p)?(p*(n-1)+x[i])/n:s[i];}return o;}
+
+function ma(tipo,x,n,off,sig){switch(tipo){
+  case'SMA':return sma(x,n);case'EMA':return ema(x,n);case'WMA':return wma(x,n);
+  case'SMMA':return smma(x,n);case'HMA':return hma(x,n);
+  case'ALMA':return alma(x,n,off===undefined?0.85:off,sig===undefined?6:sig);
+  default:throw new Error('MA desconocida: '+tipo);}}
+
+/* ---------- ASH ---------- */
+function calcAsh(b,cfg){
+  const n=b.c.length,L=cfg.length,S=cfg.smooth,T=cfg.ma_type;
+  const bulls=new Array(n).fill(NaN),bears=new Array(n).fill(NaN);
+  if(cfg.modo==='RSI'){
+    for(let i=1;i<n;i++){const d=b.c[i]-b.c[i-1];
+      bulls[i]=.5*(Math.abs(d)+d);bears[i]=.5*(Math.abs(d)-d);}
+  }else if(cfg.modo==='STOCHASTIC'){
+    // el Pine usa el CIERRE para el lowest y el highest, no el maximo/minimo
+    for(let i=L-1;i<n;i++){let mn=Infinity,mx=-Infinity;
+      for(let k=i-L+1;k<=i;k++){if(b.c[k]<mn)mn=b.c[k];if(b.c[k]>mx)mx=b.c[k];}
+      bulls[i]=b.c[i]-mn;bears[i]=mx-b.c[i];}
+  }else{
+    for(let i=1;i<n;i++){const dh=b.h[i]-b.h[i-1],dl=b.l[i-1]-b.l[i];
+      bulls[i]=.5*(Math.abs(dh)+dh);bears[i]=.5*(Math.abs(dl)+dl);}
+  }
+  const o=cfg.alma_offset,g=cfg.alma_sigma;
+  const sb=ma(T,ma(T,bulls,L,o,g),S,o,g), sr=ma(T,ma(T,bears,L,o,g),S,o,g);
+  const h=new Array(n);for(let i=0;i<n;i++)h[i]=sb[i]-sr[i];
+  return {bulls:sb,bears:sr,hist:h};
+}
+
+// (bulls-bears)/(bulls+bears): acotado a [-1,1] y comparable entre tickers
+function ashNorm(bu,be){const t=bu+be;return isFinite(t)&&t!==0?(bu-be)/t:NaN;}
+
+function barrasDesdeCruce(h){let ult=NaN,prev=NaN;
+  for(let i=0;i<h.length;i++){if(!isFinite(h[i]))continue;
+    const s=Math.sign(h[i]);if(isFinite(prev)&&s!==prev)ult=i;prev=s;}
+  return isFinite(ult)?h.length-1-ult:NaN;}
+
+/* ---------- resto de indicadores ---------- */
+function rsi(c,n){const g=[],p=[];
+  for(let i=0;i<c.length;i++){const d=i?c[i]-c[i-1]:NaN;
+    g.push(isFinite(d)?Math.max(d,0):NaN);p.push(isFinite(d)?Math.max(-d,0):NaN);}
+  const G=rma(g,n),P=rma(p,n);
+  return G.map((v,i)=>{const q=P[i];if(!isFinite(v)||!isFinite(q))return NaN;
+    if(q===0)return v===0?50:100;return 100-100/(1+v/q);});}
+
+function trueRange(b){const o=[b.h[0]-b.l[0]];   // como pandas: la 1a barra usa H-L
+  for(let i=1;i<b.c.length;i++)o.push(Math.max(b.h[i]-b.l[i],
+    Math.abs(b.h[i]-b.c[i-1]),Math.abs(b.l[i]-b.c[i-1])));return o;}
+
+function atr(b,n){return rma(trueRange(b),n);}
+
+function adx(b,n){const up=[NaN],dn=[NaN];
+  for(let i=1;i<b.c.length;i++){up.push(b.h[i]-b.h[i-1]);dn.push(b.l[i-1]-b.l[i]);}
+  const p=up.map((u,i)=>(isFinite(u)&&u>dn[i]&&u>0)?u:0),
+        m=dn.map((d,i)=>(isFinite(d)&&d>up[i]&&d>0)?d:0),
+        a=atr(b,n),P=rma(p,n),M=rma(m,n);
+  return rma(P.map((v,i)=>{const pdi=100*v/a[i],mdi=100*M[i]/a[i],s=pdi+mdi;
+    return s?100*Math.abs(pdi-mdi)/s:NaN;}),n);}
+
+// ADR% = promedio(High/Low, n) - 1, en porcentaje. Ignora los gaps.
+function adrPct(b,n){const r=new Array(b.c.length);
+  for(let i=0;i<b.c.length;i++)r[i]=b.h[i]/b.l[i];
+  return sma(r,n).map(v=>100*(v-1));}
+
+/* ---------- barras semanales ---------- */
+function claveSemana(f){const y=Math.floor(f/10000),m=Math.floor(f/100)%100,d=f%100;
+  return Math.floor((Date.UTC(y,m-1,d)/86400000+3)/7);}
+
+function semanal(b){const o={d:[],o:[],h:[],l:[],c:[],v:[]};let k=null;
+  for(let i=0;i<b.c.length;i++){const kk=claveSemana(b.d[i]);
+    if(kk!==k){k=kk;o.d.push(b.d[i]);o.o.push(b.o[i]);o.h.push(b.h[i]);
+      o.l.push(b.l[i]);o.c.push(b.c[i]);o.v.push(b.v[i]);}
+    else{const j=o.c.length-1;o.d[j]=b.d[i];o.h[j]=Math.max(o.h[j],b.h[i]);
+      o.l[j]=Math.min(o.l[j],b.l[i]);o.c[j]=b.c[i];o.v[j]+=b.v[i];}}
+  return o;}
+
+/* ---------- helpers ---------- */
+function ultimo(a){for(let i=a.length-1;i>=0;i--)if(isFinite(a[i]))return a[i];return NaN;}
+function rend(c,k){const i=c.length-1-k;return i>=0?c[c.length-1]/c[i]-1:NaN;}
+function promSimple(a,n){let s=0;const ini=Math.max(0,a.length-n);
+  for(let i=ini;i<a.length;i++)s+=a[i];return s/(a.length-ini);}
+
+/* ---------- parte de la fila que NO depende del ASH ----------
+   Se cachea: mientras no toques ADR/RSI/ATR/ADX/EMAs, no se recalcula. */
+function calcularBase(s,cfg){
+  const b={d:s.d,o:s.o,h:s.h,l:s.l,c:s.c,v:s.v},n=b.c.length,px=b.c[n-1];
+  const dvol=new Array(n);for(let i=0;i<n;i++)dvol[i]=b.c[i]*b.v[i];
+  const vol20=promSimple(b.v,20);
+  const vent=Math.min(n,252);let max52=-Infinity,min52=Infinity;
+  for(let i=n-vent;i<n;i++){if(b.c[i]>max52)max52=b.c[i];if(b.c[i]<min52)min52=b.c[i];}
+  const f={t:s.t,local:s.local||'',grupo:s.g||'',nombre:s.n||'',sector:s.sec||'',
+    industria:s.ind||'',pais:s.pais||'',moneda:s.mon||'USD',precio:px,chg:rend(b.c,1),
+    rsi:ultimo(rsi(b.c,cfg.rsiLen)),adr:ultimo(adrPct(b,cfg.adrLen)),
+    atr_pct:ultimo(atr(b,cfg.atrLen))/px*100,adx:ultimo(adx(b,cfg.adxLen)),
+    perf_1s:rend(b.c,5),perf_1m:rend(b.c,21),perf_3m:rend(b.c,63),
+    perf_6m:rend(b.c,126),perf_12m:rend(b.c,252),
+    dist_max52:px/max52-1,dist_min52:px/min52-1,
+    volumen:b.v[n-1],vol20:vol20,rel_vol:vol20?b.v[n-1]/vol20:NaN,
+    dolar_vol20:promSimple(dvol,20),
+    float_musd:s.fl?s.fl*px/1e6:NaN,rotacion:s.fl?vol20/s.fl:NaN,
+    mcap_musd:s.mc?s.mc/1e6:NaN};
+  for(const e of cfg.emas){const v=ultimo(ema(b.c,e));
+    f['vs_ema'+e]=px/v-1;f['sobre_ema'+e]=px>v;}
+  if(cfg.emas.includes(20)&&cfg.emas.includes(50))
+    f.ema20_sobre_50=ultimo(ema(b.c,20))>ultimo(ema(b.c,50));
+  return f;
+}
+
+/* ---------- parte del ASH: es lo unico que se recalcula al mover el indicador */
+function calcularAsh(s,sem,cfgAsh){
+  const b={d:s.d,o:s.o,h:s.h,l:s.l,c:s.c,v:s.v},n=b.c.length;
+  const A=calcAsh(b,cfgAsh);
+  const dv=A.hist[n-1],dp=A.hist[n-2];
+  const f={ash_d:dv,ash_d_pend:dv-dp,ash_d_norm:ashNorm(A.bulls[n-1],A.bears[n-1]),
+    ash_d_pos:dv>0,ash_d_crece:dv>dp,ash_d_cruce:barrasDesdeCruce(A.hist),
+    serie_d:A.hist.slice(-60).filter(isFinite),
+    ash_w:NaN,ash_w_pend:NaN,ash_w_norm:NaN,ash_w_pos:false,serie_w:[]};
+  if(sem.c.length>=cfgAsh.length+cfgAsh.smooth+8){
+    const W=calcAsh(sem,cfgAsh),m=W.hist.length,w=W.hist[m-1];
+    f.ash_w=w;f.ash_w_pend=w-W.hist[m-2];f.ash_w_norm=ashNorm(W.bulls[m-1],W.bears[m-1]);
+    f.ash_w_pos=w>0;f.ash_w_crece=w>W.hist[m-2];
+    f.serie_w=W.hist.slice(-60).filter(isFinite);
+  }
+  return f;
+}
+
+function pasaFiltros(f,F){
+  const ge=(v,x)=>x===null||(isFinite(v)&&v>=x), le=(v,x)=>x===null||(isFinite(v)&&v<=x);
+  const bo=(v,x)=>x===null||(!!v)===x;
+  return ge(f.vol20,F.vol20)&&ge(f.dolar_vol20,F.dvol20)&&ge(f.rel_vol,F.relVol)&&
+    ge(f.adr,F.adr)&&ge(f.rsi,F.rsiMin)&&le(f.rsi,F.rsiMax)&&
+    bo(f.sobre_ema20,F.ema20)&&bo(f.sobre_ema50,F.ema50)&&bo(f.ema20_sobre_50,F.cruce)&&
+    bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
+    (F.cruceMax===null||(f.ash_d>0&&isFinite(f.ash_d_cruce)&&f.ash_d_cruce<=F.cruceMax))&&
+    ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin);
+}
+if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
+  ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,pasaFiltros};
+</script>
+
+<!-- Datos: los inyecta generar_html.py -->
+<script id="datos">
+let DATOS = /*__DATOS__*/ {fecha:"", simbolos:[]};
+</script>
+
+<!-- ======================================================================= -->
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const EMAS_DISP=[8,10,20,21,50,100,150,200];
+let emasOn=[20,50], gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
+    seleccion=null, tfDetalle='d', filas=[], visibles=[],
+    cacheBase=new Map(), cacheSem=new Map(), claveBase='',
+    favoritos=new Set(), soloFav=false, memoAsh=new Map(), industriaSel=null;
+
+/* Filtros listos para usar. Son los mismos controles de la izquierda: cada
+   clave es el id de un control y su valor lo que se le pone. */
+const PRESETS={
+ 'Tendencia limpia':{fEma20:'1',fEma50:'1',fCruce:'1',fAshD:'1',fAshW:'1',fDVol:'10000000'},
+ 'Cruce fresco de ASH':{fAshD:'1',fCruceMax:'5',fEma50:'1',fDVol:'5000000'},
+ 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fEma50:'1',fRsiMax:'45',fDVol:'5000000'},
+ 'Se mueve y es líquido':{fAdr:'3',fDVol:'20000000',fVol:'500000'},
+ 'Fuerza relativa top':{fRs:'80',fEma50:'1',fAshW:'1',fDVol:'5000000'},
+};
+const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
+ fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',
+ fPrecio:'0',fFloat:'0',fRs:'1'};
+
+/* ---------- formato ---------- */
+function fechaCorta(f){if(!f)return '—';const t=String(f);
+  return t.slice(6,8)+'/'+t.slice(4,6)+'/'+t.slice(0,4);}
+const num=(v,d)=>isFinite(v)?v.toFixed(d):'';
+const pct=v=>isFinite(v)?(v*100).toFixed(1)+'%':'';
+const miles=v=>isFinite(v)?Math.round(v).toLocaleString('es-AR'):'';
+const pct1=v=>isFinite(v)?(v*100).toFixed(0)+'%':'';
+/* Cuatro estados, en un numero para que la columna se pueda ordenar:
+    2 verde arriba y separandose   ·   1 verde arriba pero cerrandose
+   -1 roja arriba pero cediendo    ·  -2 roja arriba y separandose        */
+function tendencia(v){
+  if(!isFinite(v))return '';
+  const t={2:['alcista ▲','up'],1:['alcista ▽','up'],
+           '-1':['bajista △','dn'],'-2':['bajista ▼','dn']}[v];
+  return t?`<span class="${t[1]}">${t[0]}</span>`:'';
+}
+function barra(v){if(!isFinite(v))return '';
+  const w=Math.abs(v)*26,x=v>=0?26:26-w;
+  return `<span class="fuerza"><i style="left:${x}px;width:${w}px;background:${
+    v>=0?'var(--alcista)':'var(--bajista)'}"></i></span>`;}
+function chispa(s){
+  if(!s||s.length<2)return '';
+  const w=60,h=17;let mx=0;for(const v of s)if(Math.abs(v)>mx)mx=Math.abs(v);
+  if(!mx)mx=1;
+  const pts=s.map((v,i)=>`${(i/(s.length-1)*w).toFixed(1)},${(h/2-v/mx*(h/2-1)).toFixed(1)}`).join(' ');
+  const c=s[s.length-1]>=0?'#4FB286':'#CF4B3E';
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle">`+
+    `<line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="#26303E"/>`+
+    `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.3"/></svg>`;}
+
+/* ---------- columnas ---------- */
+const COLS=[
+  {k:'fav',    t:'★',      izq:1, def:1, nosel:1,
+   fmt:(v,f)=>`<span class="estrella ${favoritos.has(f.t)?'on':''}" data-fav="${f.t}">${
+     favoritos.has(f.t)?'★':'☆'}</span>`},
+  {k:'t',      t:'Ticker', izq:1, def:1, nosel:1, fmt:v=>`<span class="tk">${v}</span>`},
+  {k:'local',  t:'CEDEAR', izq:1, def:1, fmt:v=>v?`<span class="gris">${v.replace('.BA','')}</span>`:''},
+  {k:'moneda', t:'Mon',    izq:1, def:1, fmt:v=>`<span class="mon">${v}</span>`},
+  {k:'grupo',  t:'Grupo',  izq:1, def:1, fmt:v=>`<span class="gris">${v||''}</span>`},
+  {k:'sector', t:'Sector', izq:1, def:1, fmt:v=>`<span class="gris">${v||''}</span>`},
+  {k:'industria',t:'Industria',izq:1, fmt:v=>`<span class="gris">${v||''}</span>`},
+  {k:'precio', t:'Precio', def:1, fmt:v=>num(v,2)},
+  {k:'chg',    t:'Chg %',  def:1, fmt:pct, color:1},
+  // --- ASH ---
+  {k:'ash_d',  t:'ASH D',  def:1, fmt:v=>num(v,4), color:1},
+  {k:'ash_tend',t:'Tendencia D', def:1, izq:1, fmt:tendencia},
+  {k:'ash_w',  t:'ASH W',  def:1, fmt:v=>num(v,4), color:1},
+  {k:'ash_w_tend',t:'Tendencia W', def:1, izq:1, fmt:tendencia},
+  {k:'ash_d_norm',t:'Fuerza',def:1, fmt:barra},
+  {k:'ash_d_cruce',t:'Barras',def:1, fmt:v=>isFinite(v)?v:''},
+  {k:'ash_d_pend',t:'ASH D pend', fmt:v=>num(v,4), color:1},
+  {k:'serie_d',t:'Cinta D',fmt:chispa},
+  {k:'serie_w',t:'Cinta W',fmt:chispa},
+  // --- industria ---
+  {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
+  {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
+  {k:'n_ind',  t:'Papeles ind.', fmt:v=>isFinite(v)?v:''},
+  {k:'rs_sector',t:'RS sector', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
+  {k:'breadth_sec',t:'Sector en verde', fmt:pct1},
+  // --- momentum ---
+  {k:'rsi',    t:'RSI',    def:1, fmt:v=>num(v,1)},
+  {k:'adr',    t:'ADR %',  def:1, fmt:v=>num(v,2)},
+  {k:'atr_pct',t:'ATR %',  fmt:v=>num(v,2)},
+  {k:'adx',    t:'ADX',    fmt:v=>num(v,1)},
+  {k:'__emas', t:'vs EMAs', def:1},
+  {k:'dist_max52',t:'Desde máx 52s',def:1, fmt:pct},
+  {k:'dist_min52',t:'Sobre mín 52s',fmt:pct},
+  {k:'perf_1m',t:'1 mes',  fmt:pct, color:1},
+  {k:'perf_3m',t:'3 meses',def:1, fmt:pct, color:1},
+  {k:'perf_12m',t:'12 meses',fmt:pct, color:1},
+  {k:'rs_rank',t:'RS',     def:1, fmt:v=>isFinite(v)?Math.round(v):''},
+  // --- volumen y tamaño (apagadas por defecto) ---
+  {k:'rel_vol',t:'Rel vol',fmt:v=>num(v,2)},
+  {k:'vol20',  t:'Vol 20d',fmt:miles},
+  {k:'dolar_vol20',t:'$ Vol 20d',fmt:miles},
+  {k:'float_musd',t:'Float $M',fmt:miles},
+  {k:'rotacion',t:'Rot float',fmt:v=>num(v,3)},
+  {k:'mcap_musd',t:'Cap $M',fmt:miles},
+];
+const COLS_DEF=COLS.filter(c=>c.def).map(c=>c.k);
+let colsOn=new Set(COLS_DEF);
+
+
+/* ---------- estado desde los controles ---------- */
+function config(){
+  const t=$('#ashMa').value;
+  $('#almaBox').style.display=t==='ALMA'?'flex':'none';
+  return {ash:{modo:$('#ashModo').value,ma_type:t,length:+$('#ashLen').value,
+      smooth:+$('#ashSmooth').value,alma_offset:+$('#almaOff').value,alma_sigma:+$('#almaSig').value},
+    emas:emasOn.slice().sort((a,b)=>a-b),
+    adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
+    atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value};
+}
+const val=id=>{const v=$(id).value;return v===''?null:+v;};
+const tri=id=>{const v=$(id).value;return v===''?null:v==='1';};
+function filtros(){return{
+  vol20:val('#fVol')||null, dvol20:val('#fDVol')||null, relVol:val('#fRelVol')||null,
+  adr:val('#fAdr')||null, rsiMin:val('#fRsiMin')||null,
+  rsiMax:val('#fRsiMax')===100?null:val('#fRsiMax'),
+  ema20:tri('#fEma20'), ema50:tri('#fEma50'), cruce:tri('#fCruce'),
+  ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
+  cruceMax:val('#fCruceMax')||null, precio:val('#fPrecio')||null,
+  floatMax:val('#fFloat')||null, rsMin:val('#fRs')===1?null:val('#fRs')};}
+
+/* ---------- calculo ----------
+   Dos capas de cache: la base (RSI, ADR, EMAs, volumen...) sobrevive mientras
+   no toques sus periodos; el ASH se recalcula siempre, que es lo que estas
+   moviendo. Por eso cambiar un filtro no recalcula nada. */
+function recalcular(){
+  const t0=performance.now(), cfg=config();
+  const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,cfg.emas.join('-')].join('|');
+  if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
+
+  const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
+  const bp=bench?rend(bench.c,63):NaN;
+
+  /* Memo por configuracion de ASH: si volvés a 16/4/EMA despues de probar otra
+     cosa, no se recalcula nada. Se guardan las ultimas cuatro. */
+  const claveAsh=JSON.stringify(cfg.ash);
+  let mem=memoAsh.get(claveAsh);
+  if(!mem){mem=new Map();memoAsh.set(claveAsh,mem);
+    while(memoAsh.size>4)memoAsh.delete(memoAsh.keys().next().value);}
+
+  filas=[];
+  for(const s of DATOS.simbolos){
+    try{
+      let base=cacheBase.get(s.t);
+      if(!base){base=calcularBase(s,cfg);cacheBase.set(s.t,base);}
+      let sem=cacheSem.get(s.t);
+      if(!sem){sem=semanal(s);cacheSem.set(s.t,sem);}
+      let ash=mem.get(s.t);
+      if(!ash){ash=calcularAsh(s,sem,cfg.ash);mem.set(s.t,ash);}
+      const f=Object.assign({},base,ash);
+      f.rs_3m=isFinite(bp)?f.perf_3m-bp:NaN;
+      filas.push(f);
+    }catch(e){console.warn(s.t,e);}
+  }
+  const ord=filas.filter(f=>isFinite(f.perf_3m)).sort((a,b)=>a.perf_3m-b.perf_3m);
+  ord.forEach((f,i)=>f.rs_rank=Math.round((i+1)/ord.length*98+1));
+
+  // tendencia del ASH en cuatro estados, ordenable
+  for(const f of filas){
+    f.ash_tend=isFinite(f.ash_d)?(f.ash_d>0?(f.ash_d_pend>0?2:1):(f.ash_d_pend>0?-1:-2)):NaN;
+    f.ash_w_tend=isFinite(f.ash_w)?(f.ash_w>0?(f.ash_w_pend>0?2:1):(f.ash_w_pend>0?-1:-2)):NaN;
+  }
+  agregarPorGrupo('industria','rs_ind','breadth_ind','n_ind');
+  agregarPorGrupo('sector','rs_sector','breadth_sec','n_sec');
+  aplicar(performance.now()-t0);
+}
+
+/* Fuerza relativa de la industria (o del sector) y cuanto de ella esta en verde.
+   Un papel fuerte en una industria que se cae suele ser una trampa; una industria
+   con la mayoria del ASH en verde es viento a favor. */
+function agregarPorGrupo(campo,claveRS,claveBreadth,claveN){
+  const grupos=new Map();
+  for(const f of filas){
+    const k=f[campo];if(!k)continue;
+    let g=grupos.get(k);
+    if(!g){g={perf:[],pos:0,n:0};grupos.set(k,g);}
+    if(isFinite(f.perf_3m))g.perf.push(f.perf_3m);
+    if(f.ash_d>0)g.pos++;
+    g.n++;
+  }
+  const rankeables=[...grupos.values()].filter(g=>g.perf.length>=2);
+  rankeables.forEach(g=>{const a=g.perf.slice().sort((x,y)=>x-y),m=a.length>>1;
+    g.med=a.length%2?a[m]:(a[m-1]+a[m])/2;});
+  rankeables.sort((a,b)=>a.med-b.med);
+  rankeables.forEach((g,i)=>g.rs=Math.round((i+1)/rankeables.length*98+1));
+  for(const f of filas){
+    const g=grupos.get(f[campo]);
+    f[claveRS]=g&&isFinite(g.rs)?g.rs:NaN;
+    f[claveBreadth]=g&&g.n?g.pos/g.n:NaN;
+    f[claveN]=g?g.n:NaN;
+  }
+}
+
+function aplicar(ms){
+  const F=filtros(), q=$('#buscar').value.trim().toUpperCase();
+  visibles=filas.filter(f=>pasaFiltros(f,F)
+    &&(!industriaSel||f.industria===industriaSel)
+    &&(!soloFav||favoritos.has(f.t))
+    &&(!gruposOn.size||gruposOn.has(f.grupo))
+    &&(!q||f.t.includes(q)||(f.local||'').includes(q)||(f.nombre||'').toUpperCase().includes(q)));
+  const s=orden.col, dir=orden.asc?1:-1;
+  visibles.sort((a,b)=>{const x=a[s],y=b[s];
+    if(typeof x==='string')return dir*String(x).localeCompare(String(y));
+    const xx=isFinite(x)?x:-Infinity, yy=isFinite(y)?y:-Infinity;return dir*(xx-yy);});
+
+  $('#kUni').textContent=filas.length;
+  $('#kFil').textContent=visibles.length;
+  $('#kD').textContent=visibles.filter(f=>f.ash_d>0).length;
+  $('#kW').textContent=visibles.filter(f=>f.ash_w>0).length;
+  $('#kDW').textContent=visibles.filter(f=>f.ash_d>0&&f.ash_w>0).length;
+  $('#kX').textContent=visibles.filter(f=>f.ash_d>0&&f.ash_d_cruce<=5).length;
+  if(ms!==undefined)$('#estado').textContent=`recalculado en ${ms.toFixed(0)} ms`;
+  const c=config();
+  $('#firma').innerHTML=`<em>${c.ash.modo} · ${c.ash.length}/${c.ash.smooth} · ${c.ash.ma_type}</em>`+
+    ` · ${DATOS.simbolos.length} símbolos · último cierre ${fechaCorta(DATOS.ultimo_cierre)}`+
+    (DATOS.demo?' · <span style="color:var(--bajista)">DATOS DE PRUEBA</span>':'');
+  const act=Object.entries(F).filter(([,v])=>v!==null).length;
+  $('#cuentaFiltros').textContent=act?act:'';
+  $('#resumenFiltro').textContent=(industriaSel?industriaSel+' · ':'')+
+    (act?`${act} filtro${act>1?'s':''} activo${act>1?'s':''}`:'sin filtros');
+  $('#btnInd').classList.toggle('on',!!industriaSel);
+  $('#cuentaGrupos').textContent=gruposOn.size?gruposOn.size:'';
+  render();
+}
+
+/* ---------- tabla ---------- */
+function columnas(){
+  const emaCols=config().emas.map(e=>({k:'vs_ema'+e,t:'vs EMA'+e,fmt:pct,color:1}));
+  const out=[];
+  for(const c of COLS){
+    if(c.k==='__emas'){if(colsOn.has('__emas'))out.push(...emaCols);continue;}
+    if(c.nosel||colsOn.has(c.k))out.push(c);
+  }
+  return out;
+}
+
+const GRUPOS_COL=[
+  ['Identificación',['local','moneda','grupo','sector','industria','precio','chg']],
+  ['ASH',['ash_d','ash_tend','ash_w','ash_w_tend','ash_d_norm','ash_d_cruce',
+          'ash_d_pend','serie_d','serie_w']],
+  ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
+  ['Momentum y tendencia',['rsi','adr','atr_pct','adx','__emas','dist_max52',
+          'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
+  ['Volumen y tamaño',['rel_vol','vol20','dolar_vol20','float_musd','rotacion','mcap_musd']],
+];
+
+function montarColumnas(){
+  const titulo={};COLS.forEach(c=>titulo[c.k]=c.t);
+  const usados=new Set();
+  let html='';
+  for(const [nombre,claves] of GRUPOS_COL){
+    const chips=claves.filter(k=>titulo[k]).map(k=>{usados.add(k);
+      return `<span class="chip ${colsOn.has(k)?'on':''}" data-v="${k}">${titulo[k]}</span>`;});
+    if(chips.length)html+=`<div class="dgrupo">${nombre}</div><div class="chips">${chips.join('')}</div>`;
+  }
+  const sueltas=COLS.filter(c=>!c.nosel&&!usados.has(c.k));
+  if(sueltas.length)html+='<div class="dgrupo">Otras</div><div class="chips">'+
+    sueltas.map(c=>`<span class="chip ${colsOn.has(c.k)?'on':''}" data-v="${c.k}">${c.t}</span>`).join('')+'</div>';
+  const cont=$('#chipsCols');
+  cont.innerHTML=html;
+  cont.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;
+    c.classList.toggle('on');
+    c.classList.contains('on')?colsOn.add(c.dataset.v):colsOn.delete(c.dataset.v);
+    render();guardarSesion();};
+  $('#cuentaCols').textContent=colsOn.size;
+}
+
+function montarIndustrias(){
+  const g=new Map();
+  for(const f of filas){
+    const k=f.industria;if(!k)continue;
+    let x=g.get(k);
+    if(!x){x={n:0,pos:0,rs:f.rs_ind,sector:f.sector};g.set(k,x);}
+    x.n++;if(f.ash_d>0)x.pos++;
+  }
+  const lista=[...g.entries()].sort((a,b)=>(b[1].rs||0)-(a[1].rs||0));
+  $('#tablaInd').innerHTML=lista.length?lista.map(([nombre,x])=>{
+    const verde=x.n?x.pos/x.n:0;
+    return `<tr class="${industriaSel===nombre?'sel':''}" data-ind="${nombre}">`+
+      `<td>${nombre}</td>`+
+      `<td class="der gris">${x.n}</td>`+
+      `<td class="der">${isFinite(x.rs)?Math.round(x.rs):'—'}</td>`+
+      `<td class="der"><span class="verde"><i style="width:${(verde*44).toFixed(0)}px"></i></span>`+
+      ` ${(verde*100).toFixed(0)}%</td></tr>`;}).join('')
+    : '<tr><td class="gris">Los datos no traen industria. Bajalos con los '+
+      'fundamentales activados para que aparezca.</td></tr>';
+}
+
+function elegirIndustria(nombre){
+  industriaSel=(industriaSel===nombre)?null:nombre;
+  montarIndustrias();aplicar();
+}
+
+function verPanelInd(abrir){
+  if(abrir)montarIndustrias();
+  $('#panelInd').classList.toggle('abierto',abrir);
+}
+
+function verPanelCols(abrir){
+  $('#panelCols').classList.toggle('abierto',abrir);
+  $('#btnCols').classList.toggle('on',abrir);
+}
+
+function ponerColumnas(lista){
+  colsOn=new Set(lista);montarColumnas();render();guardarSesion();
+}
+
+function render(){
+  marcarAtajoColumnas();
+  const usar=columnas();
+  $('#tabla thead').innerHTML='<tr>'+usar.map(c=>
+    `<th class="${c.izq?'izq':''} ${orden.col===c.k?'act':''}" data-k="${c.k}" title="${c.t}">${
+      c.t}${orden.col===c.k?(orden.asc?' ↑':' ↓'):''}</th>`).join('')+'</tr>';
+  if(!visibles.length){
+    $('#tabla tbody').innerHTML=`<tr><td colspan="${usar.length}" class="vacio">`+
+      'Ningún símbolo pasa estos filtros.<br>'+
+      'Probá <b>Limpiar filtros</b> en el panel, o aflojá el volumen mínimo.</td></tr>';
+    return;}
+  const html=new Array(visibles.length);
+  for(let i=0;i<visibles.length;i++){
+    const f=visibles[i];let fila='<tr data-i="'+i+'" class="'+(seleccion===f.t?'sel':'')+'">';
+    for(const c of usar){const v=f[c.k];let cls=c.izq?'izq':'';
+      if(c.color&&isFinite(v))cls+=v>0?' up':(v<0?' dn':'');
+      fila+=`<td class="${cls}">${c.fmt?c.fmt(v,f):(v==null?'':v)}</td>`;}
+    html[i]=fila+'</tr>';}
+  $('#tabla tbody').innerHTML=html.join('');
+  if(!visibles.find(f=>f.t===seleccion))seleccionar(visibles[0].t);
+  else dibujar();
+}
+
+function seleccionar(t,traer){
+  seleccion=t;guardarSesion();
+  $$('#tabla tbody tr').forEach((tr,i)=>tr.classList.toggle('sel',visibles[i]&&visibles[i].t===t));
+  if(traer){const tr=$$('#tabla tbody tr')[visibles.findIndex(f=>f.t===t)];
+    if(tr&&tr.scrollIntoView)tr.scrollIntoView({block:'nearest'});}
+  dibujar();
+}
+
+function moverSeleccion(paso){
+  const i=visibles.findIndex(f=>f.t===seleccion);
+  const j=Math.max(0,Math.min(visibles.length-1,(i<0?0:i)+paso));
+  if(visibles[j])seleccionar(visibles[j].t,true);
+}
+
+/* ---------- grafico ---------- */
+let ctxGraf=null;   // guarda escalas y series para el crosshair
+
+function dibujar(cursor){
+  if(document.body.classList.contains('sin-grafico'))return;   // oculto: ni se calcula
+  const s=DATOS.simbolos.find(x=>x.t===seleccion), f=filas.find(x=>x.t===seleccion);
+  if(!s)return;
+  $('#detTicker').textContent=s.t+(s.local?'  ·  '+s.local.replace('.BA','')+' (CEDEAR)':'');
+  const base=s.t.split('.')[0].replace('-','.');
+  $('#linkTV').href='https://www.tradingview.com/chart/?symbol='+encodeURIComponent(base);
+  $('#linkTV').title='Abrir '+base+' en TradingView';
+  $('#detMeta').textContent=[s.n,s.sec,s.mon&&s.mon!=='USD'?'cotiza en '+s.mon:'',
+    f&&isFinite(f.adr)?'ADR '+f.adr.toFixed(2)+'%':''].filter(Boolean).join('  ·  ');
+
+  let b=(tfDetalle==='w')?(cacheSem.get(s.t)||semanal(s)):s;
+  const N=Math.min(b.c.length,220), ini=b.c.length-N, cfg=config();
+  const A=calcAsh(b,cfg.ash), cor=k=>k.slice(ini);
+  const D=cor(b.d),O=cor(b.o),H=cor(b.h),L=cor(b.l),C=cor(b.c),
+        BU=cor(A.bulls),BE=cor(A.bears),HI=cor(A.hist);
+  const emaS=cfg.emas.map(e=>({n:e,v:cor(ema(b.c,e))}));
+
+  const cv=$('#grafico'), dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth||900, Hpx=286;
+  cv.width=W*dpr;cv.height=Hpx*dpr;cv.style.height=Hpx+'px';
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,Hpx);
+
+  const pad=48,h1=168,h2=88,gap=12,x0=8,x1=W-pad;
+  const paso=(x1-x0)/N, ancho=Math.max(1,Math.min(9,paso*.6));
+  const C_={bd:'#26303E',tn:'#5C6878',up:'#4FB286',dn:'#CF4B3E',am:'#E0A458',hu:'#E9E5DB'};
+  const EMACOL=['#E0A458','#8492A5','#7A6FF0','#4FB2C9','#C97AB8','#9BB868'];
+  const esc=(v,mn,mx,y0,alto)=>y0+alto*(1-(v-mn)/(mx-mn||1));
+
+  function grilla(y0,alto,mn,mx,fmt){
+    g.font='10px ui-monospace,monospace';g.textAlign='left';
+    for(let i=0;i<=4;i++){const y=y0+alto*i/4,v=mx-(mx-mn)*i/4;
+      g.strokeStyle=C_.bd;g.beginPath();g.moveTo(x0,y+.5);g.lineTo(x1,y+.5);g.stroke();
+      g.fillStyle=C_.tn;g.fillText(fmt(v),x1+6,y+3);}}
+
+  // ---- panel de precio
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<N;i++){if(L[i]<mn)mn=L[i];if(H[i]>mx)mx=H[i];}
+  emaS.forEach(e=>e.v.forEach(v=>{if(isFinite(v)){if(v<mn)mn=v;if(v>mx)mx=v;}}));
+  const m=(mx-mn)*.06;mn-=m;mx+=m;
+  grilla(8,h1,mn,mx,v=>v.toFixed(v>200?0:2));
+  for(let i=0;i<N;i++){
+    const x=x0+paso*(i+.5),col=C[i]>=O[i]?C_.up:C_.dn;
+    g.strokeStyle=col;g.fillStyle=col;g.lineWidth=1;
+    g.beginPath();g.moveTo(x,esc(H[i],mn,mx,8,h1));g.lineTo(x,esc(L[i],mn,mx,8,h1));g.stroke();
+    const ya=esc(Math.max(O[i],C[i]),mn,mx,8,h1),yb=esc(Math.min(O[i],C[i]),mn,mx,8,h1);
+    g.fillRect(x-ancho/2,ya,ancho,Math.max(1,yb-ya));}
+  emaS.forEach((e,k)=>{g.strokeStyle=EMACOL[k%EMACOL.length];g.lineWidth=1.3;
+    g.beginPath();let p=true;
+    e.v.forEach((v,i)=>{if(!isFinite(v))return;const x=x0+paso*(i+.5),y=esc(v,mn,mx,8,h1);
+      p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();
+    g.fillStyle=EMACOL[k%EMACOL.length];g.font='10px ui-monospace,monospace';
+    g.textAlign='left';g.fillText('EMA '+e.n,x0+6+k*52,20);});
+
+  // ---- panel del ASH
+  const y2=8+h1+gap;
+  let a=Infinity,z=-Infinity;
+  for(const arr of [BU,BE,HI])for(const v of arr){if(!isFinite(v))continue;
+    if(v<a)a=v;if(v>z)z=v;}
+  // El cero SIEMPRE entra en la escala: si no, la linea base queda fuera del
+  // panel y las barras del histograma se dibujan por encima de las fechas.
+  a=Math.min(a,0);z=Math.max(z,0);
+  const mm=(z-a)*.08;a-=mm;z+=mm;
+  grilla(y2,h2,a,z,v=>v.toFixed(2));
+  const cero=esc(0,a,z,y2,h2);
+  g.strokeStyle='#36424F';g.beginPath();g.moveTo(x0,cero);g.lineTo(x1,cero);g.stroke();
+  g.save();g.beginPath();g.rect(x0-2,y2-1,x1-x0+4,h2+2);g.clip();
+  for(let i=0;i<N;i++){if(!isFinite(HI[i]))continue;
+    const x=x0+paso*(i+.5),y=esc(HI[i],a,z,y2,h2);
+    g.fillStyle=HI[i]>=0?'rgba(79,178,134,.4)':'rgba(207,75,62,.4)';
+    g.fillRect(x-ancho/2,Math.min(y,cero),ancho,Math.abs(y-cero));}
+  g.restore();
+  [[BU,C_.up],[BE,C_.dn]].forEach(([se,col])=>{g.strokeStyle=col;g.lineWidth=1.8;
+    g.beginPath();let p=true;
+    se.forEach((v,i)=>{if(!isFinite(v))return;const x=x0+paso*(i+.5),y=esc(v,a,z,y2,h2);
+      p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();});
+  g.fillStyle=C_.tn;g.font='10px ui-monospace,monospace';g.textAlign='left';
+  g.fillText('ASH  bulls / bears / diferencia',x0+6,y2+12);
+
+  // ---- fechas
+  const fecha=v=>{const t=String(v);return t.slice(6,8)+'/'+t.slice(4,6)+'/'+t.slice(2,4);};
+  g.fillStyle=C_.tn;g.textAlign='center';
+  for(let i=0;i<5;i++){const j=Math.round(i*(N-1)/4);
+    g.fillText(fecha(D[j]),x0+paso*(j+.5),Hpx-4);}
+
+  ctxGraf={N,x0,paso,D,O,H,L,C,BU,BE,HI,mn,mx,a,z,h1,h2,y2,W,Hpx,emaS};
+
+  // ---- crosshair
+  const globo=$('#globo');
+  if(cursor&&cursor.i>=0&&cursor.i<N){
+    const i=cursor.i,x=x0+paso*(i+.5);
+    g.strokeStyle='rgba(224,164,88,.5)';g.setLineDash([3,3]);g.lineWidth=1;
+    g.beginPath();g.moveTo(x,8);g.lineTo(x,y2+h2);g.stroke();g.setLineDash([]);
+    globo.style.opacity=1;
+    globo.style.left=Math.min(W-190,cursor.x+14)+'px';
+    globo.style.top='34px';
+    globo.innerHTML=`<b>${fecha(D[i])}</b>\n`+
+      `O ${O[i].toFixed(2)}  H ${H[i].toFixed(2)}\n`+
+      `L ${L[i].toFixed(2)}  C ${C[i].toFixed(2)}\n`+
+      `<span style="color:${C_.up}">bulls ${BU[i].toFixed(4)}</span>\n`+
+      `<span style="color:${C_.dn}">bears ${BE[i].toFixed(4)}</span>\n`+
+      `<span style="color:${HI[i]>=0?C_.up:C_.dn}">ASH   ${HI[i].toFixed(4)}</span>`;
+  }else globo.style.opacity=0;
+}
+
+/* ---------- chips ---------- */
+function chips(cont,valores,activos,cb){
+  const on=v=>activos.has?activos.has(v):activos.includes(v);
+  cont.innerHTML=valores.map(v=>`<span class="chip ${on(v)?'on':''}" data-v="${v}">${v}</span>`).join('');
+  cont.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;
+    c.classList.toggle('on');cb(c.dataset.v,c.classList.contains('on'));};
+}
+
+/* ---------- perfiles ---------- */
+const CLAVE='screener_ash_perfiles';
+/* Algunos navegadores bloquean localStorage cuando el archivo se abre desde el
+   disco (file://). No es motivo para que la pagina deje de funcionar: si falla,
+   simplemente no se guardan los perfiles. */
+const memoria={};
+const leerLS=k=>{try{return localStorage.getItem(k)}catch(e){return memoria[k]??null}};
+const escribirLS=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){memoria[k]=v}};
+const leerPerfiles=()=>{try{return JSON.parse(leerLS(CLAVE))||{}}catch(e){return{}}};
+function pintarPerfiles(){
+  const mios=leerPerfiles();
+  const html='<option value="0">— sin filtros —</option>'+
+    '<optgroup label="listos para usar">'+
+      Object.keys(PRESETS).map(k=>`<option value="p:${k}">${k}</option>`).join('')+
+    '</optgroup>'+
+    (Object.keys(mios).length?'<optgroup label="los tuyos">'+
+      Object.keys(mios).map(k=>`<option value="m:${k}">${k}</option>`).join('')+
+      '</optgroup>':'');
+  $('#selPerfil').innerHTML=html;
+  $('#selRapido').innerHTML=html;
+  $('#cuentaPerfiles').textContent=Object.keys(mios).length||'';
+}
+
+function ponerValores(obj,desdeCero){
+  if(desdeCero)Object.entries(NEUTRO).forEach(([k,v])=>{if($('#'+k))$('#'+k).value=v;});
+  Object.entries(obj).forEach(([k,v])=>{if(k[0]!=='_'&&$('#'+k))$('#'+k).value=v;});
+}
+
+function elegirPerfil(valor){
+  if(!valor)return;
+  if(valor==='0'){$('#btnReset').click();return;}
+  $('#selPerfil').value=valor;$('#selRapido').value=valor;
+  const [tipo,nombre]=[valor.slice(0,1),valor.slice(2)];
+  if(tipo==='p'){ponerValores(PRESETS[nombre],true);etiquetas();aplicar();guardarSesion();}
+  else{const p=leerPerfiles()[nombre];if(p)aplicarEstado(p);}
+}
+function estadoActual(){const o={};
+  $$('aside input, aside select').forEach(el=>{
+    if(el.id&&el.type!=='search'&&!['nomPerfil','selPerfil','srvPeriodo','srvFund','srvAuto']
+      .includes(el.id))o[el.id]=el.value;});
+  o._emas=emasOn.slice();o._grupos=[...gruposOn];
+  o._orden={...orden};o._cols=[...colsOn];o._fav=soloFav;o._sel=seleccion;
+  return o;}
+function aplicarEstado(o){
+  ponerValores(o,true);
+  if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
+  if(o._grupos)gruposOn=new Set(o._grupos);
+  if(o._orden)orden={...o._orden};
+  if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
+  if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
+  montarChips();montarColumnas();etiquetas();recalcular();guardarSesion();}
+
+/* ---------- la sesion se recuerda sola ---------- */
+const SESION='screener_ash_sesion';
+let guardaSesion=null;
+function guardarSesion(){clearTimeout(guardaSesion);
+  guardaSesion=setTimeout(()=>{try{escribirLS(SESION,JSON.stringify(estadoActual()))}catch(e){}},400);}
+function restaurarSesion(){
+  try{const o=JSON.parse(leerLS(SESION));if(!o)return false;
+    ponerValores(o,false);
+    if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
+    if(o._grupos)gruposOn=new Set(o._grupos);
+    if(o._orden&&o._orden.col)orden={...o._orden};
+    if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
+    if(typeof o._fav==='boolean')soloFav=o._fav;
+    if(o._sel)seleccion=o._sel;
+    return true;}catch(e){return false;}
+}
+
+/* ---------- favoritos ---------- */
+const FAVS='screener_ash_favoritos';
+function cargarFavoritos(){
+  try{favoritos=new Set(JSON.parse(leerLS(FAVS))||[]);}catch(e){favoritos=new Set();}}
+function guardarFavoritos(){escribirLS(FAVS,JSON.stringify([...favoritos]));}
+function marcarFavorito(t){
+  favoritos.has(t)?favoritos.delete(t):favoritos.add(t);
+  guardarFavoritos();
+  $$('#tabla tbody .estrella').forEach(e=>{
+    if(e.dataset.fav===t){e.classList.toggle('on',favoritos.has(t));
+      e.textContent=favoritos.has(t)?'★':'☆';}});
+  $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;
+  if(soloFav)aplicar();
+}
+function ponerSoloFav(v){soloFav=v;$('#chipFav').classList.toggle('on',v);}
+
+/* ---------- vista de columnas y grafico ---------- */
+function marcarAtajoColumnas(){
+  const todas=COLS.filter(c=>!c.nosel).length;
+  $('#colTodo').classList.toggle('on',colsOn.size===todas);
+  $('#colEsencial').classList.toggle('on',
+    colsOn.size===COLS_DEF.length&&COLS_DEF.every(k=>colsOn.has(k)));
+  $('#cuentaCols').textContent=colsOn.size;}
+
+function verGrafico(mostrar){
+  document.body.classList.toggle('sin-grafico',!mostrar);
+  $('#chipGrafico').classList.toggle('on',mostrar);
+  escribirLS('screener_ash_grafico',mostrar?'1':'0');
+  if(mostrar&&seleccion)setTimeout(dibujar,60);}
+
+function copiarTickers(){
+  const lista=visibles.map(f=>f.t).join(',');
+  if(!lista)return;
+  const avisar=()=>{const b=$('#btnCopiar');b.textContent=`copiados ${visibles.length}`;
+    setTimeout(()=>b.textContent='Copiar tickers',1600);};
+  try{navigator.clipboard.writeText(lista).then(avisar,()=>avisar());}
+  catch(e){const ta=document.createElement('textarea');ta.value=lista;
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy')}catch(_){}
+    ta.remove();avisar();}
+}
+
+/* ---------- arranque ---------- */
+let iniciado=false, SERVIDOR=false;
+
+function etiquetas(){
+  const p=(id,eti,fmt)=>{const v=+$(id).value;$(eti).textContent=v?(fmt?fmt(v):v):'off';};
+  p('#fRelVol','#lRelVol',v=>v.toFixed(1));
+  p('#fAdr','#lAdr',v=>v.toFixed(1)+'%');
+  p('#fCruceMax','#lCruce');
+  p('#fFloat','#lFloat',v=>'$'+v+'M');
+  const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
+}
+
+function montarChips(){
+  chips($('#chipsEma'),EMAS_DISP,emasOn,(v,on)=>{
+    v=+v;emasOn=on?[...emasOn,v]:emasOn.filter(x=>x!==v);recalcular();});
+  const grupos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))].sort();
+  chips($('#chipsGrupo'),grupos,gruposOn,(v,on)=>{
+    on?gruposOn.add(v):gruposOn.delete(v);aplicar();});
+}
+
+function panel(abrir){
+  document.body.classList.toggle('compacto',!abrir);
+  escribirLS('screener_ash_panel',abrir?'1':'0');
+  setTimeout(()=>{if(seleccion)dibujar();},220);
+}
+
+/* ---------- conversacion con el servidor local ---------- */
+async function estadoServidor(){
+  try{const r=await fetch('api/estado',{cache:'no-store'});
+    return r.ok?await r.json():null;}catch(e){return null;}
+}
+
+async function traerDatos(){
+  try{const r=await fetch('api/datos',{cache:'no-store'});
+    if(!r.ok)return false;
+    const d=await r.json();
+    if(!d.simbolos||!d.simbolos.length)return false;
+    DATOS=d;return true;}catch(e){return false;}
+}
+
+function mostrarCarga(txt,frac){
+  const caja=$('#avisoCarga');
+  if(txt===null){caja.style.display='none';return;}
+  caja.style.display='block';
+  $('#txtCarga').textContent=txt;
+  $('#barraCarga').style.width=Math.round((frac||0)*100)+'%';
+}
+
+async function lanzarActualizacion(silenciosa,completo){
+  const per=$('#srvPeriodo').value, fund=$('#srvFund').checked?1:0;
+  mostrarCarga(completo?'rehaciendo todo el historial…':'pidiendo los datos al servidor…',0.02);
+  try{await fetch(`api/actualizar?periodo=${per}&fund=${fund}&completo=${completo?1:0}`,
+      {method:'POST'});}
+  catch(e){mostrarCarga('no pude hablar con el servidor local',0);return;}
+  await seguirProgreso(silenciosa);
+}
+
+async function seguirProgreso(silenciosa){
+  for(;;){
+    await new Promise(r=>setTimeout(r,700));
+    const e=await estadoServidor();
+    if(!e){mostrarCarga('se cortó la conexión con el servidor',0);return;}
+    if(e.error){mostrarCarga('error al bajar los datos: '+e.error,0);return;}
+    const frac=e.total?Math.min(.97,e.hecho/e.total):.1;
+    mostrarCarga((silenciosa?'actualizando en segundo plano — ':'')+e.paso,frac);
+    if(!e.corriendo){
+      if(await traerDatos()){mostrarCarga('datos actualizados',1);
+        aplicarDatosNuevos();setTimeout(()=>mostrarCarga(null),1800);}
+      else mostrarCarga('el servidor terminó pero no devolvió datos',0);
+      return;
+    }
+  }
+}
+
+/* En el sitio publicado la pagina pesa ~70 KB y los precios vienen aparte, en
+   datos.json. Asi el navegador cachea cada cosa por su lado y la primera pintura
+   es inmediata. Se lee en pedazos para poder mostrar cuanto lleva bajado. */
+async function traerArchivoDatos(){
+  try{
+    mostrarCarga('descargando los precios…',0.05);
+    const r=await fetch('datos.json',{cache:'no-cache'});
+    if(!r.ok)return false;
+    let texto;
+    if(r.body&&r.body.getReader){
+      const lector=r.body.getReader(),partes=[];let bytes=0;
+      for(;;){
+        const {done,value}=await lector.read();
+        if(done)break;
+        partes.push(value);bytes+=value.length;
+        mostrarCarga(`descargando los precios… ${(bytes/1e6).toFixed(1)} MB`,
+                     Math.min(.92,bytes/14e6));
+      }
+      const todo=new Uint8Array(bytes);let off=0;
+      for(const p of partes){todo.set(p,off);off+=p.length;}
+      texto=new TextDecoder().decode(todo);
+    }else texto=await r.text();
+    mostrarCarga('armando la tabla…',0.96);
+    const d=JSON.parse(texto);
+    if(!d.simbolos||!d.simbolos.length)return false;
+    DATOS=d;
+    mostrarCarga(null);
+    return true;
+  }catch(e){console.warn('no pude leer datos.json',e);mostrarCarga(null);return false;}
+}
+
+function datosViejos(){
+  if(!DATOS.fecha)return true;
+  const t=Date.parse(DATOS.fecha.replace(' ','T'));
+  return !isFinite(t)||(Date.now()-t)>12*3600*1000;
+}
+
+/* ---------- pintar el estado de los datos ---------- */
+function pintarInfoDatos(){
+  $('#avisoDemo').style.display=DATOS.demo?'block':'none';
+  if(DATOS.demo)$('#avisoDemo').innerHTML='<b>DATOS DE PRUEBA</b> — estos precios son '+
+    'inventados (caminatas aleatorias), no se parecen en nada al mercado real.<br>'+
+    'Para cargar los de verdad, arrancá con <code>servidor.py</code> o corré '+
+    '<code>python generar_html.py</code>.';
+  $('#infoDatos').innerHTML=(DATOS.demo?'<b style="color:var(--bajista)">DATOS DE PRUEBA</b><br>':'')+
+    `${DATOS.simbolos.length} símbolos<br>último cierre ${fechaCorta(DATOS.ultimo_cierre)}<br>`+
+    `bajado ${hace(DATOS.fecha)}<br>${DATOS.barras} barras por símbolo`;
+  const f=DATOS.faltantes||[];
+  $('#infoFaltantes').innerHTML=f.length
+    ? `<b style="color:var(--tenue)">${f.length} sin datos</b><br>`+
+      `<span style="color:var(--apagado)">${f.join(' · ')}</span><br>`+
+      'Yahoo no los devolvió ni siquiera reintentando. Los que estén realmente '+
+      'deslistados quedan en cuarentena una semana y no vuelven a pedirse.'
+    : '';
+}
+
+function hace(fecha){
+  if(!fecha)return 'hace un rato';
+  const t=Date.parse(String(fecha).replace(' ','T'));
+  if(!isFinite(t))return fecha;
+  const m=Math.round((Date.now()-t)/60000);
+  if(m<2)return 'recién';
+  if(m<60)return `hace ${m} min`;
+  const h=Math.round(m/60);
+  if(h<24)return `hace ${h} h`;
+  return `hace ${Math.round(h/24)} días`;
+}
+
+function aplicarDatosNuevos(){
+  cacheBase.clear();cacheSem.clear();claveBase='';seleccion=null;
+  pintarInfoDatos();
+  if(!iniciado)iniciar();
+  else{montarChips();recalcular();}
+}
+
+function pantallaSinDatos(){
+  $('#tabla thead').innerHTML='';
+  $('#tabla tbody').innerHTML='<tr><td class="vacio">Todavía no hay precios cargados.<br><br>'+
+    (SERVIDOR?'Los estoy bajando: mirá la barra de arriba.'
+            :'Arrancá con <code>servidor.py</code> para que se bajen solos,<br>'+
+             'corré <code>python generar_html.py</code> para meterlos en el archivo,<br>'+
+             'o poné un <code>datos.json</code> al lado de esta página.')+
+    '</td></tr>';
+}
+
+/* ---------- enganchar todo (una sola vez) ---------- */
+function iniciar(){
+  if(iniciado)return;
+  iniciado=true;
+  pintarInfoDatos();
+  montarChips();
+
+  const recalcIds=['ashModo','ashMa','ashLen','ashSmooth','almaOff','almaSig',
+                   'adrLen','rsiLen','atrLen','adxLen'];
+  let timer=null;
+  $$('aside input, aside select').forEach(el=>{
+    if(['nomPerfil','selPerfil','srvPeriodo','srvFund','srvAuto'].includes(el.id))return;
+    el.addEventListener('input',()=>{
+      etiquetas();
+      const pesado=recalcIds.includes(el.id);
+      clearTimeout(timer);
+      timer=setTimeout(()=>{pesado?recalcular():aplicar();guardarSesion();},
+        el.type==='range'?60:140);});});
+
+  $('#buscar').addEventListener('input',()=>aplicar());
+  $('#selPerfil').onchange=()=>elegirPerfil($('#selPerfil').value);
+  $('#selRapido').onchange=()=>elegirPerfil($('#selRapido').value);
+  $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
+  $('#chipGrafico').onclick=()=>verGrafico(document.body.classList.contains('sin-grafico'));
+  $('#chipCerrarGraf').onclick=()=>verGrafico(false);
+  $('#btnCopiar').onclick=copiarTickers;
+  $('#btnGuardarRapido').onclick=()=>{
+    const n=prompt('Nombre para estos filtros:');
+    if(!n)return;
+    const p=leerPerfiles();p[n.trim()]=estadoActual();escribirLS(CLAVE,JSON.stringify(p));
+    pintarPerfiles();$('#selRapido').value='m:'+n.trim();};
+  $('#tabla thead').addEventListener('click',e=>{const th=e.target.closest('th');
+    if(!th||!th.dataset.k)return;
+    if(orden.col===th.dataset.k)orden.asc=!orden.asc;else{orden.col=th.dataset.k;orden.asc=false;}
+    aplicar();guardarSesion();});
+  $('#tabla tbody').addEventListener('click',e=>{
+    const est=e.target.closest('.estrella');
+    if(est){marcarFavorito(est.dataset.fav);e.stopPropagation();return;}
+    const tr=e.target.closest('tr');
+    if(tr&&tr.dataset.i)seleccionar(visibles[+tr.dataset.i].t);});
+  $$('.tf .chip[data-tf]').forEach(c=>c.onclick=()=>{
+    $$('.tf .chip[data-tf]').forEach(x=>x.classList.remove('on'));
+    c.classList.add('on');tfDetalle=c.dataset.tf;dibujar();});
+  $('#colEsencial').onclick=()=>ponerColumnas(COLS_DEF);
+  $('#colTodo').onclick=()=>ponerColumnas(COLS.filter(c=>!c.nosel).map(c=>c.k));
+  $('#btnCols').onclick=e=>{e.stopPropagation();verPanelInd(false);
+    verPanelCols(!$('#panelCols').classList.contains('abierto'));};
+  $('#btnInd').onclick=e=>{e.stopPropagation();verPanelCols(false);
+    verPanelInd(!$('#panelInd').classList.contains('abierto'));};
+  $('#panelCols').onclick=e=>e.stopPropagation();
+  $('#panelInd').onclick=e=>{e.stopPropagation();
+    const tr=e.target.closest('tr[data-ind]');if(tr)elegirIndustria(tr.dataset.ind);};
+  $('#indTodas').onclick=()=>{industriaSel=null;montarIndustrias();aplicar();};
+  document.addEventListener('click',()=>{verPanelCols(false);verPanelInd(false);});
+  $('#btnCerrar').onclick=()=>panel(false);
+  $('#btnAbrir').onclick=()=>panel(true);
+  $('#btnGrupos').onclick=()=>{
+    const todos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))];
+    gruposOn=gruposOn.size?new Set():new Set(todos);montarChips();aplicar();};
+  $('#btnReset').onclick=()=>{
+    [['#fVol',0],['#fDVol',0],['#fRelVol',0],['#fAdr',0],['#fRsiMin',0],['#fRsiMax',100],
+     ['#fCruceMax',0],['#fPrecio',0],['#fFloat',0],['#fRs',1]].forEach(([id,v])=>$(id).value=v);
+    ['#fEma20','#fEma50','#fCruce','#fAshD','#fAshW','#fAshCrece'].forEach(id=>$(id).value='');
+    $('#buscar').value='';$('#selRapido').value='0';$('#selPerfil').value='0';
+    ponerSoloFav(false);etiquetas();aplicar();guardarSesion();};
+  $('#btnCsv').onclick=()=>{
+    if(!visibles.length)return;
+    const cols=Object.keys(visibles[0]).filter(k=>!k.startsWith('serie_'));
+    const csv=[cols.join(',')].concat(visibles.map(f=>cols.map(k=>{
+      const v=f[k];return typeof v==='number'?(isFinite(v)?v:''):`"${v==null?'':v}"`;
+    }).join(','))).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download='screener.csv';a.click();};
+  $('#btnGuardar').onclick=()=>{const n=$('#nomPerfil').value.trim();if(!n)return;
+    const p=leerPerfiles();p[n]=estadoActual();escribirLS(CLAVE,JSON.stringify(p));
+    pintarPerfiles();$('#selPerfil').value='m:'+n;$('#selRapido').value='m:'+n;
+    $('#nomPerfil').value='';};
+  $('#btnBorrar').onclick=()=>{const v=$('#selPerfil').value;
+    if(!v||v[0]!=='m')return;                      // los listos no se borran
+    const p=leerPerfiles();delete p[v.slice(2)];
+    escribirLS(CLAVE,JSON.stringify(p));pintarPerfiles();};
+  $('#btnActualizar').onclick=()=>lanzarActualizacion(false,false);
+  $('#btnCompleto').onclick=()=>lanzarActualizacion(false,true);
+  $('#srvAuto').onchange=()=>escribirLS('screener_ash_auto',$('#srvAuto').checked?'1':'0');
+
+  const cv=$('#grafico');
+  cv.addEventListener('mousemove',e=>{if(!ctxGraf)return;
+    const r=cv.getBoundingClientRect(),x=e.clientX-r.left;
+    dibujar({i:Math.floor((x-ctxGraf.x0)/ctxGraf.paso),x});});
+  cv.addEventListener('mouseleave',()=>dibujar());
+
+  document.addEventListener('keydown',e=>{
+    const escribiendo=/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+    if(e.key==='['&&!escribiendo){panel(document.body.classList.contains('compacto'));e.preventDefault();}
+    else if(e.key==='/'&&!escribiendo){$('#buscar').focus();e.preventDefault();}
+    else if(e.key==='Escape'){
+      if($('#panelCols').classList.contains('abierto')){verPanelCols(false);return;}
+      if($('#panelInd').classList.contains('abierto')){verPanelInd(false);return;}
+      if(industriaSel){industriaSel=null;aplicar();return;}
+      $('#buscar').value='';$('#buscar').blur();aplicar();}
+    else if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!escribiendo){
+      moverSeleccion(e.key==='ArrowDown'?1:-1);e.preventDefault();}
+    else if((e.key==='g'||e.key==='G')&&!escribiendo){
+      verGrafico(document.body.classList.contains('sin-grafico'));}
+    else if((e.key==='f'||e.key==='F')&&!escribiendo&&seleccion){marcarFavorito(seleccion);}});
+
+  window.addEventListener('resize',()=>{if(seleccion)dibujar();});
+  if(leerLS('screener_ash_panel')==='0')document.body.classList.add('compacto');
+  cargarFavoritos();
+  restaurarSesion();
+  montarColumnas();ponerSoloFav(soloFav);
+  $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;
+  verGrafico(leerLS('screener_ash_grafico')!=='0');
+  pintarPerfiles();montarChips();etiquetas();recalcular();
+}
+
+/* ---------- secuencia de arranque ----------
+   1. Busca el servidor local. Si esta, la pagina se maneja sola.
+   2. Si no hay datos todavia, los pide y muestra el progreso.
+   3. Si los datos ya estan pero son de ayer, los actualiza en segundo plano
+      sin hacerte esperar: seguis mirando los viejos hasta que llegan los nuevos.
+   4. Sin servidor, usa los datos que tenga incrustados el archivo. */
+async function arrancar(){
+  const est=await estadoServidor();
+  SERVIDOR=!!est;
+  if(SERVIDOR){
+    $('#cajaServidor').style.display='block';
+    $('#cajaArchivo').style.display='none';
+    if(leerLS('screener_ash_auto')==='0')$('#srvAuto').checked=false;
+    if(est.hay_datos&&await traerDatos())iniciar();
+    else pantallaSinDatos();
+    if(est.corriendo){await seguirProgreso(iniciado);return;}
+    if(!iniciado){await lanzarActualizacion(false,false);return;}
+    if($('#srvAuto').checked&&datosViejos())lanzarActualizacion(true,false);
+    return;
+  }
+  if(DATOS.simbolos&&DATOS.simbolos.length){iniciar();return;}
+  // sitio publicado: los precios estan en datos.json, al lado de la pagina
+  if(await traerArchivoDatos()){iniciar();return;}
+  pantallaSinDatos();
+}
+if(typeof document!=='undefined'&&document.getElementById('tabla'))arrancar();
+</script>
+</body>
+</html>

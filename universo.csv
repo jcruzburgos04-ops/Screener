@@ -1,0 +1,473 @@
+# ticker,grupo[,subyacente]
+# Los .BA se resuelven al subyacente con cedears.csv.
+# Nada cotiza en pesos: se baja el papel en su mercado de origen.
+ticker,grupo
+AAPL.BA,Tecnologia
+MSFT.BA,Tecnologia
+NVDA.BA,Tecnologia
+AVGO.BA,Tecnologia
+AMD.BA,Tecnologia
+INTC.BA,Tecnologia
+MU.BA,Tecnologia
+QCOM.BA,Tecnologia
+TXN.BA,Tecnologia
+AMAT.BA,Tecnologia
+LRCX.BA,Tecnologia
+ADI.BA,Tecnologia
+MRVL.BA,Tecnologia
+SWKS.BA,Tecnologia
+ARM.BA,Tecnologia
+ALAB.BA,Tecnologia
+SNDK.BA,Tecnologia
+ASML.BA,Tecnologia
+CSCO.BA,Tecnologia
+ORCL.BA,Tecnologia
+IBM.BA,Tecnologia
+ADBE.BA,Tecnologia
+CRM.BA,Tecnologia
+NOW.BA,Tecnologia
+TEAM.BA,Tecnologia
+SNOW.BA,Tecnologia
+PLTR.BA,Tecnologia
+PANW.BA,Tecnologia
+CRWD.BA,Tecnologia
+PATH.BA,Tecnologia
+DOCU.BA,Tecnologia
+ZM.BA,Tecnologia
+TWLO.BA,Tecnologia
+SHOP.BA,Tecnologia
+SPOT.BA,Tecnologia
+UBER.BA,Tecnologia
+ABNB.BA,Tecnologia
+RBLX.BA,Tecnologia
+PINS.BA,Tecnologia
+SNAP.BA,Tecnologia
+YELP.BA,Tecnologia
+ETSY.BA,Tecnologia
+EBAY.BA,Tecnologia
+TRIP.BA,Tecnologia
+BKNG.BA,Tecnologia
+ROKU.BA,Tecnologia
+EA.BA,Tecnologia
+NFLX.BA,Tecnologia
+GOOGL.BA,Tecnologia
+META.BA,Tecnologia
+AMZN.BA,Tecnologia
+HPQ.BA,Tecnologia
+XROX.BA,Tecnologia
+GLW.BA,Tecnologia
+GRMN.BA,Tecnologia
+MSI.BA,Tecnologia
+VRSN.BA,Tecnologia
+ANET.BA,Tecnologia
+ISRG.BA,Tecnologia
+BB.BA,Tecnologia
+AI.BA,Tecnologia
+NBIS.BA,Tecnologia
+CRWV.BA,Tecnologia
+IREN.BA,Tecnologia
+RGTI.BA,Tecnologia
+ONDS.BA,Tecnologia
+SDA.BA,Tecnologia
+SATL.BA,Tecnologia
+ASTS.BA,Tecnologia
+RKLB.BA,Tecnologia
+OKLO.BA,Tecnologia
+TEM.BA,Tecnologia
+MSTR.BA,Cripto
+COIN.BA,Cripto
+RIOT.BA,Cripto
+HUT.BA,Cripto
+KEEL.BA,Cripto
+BMNR.BA,Cripto
+HOOD.BA,Fintech
+PYPL.BA,Fintech
+XYZ.BA,Fintech
+FISV.BA,Fintech
+V.BA,Fintech
+MA.BA,Fintech
+UPST.BA,Fintech
+JNJ.BA,Salud
+PFE.BA,Salud
+MRK.BA,Salud
+ABBV.BA,Salud
+ABT.BA,Salud
+BMY.BA,Salud
+LLY.BA,Salud
+AMGN.BA,Salud
+GILD.BA,Salud
+BIIB.BA,Salud
+MRNA.BA,Salud
+MDT.BA,Salud
+TMO.BA,Salud
+DHR.BA,Salud
+UNH.BA,Salud
+CVS.BA,Salud
+CAH.BA,Salud
+VRTX.BA,Salud
+HIMS.BA,Salud
+WBA.BA,Salud
+KO.BA,Consumo
+PEP.BA,Consumo
+MCD.BA,Consumo
+SBUX.BA,Consumo
+NKE.BA,Consumo
+WMT.BA,Consumo
+HD.BA,Consumo
+COST.BA,Consumo
+TGT.BA,Consumo
+ROST.BA,Consumo
+TJX.BA,Consumo
+URBN.BA,Consumo
+ANF.BA,Consumo
+DECK.BA,Consumo
+PG.BA,Consumo
+CL.BA,Consumo
+KMB.BA,Consumo
+MDLZ.BA,Consumo
+HSY.BA,Consumo
+SYY.BA,Consumo
+MO.BA,Consumo
+PM.BA,Consumo
+DISN.BA,Consumo
+CCL.BA,Consumo
+LVS.BA,Consumo
+ORLY.BA,Consumo
+AAP.BA,Consumo
+GT.BA,Consumo
+HOG.BA,Consumo
+RACE.BA,Consumo
+O.BA,Inmobiliario
+JPM.BA,Financieras
+BA.C.BA,Financieras
+C.BA,Financieras
+WFC.BA,Financieras
+GS.BA,Financieras
+SCHW.BA,Financieras
+USB.BA,Financieras
+BK.BA,Financieras
+AXP.BA,Financieras
+BX.BA,Financieras
+BRKB.BA,Financieras
+AIG.BA,Financieras
+SPGI.BA,Financieras
+MMC.BA,Financieras
+TRVV.BA,Financieras
+FNMA.BA,Financieras
+FMCC.BA,Financieras
+PBI.BA,Financieras
+BA.BA,Industria
+CAT.BA,Industria
+DE.BA,Industria
+MMM.BA,Industria
+GE.BA,Industria
+HON.BA,Industria
+LMT.BA,Industria
+RTX.BA,Industria
+HWM.BA,Industria
+UNP.BA,Industria
+UPS.BA,Industria
+FDX.BA,Industria
+DAL.BA,Industria
+AAL.BA,Industria
+UAL.BA,Industria
+PCAR.BA,Industria
+SNA.BA,Industria
+JCI.BA,Industria
+CAR.BA,Industria
+F.BA,Industria
+GM.BA,Industria
+TSLA.BA,Industria
+STLA.BA,Industria
+IFF.BA,Industria
+ECL.BA,Industria
+AVY.BA,Industria
+EFX.BA,Industria
+ADP.BA,Industria
+ACN.BA,Industria
+IP.BA,Industria
+DD.BA,Industria
+DOW.BA,Industria
+MOS.BA,Industria
+NUE.BA,Materiales
+MP.BA,Materiales
+XOM.BA,Energia
+CVX.BA,Energia
+COP.BA,Energia
+OXY.BA,Energia
+SLB.BA,Energia
+HAL.BA,Energia
+BKR.BA,Energia
+PSX.BA,Energia
+VST.BA,Energia
+CEG.BA,Energia
+NEE.BA,Energia
+FSLR.BA,Energia
+NXE.BA,Energia
+CCJ.BA,Energia
+GLNG.BA,Energia
+B.BA,Mineria
+NEM.BA,Mineria
+AEM.BA,Mineria
+KGC.BA,Mineria
+GFI.BA,Mineria
+HMY.BA,Mineria
+HL.BA,Mineria
+CDE.BA,Mineria
+PAAS.BA,Mineria
+MUX.BA,Mineria
+NG.BA,Mineria
+FCX.BA,Mineria
+SCCO.BA,Mineria
+RIO.BA,Mineria
+BHP.BA,Mineria
+LAC.BA,Mineria
+LAR.BA,Mineria
+AOCA.BA,Mineria
+T.BA,Telecom
+VZ.BA,Telecom
+TMUS.BA,Telecom
+AZN.BA,ADR Europa
+GSK.BA,ADR Europa
+NVS.BA,ADR Europa
+NVO.BA,ADR Europa
+SAP.BA,ADR Europa
+UL.BA,ADR Europa
+DEO.BA,ADR Europa
+VOD.BA,ADR Europa
+BP.BA,ADR Europa
+SHEL.BA,ADR Europa
+E.BA,ADR Europa
+TTE.BA,ADR Europa
+EQNR.BA,ADR Europa
+NGG.BA,ADR Europa
+HSBC.BA,ADR Europa
+BCS.BA,ADR Europa
+LYG.BA,ADR Europa
+ING.BA,ADR Europa
+BBV.BA,ADR Europa
+SAN.BA,ADR Europa
+AEG.BA,ADR Europa
+PHG.BA,ADR Europa
+ERIC.BA,ADR Europa
+NOKA.BA,ADR Europa
+ORAN.BA,ADR Europa
+TEFO.BA,ADR Europa
+TIIAY.BA,ADR Europa
+PSO.BA,ADR Europa
+SIEGY.BA,ADR Europa
+BAS.BA,Europa local
+BAYN.BA,Europa local
+MBG.BA,Europa local
+ADS.BA,Europa local
+EOAN.BA,Europa local
+BSN.BA,Europa local
+DTEA.BA,Europa local
+BABA.BA,ADR Asia
+JD.BA,ADR Asia
+PDD.BA,ADR Asia
+BIDU.BA,ADR Asia
+NTES.BA,ADR Asia
+TCOM.BA,ADR Asia
+JOYY.BA,ADR Asia
+WBO.BA,ADR Asia
+NIO.BA,ADR Asia
+XPEV.BA,ADR Asia
+LFC.BA,ADR Asia
+TSM.BA,ADR Asia
+INFY.BA,ADR Asia
+HDB.BA,ADR Asia
+IBN.BA,ADR Asia
+TTM.BA,ADR Asia
+SE.BA,ADR Asia
+SONY.BA,ADR Asia
+TM.BA,ADR Asia
+HMC.BA,ADR Asia
+CAJ.BA,ADR Asia
+MFG.BA,ADR Asia
+MUFG.BA,ADR Asia
+NMR.BA,ADR Asia
+KB.BA,ADR Asia
+KEP.BA,ADR Asia
+PKS.BA,ADR Asia
+HNPIY.BA,ADR Asia
+YZCA.BA,ADR Asia
+JMIA.BA,ADR Asia
+NSAN.BA,ADR Asia
+PCRF.BA,ADR Asia
+NEC1.BA,Asia local
+HHPD.BA,Asia local
+SMSN.BA,Asia local
+MELI.BA,Latam
+GLOB.BA,Latam
+ARCO.BA,Latam
+BIOX.BA,Latam
+ADGO.BA,Latam
+CAAP.BA,Latam
+GPRK.BA,Latam
+LND.BA,Latam
+VIST.BA,Latam
+TEN.BA,Latam
+TXR.BA,Latam
+PBR.BA,Latam
+VALE.BA,Latam
+ITUB.BA,Latam
+BBD.BA,Latam
+BSBR.BA,Latam
+ABEV.BA,Latam
+BRFS.BA,Latam
+GGB.BA,Latam
+SUZ.BA,Latam
+SID.BA,Latam
+BAK.BA,Latam
+ELP.BA,Latam
+EBR.BA,Latam
+SBS.BA,Latam
+CBRD.BA,Latam
+UGP.BA,Latam
+VIV.BA,Latam
+TIMB.BA,Latam
+PAGS.BA,Latam
+STNE.BA,Latam
+XP.BA,Latam
+UN.BA,Latam
+AMX.BA,Latam
+FMX.BA,Latam
+KOFM.BA,Latam
+ASR.BA,Latam
+PAC.BA,Latam
+CX.BA,Latam
+TV.BA,Latam
+AKO.B.BA,Latam
+BBAS3.BA,Brasil B3
+BPA11.BA,Brasil B3
+HAPV3.BA,Brasil B3
+LREN3.BA,Brasil B3
+MGLU3.BA,Brasil B3
+NATU3.BA,Brasil B3
+PRIO3.BA,Brasil B3
+RENT3.BA,Brasil B3
+WEGE3.BA,Brasil B3
+SPY.BA,ETF indice
+IVV.BA,ETF indice
+QQQ.BA,ETF indice
+DIA.BA,ETF indice
+IWM.BA,ETF indice
+IJH.BA,ETF indice
+RSP.BA,ETF indice
+IVE.BA,ETF indice
+IVW.BA,ETF indice
+SPHQ.BA,ETF indice
+ESGU.BA,ETF indice
+VIG.BA,ETF indice
+ACWI.BA,ETF global
+EFA.BA,ETF global
+VEA.BA,ETF global
+IEUR.BA,ETF global
+IEMG.BA,ETF global
+EEM.BA,ETF global
+ILF.BA,ETF global
+EWZ.BA,ETF pais
+EWJ.BA,ETF pais
+EWY.BA,ETF pais
+FXI.BA,ETF pais
+XLB.BA,ETF sector
+XLC.BA,ETF sector
+XLE.BA,ETF sector
+XLF.BA,ETF sector
+XLI.BA,ETF sector
+XLK.BA,ETF sector
+XLP.BA,ETF sector
+XLRE.BA,ETF sector
+XLU.BA,ETF sector
+XLV.BA,ETF sector
+XLY.BA,ETF sector
+SMH.BA,ETF industria
+IBB.BA,ETF industria
+ITA.BA,ETF industria
+XME.BA,ETF industria
+COPX.BA,ETF industria
+URA.BA,ETF industria
+ICLN.BA,ETF industria
+CIBR.BA,ETF industria
+ARKK.BA,ETF industria
+GDX.BA,ETF commodities
+GLD.BA,ETF commodities
+SLV.BA,ETF commodities
+USO.BA,ETF commodities
+IBIT.BA,ETF cripto
+ETHA.BA,ETF cripto
+TQQQ.BA,ETF apalancado
+SPXL.BA,ETF apalancado
+SH.BA,ETF inverso
+PSQ.BA,ETF inverso
+VXX.BA,ETF inverso
+
+# ADRs argentinos (no son CEDEARs, cotizan en USD en NYSE)
+GGAL,ADR Argentina
+YPF,ADR Argentina
+BMA,ADR Argentina
+BBAR,ADR Argentina
+SUPV,ADR Argentina
+PAM,ADR Argentina
+CEPU,ADR Argentina
+EDN,ADR Argentina
+TGS,ADR Argentina
+LOMA,ADR Argentina
+IRS,ADR Argentina
+CRESY,ADR Argentina
+TEO,ADR Argentina
+
+# ETFs de sectores y paises sin CEDEAR
+EWG,ETF pais
+EWU,ETF pais
+EWQ,ETF pais
+EWI,ETF pais
+EWP,ETF pais
+EWL,ETF pais
+EWD,ETF pais
+EWN,ETF pais
+EWW,ETF pais
+EWC,ETF pais
+EWA,ETF pais
+EWT,ETF pais
+EWH,ETF pais
+EWS,ETF pais
+EWM,ETF pais
+INDA,ETF pais
+MCHI,ETF pais
+EZA,ETF pais
+TUR,ETF pais
+EPOL,ETF pais
+ARGT,ETF pais
+ECH,ETF pais
+EPU,ETF pais
+GXG,ETF pais
+THD,ETF pais
+EIDO,ETF pais
+VNM,ETF pais
+KSA,ETF pais
+AAXJ,ETF global
+VGK,ETF global
+VPL,ETF global
+XBI,ETF industria
+XOP,ETF industria
+XRT,ETF industria
+XHB,ETF industria
+KRE,ETF industria
+IGV,ETF industria
+JETS,ETF industria
+LIT,ETF industria
+TLT,ETF bonos
+IEF,ETF bonos
+SHY,ETF bonos
+LQD,ETF bonos
+HYG,ETF bonos
+TIP,ETF bonos
+EMB,ETF bonos
+UUP,ETF divisas
+FXE,ETF divisas
+FXY,ETF divisas
+DBA,ETF commodities
+DBC,ETF commodities
+UNG,ETF commodities
