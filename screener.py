@@ -203,6 +203,11 @@ CACHE_PRECIOS = Path("cache_precios.pkl")   # lo reusa la app web
 CACHE_META = Path("cache_fundamentales.json")
 CACHE_DIAS = 7
 
+CUARENTENA = Path("sin_datos.json")   # lo que Yahoo no devuelve, con su castigo
+CUARENTENA_FALLOS = 3                 # fallos seguidos para dejar de pedirlo
+CUARENTENA_DIAS = 7                   # cuanto dura el castigo antes de reintentar
+MAX_INDIVIDUALES = 150                # tope de reintentos de a uno, por tiempo
+
 
 # ==============================================================================
 # 2. MEDIAS MOVILES (las seis del Pine)
@@ -436,8 +441,12 @@ def cargar_mapa_cedears(path=MAPA_CEDEARS):
         partes = [x.strip().upper() for x in linea.split(",")]
         if partes[0] in ("LOCAL", "CEDEAR", "TICKER"):
             continue
-        if len(partes) >= 2 and partes[1]:
-            clave = partes[0]
+        # Una linea sin subyacente no se puede usar: antes rompia el archivo
+        # entero (se colaba la clave de la linea anterior y quedaba mapeada a
+        # un valor vacio o directamente reventaba con IndexError).
+        if len(partes) < 2 or not partes[0] or not partes[1]:
+            continue
+        clave = partes[0]
         if clave.endswith(".BA"):
             clave = clave[:-3]
         mapa[clave] = partes[1]
@@ -492,29 +501,252 @@ def leer_universo(path, mapa=None):
     return df
 
 
-def bajar_precios(tickers, periodo, lote=100):
+COLUMNAS_OHLCV = ["Open", "High", "Low", "Close", "Volume"]
+
+
+def limpiar_barras(d):
+    """
+    Deja un DataFrame OHLCV usable, o None si no da la talla.
+
+    Yahoo devuelve cosas raras a menudo: fechas repetidas, indice desordenado,
+    filas con Close pero sin Open/High/Low, y de vez en cuando un indice con
+    zona horaria que despues no se puede comparar con otro sin ella. Todo eso
+    hay que emprolijarlo aca, porque mas adelante ya viaja al navegador y un
+    None en High/Low le rompe el ADR y el grafico.
+    """
+    if d is None or len(d) == 0:
+        return None
+    d = d.copy()
+    faltan = [c for c in COLUMNAS_OHLCV if c not in d.columns]
+    if faltan:
+        return None
+    d = d[COLUMNAS_OHLCV].apply(pd.to_numeric, errors="coerce")
+
+    idx = pd.to_datetime(d.index, errors="coerce")
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_convert(None)          # sin zona: se compara con cualquiera
+    d.index = idx
+    d = d[~d.index.isna()]
+    d = d[~d.index.duplicated(keep="last")].sort_index()
+
+    d = d.dropna(subset=["Close"])
+    d = d[d["Close"] > 0]
+    if len(d) == 0:
+        return None
+    # Una barra sin apertura o sin maximo/minimo se completa con el cierre en
+    # vez de tirarse: perder la barra corre todas las ventanas moviles.
+    for c in ("Open", "High", "Low"):
+        d[c] = d[c].fillna(d["Close"])
+    d["High"] = d[["High", "Open", "Close"]].max(axis=1)
+    d["Low"] = d[["Low", "Open", "Close"]].min(axis=1)
+    d["Volume"] = d["Volume"].fillna(0).clip(lower=0)
+    return d if len(d) >= MIN_BARRAS else None
+
+
+def _descargar(grupo, periodo):
+    """Una tanda contra Yahoo. Devuelve solo lo que vino limpio y completo."""
     import yfinance as yf
-    datos = {}
-    for i in range(0, len(tickers), lote):
-        grupo = tickers[i:i + lote]
-        print(f"    lote {i // lote + 1}: {len(grupo)} simbolos...", flush=True)
+    try:
+        raw = yf.download(grupo, period=periodo, interval="1d",
+                          auto_adjust=True, group_by="ticker",
+                          threads=True, progress=False)
+    except Exception as e:
+        print(f"      [!] fallo la tanda: {e}")
+        return {}
+    if raw is None or len(raw) == 0:
+        return {}
+    out = {}
+    multi = isinstance(raw.columns, pd.MultiIndex)
+    for t in grupo:
         try:
-            raw = yf.download(grupo, period=periodo, interval="1d",
-                              auto_adjust=True, group_by="ticker",
-                              threads=True, progress=False)
-        except Exception as e:
-            print(f"    [!] fallo el lote: {e}")
-            continue
-        for t in grupo:
-            try:
-                d = raw[t] if isinstance(raw.columns, pd.MultiIndex) else raw
-                d = d.dropna(subset=["Close"])
-                if len(d) >= MIN_BARRAS:
-                    datos[t] = d
-            except Exception:
-                pass
-        time.sleep(0.6)
+            if multi:
+                if t not in raw.columns.get_level_values(0):
+                    continue
+                d = raw[t]
+            else:
+                d = raw
+            d = limpiar_barras(d)
+            if d is not None:
+                out[t] = d
+        except Exception:
+            pass
+    return out
+
+
+def bajar_precios(tickers, periodo, lote=50, saltear=None, progreso=None):
+    """
+    Baja los precios diarios, con tres vueltas de reintento.
+
+    Los fallos de Yahoo vienen en RACHAS, no por simbolo: un lote entero puede
+    volver vacio aunque los papeles esten perfectamente vivos (paso con BK y
+    con MMC, que cotizan todos los dias). Por eso lo que no entra en la primera
+    vuelta se vuelve a pedir en grupos de 5 y despues de a uno, con pausas cada
+    vez mas largas. Sin esto al sitio le faltaban papeles sanos.
+
+    `saltear` es la cuarentena: los deslistados de verdad no se piden.
+    `progreso` es un callback (hechos, total, texto) para la barra del servidor.
+
+    OJO: esta funcion la usan generar_sitio.py Y servidor.py. Estuvo duplicada
+    una vez y solo una de las dos reintentaba; no la vuelvas a duplicar.
+    """
+    pedir = [t for t in tickers if not saltear or t not in saltear]
+    if saltear:
+        omitidos = len(tickers) - len(pedir)
+        if omitidos:
+            print(f"    {omitidos} en cuarentena, no los pido")
+
+    datos = {}
+    vueltas = [("lotes", lote, 0.6, None), ("de a 5", 5, 1.5, None),
+               ("de a 1", 1, 3.0, MAX_INDIVIDUALES)]
+    for vuelta, (nombre, tam, pausa, tope) in enumerate(vueltas):
+        faltan = [t for t in pedir if t not in datos]
+        if not faltan:
+            break
+        # Cortafuegos: si la primera vuelta no trajo NADA, no es una racha, es
+        # que Yahoo no esta contestando. Reintentar 465 simbolos de a uno con
+        # pausas seria media hora tirada y encima se come el timeout del
+        # workflow. Mejor fallar rapido y publicar los datos de ayer.
+        if vuelta and not datos:
+            print("    [X] no vino un solo simbolo: Yahoo no esta respondiendo, "
+                  "corto los reintentos")
+            break
+        if tope and len(faltan) > tope:
+            print(f"    reintento {nombre}: {len(faltan)} pendientes, "
+                  f"pruebo los primeros {tope}")
+            faltan = faltan[:tope]
+        elif tam != lote:
+            print(f"    reintento {nombre}: {len(faltan)} pendientes", flush=True)
+        for i in range(0, len(faltan), tam):
+            grupo = faltan[i:i + tam]
+            if tam == lote:
+                print(f"    lote {i // tam + 1}: {len(grupo)} simbolos...", flush=True)
+            datos.update(_descargar(grupo, periodo))
+            if progreso:
+                texto = ("bajando precios" if tam == lote
+                         else f"reintentando los que fallaron ({nombre})")
+                progreso(len(datos), len(pedir), texto)
+            time.sleep(pausa)
     return datos
+
+
+# ==============================================================================
+# 5b. PRECIOS ATRASADOS Y CUARENTENA
+# ==============================================================================
+#
+# El problema mas molesto del screener no es que falte un papel: es que un papel
+# aparezca con el precio y la variacion de hace tres dias sin avisar. Pasa
+# porque Yahoo, cuando lo apuran, devuelve la serie recortada en vez de un
+# error. Se detecta comparando cada simbolo contra los de SU MISMO mercado: un
+# dia de atraso en Brasil o en Europa suele ser un feriado local, no un error.
+
+def sufijo_mercado(ticker):
+    """`.SA`, `.DE`, `.TO`... Sin sufijo = Estados Unidos."""
+    return ticker[ticker.rindex("."):].upper() if "." in ticker[1:] else ""
+
+
+def ultima_fecha(d):
+    return pd.Timestamp(d.index[-1]).normalize() if d is not None and len(d) else None
+
+
+def atrasos(precios):
+    """
+    Dias habiles de atraso de cada simbolo contra la ultima rueda de su mercado.
+
+    Devuelve {ticker: dias}. 0 = al dia. Se compara por mercado y no contra la
+    fecha maxima global para no marcar como atrasado a media Europa cada vez
+    que tienen un feriado propio.
+    """
+    ultimas = {t: ultima_fecha(d) for t, d in precios.items()}
+    ultimas = {t: f for t, f in ultimas.items() if f is not None}
+    if not ultimas:
+        return {}
+    refs = {}
+    for t, f in ultimas.items():
+        s = sufijo_mercado(t)
+        refs.setdefault(s, []).append(f)
+    # la referencia del mercado es la fecha mas frecuente, no la maxima: un solo
+    # simbolo adelantado (o con una barra basura) no puede correr la vara.
+    ref = {}
+    for s, fechas in refs.items():
+        vc = pd.Series(fechas).value_counts()
+        top = vc.max()
+        ref[s] = max(f for f, n in vc.items() if n == top)
+    out = {}
+    for t, f in ultimas.items():
+        r = ref[sufijo_mercado(t)]
+        out[t] = max(0, int(np.busday_count(f.date(), r.date()))) if f < r else 0
+    return out
+
+
+def repescar_atrasados(precios, periodo, maximo=80, progreso=None):
+    """
+    Vuelve a pedir de a uno los simbolos que quedaron atrasados.
+
+    Cuando un lote grande viene recortado, pedir el simbolo solo casi siempre
+    devuelve la serie completa. Se hace despues de la descarga y solo con los
+    atrasados, asi que cuesta poco.
+    """
+    tarde = [t for t, n in atrasos(precios).items() if n > 0]
+    if not tarde:
+        return precios, []
+    tarde = sorted(tarde, key=lambda t: -atrasos(precios)[t])[:maximo]
+    print(f"    {len(tarde)} con la ultima barra atrasada, los repesco de a uno...")
+    for k, t in enumerate(tarde, 1):
+        if progreso:
+            progreso(k, len(tarde), "repescando los que vinieron atrasados")
+        nuevo = _descargar([t], periodo).get(t)
+        if nuevo is not None:
+            viejo = precios.get(t)
+            if viejo is None or ultima_fecha(nuevo) >= ultima_fecha(viejo):
+                precios[t] = nuevo
+        time.sleep(0.8)
+    quedan = [t for t, n in atrasos(precios).items() if n > 0]
+    if quedan:
+        print(f"    siguen atrasados ({len(quedan)}): {', '.join(sorted(quedan)[:20])}"
+              + (" ..." if len(quedan) > 20 else ""))
+    return precios, quedan
+
+
+def cargar_cuarentena(path=CUARENTENA):
+    """{ticker: {"fallos": n, "hasta": iso}} de lo que Yahoo no devuelve."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def simbolos_en_cuarentena(cuarentena):
+    """Los que todavia no cumplieron la semana de castigo."""
+    hoy = datetime.now(timezone.utc).date().isoformat()
+    return {t for t, v in cuarentena.items()
+            if v.get("fallos", 0) >= CUARENTENA_FALLOS and v.get("hasta", "") > hoy}
+
+
+def actualizar_cuarentena(cuarentena, pedidos, obtenidos, path=CUARENTENA):
+    """
+    Suma un fallo a lo que no vino y perdona a lo que si vino.
+
+    A los tres fallos seguidos el simbolo queda afuera una semana. Pasada la
+    semana se vuelve a pedir solo: los deslistados de verdad (WBA, TTM, LFC...)
+    reinciden y los que fallaron por una racha de Yahoo vuelven a entrar.
+    """
+    hasta = (datetime.now(timezone.utc) + pd.Timedelta(days=CUARENTENA_DIAS)).date().isoformat()
+    for t in pedidos:
+        if t in obtenidos:
+            cuarentena.pop(t, None)
+        else:
+            v = cuarentena.get(t, {"fallos": 0})
+            v["fallos"] = v.get("fallos", 0) + 1
+            v["hasta"] = hasta
+            cuarentena[t] = v
+    try:
+        Path(path).write_text(json.dumps(cuarentena, indent=1), encoding="utf-8")
+    except Exception as e:
+        print(f"    [!] no pude guardar la cuarentena: {e}")
+    return cuarentena
 
 
 def bajar_fundamentales(tickers, usar_cache=True):
@@ -626,10 +858,11 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
 
     # --- ASH semanal (barras armadas desde las diarias) ---
     sem = a_semanal(df)
+    ash_w = None
     if len(sem) >= MIN_BARRAS_SEM:
         buw, bew, ash_w = calc_ash(sem, **cfg)
         w_val = float(ash_w.iloc[-1])
-        w_prev = float(ash_w.iloc[-2])
+        w_prev = float(ash_w.iloc[-2]) if len(ash_w) >= 2 else np.nan
         w_norm = ash_norm(buw.iloc[-1], bew.iloc[-1])
     else:
         w_val = w_prev = w_norm = np.nan
@@ -644,7 +877,8 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
     mcap = meta.get("mcap")
     mcap = float(mcap) if mcap else np.nan
 
-    d_val, d_prev = float(ash_d.iloc[-1]), float(ash_d.iloc[-2])
+    d_val = float(ash_d.iloc[-1])
+    d_prev = float(ash_d.iloc[-2]) if len(ash_d) >= 2 else np.nan
     p3m = perf(c, 63)
 
     f = {
@@ -699,7 +933,7 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
     if historial:
         f["serie_d"] = [float(x) for x in ash_d.dropna().iloc[-historial:]]
         f["serie_w"] = ([float(x) for x in ash_w.dropna().iloc[-historial:]]
-                        if w_val == w_val else [])
+                        if ash_w is not None else [])
     return f
 
 

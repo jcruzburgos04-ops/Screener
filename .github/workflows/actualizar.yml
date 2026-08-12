@@ -56,6 +56,20 @@ jobs:
       - name: Instalar dependencias
         run: pip install -q -r requirements.txt
 
+      # El runner arranca limpio todas las noches. Sin esto se vuelven a pedir
+      # los 465 get_info() de fundamentales en cada corrida (lentisimo y ademas
+      # es lo que mas hace enojar a Yahoo) y se pierde la cuarentena, asi que
+      # los deslistados se reintentan para siempre.
+      - name: Recuperar los caches de la corrida anterior
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache_fundamentales.json
+            sin_datos.json
+          key: screener-cache-${{ github.run_id }}
+          restore-keys: |
+            screener-cache-
+
       # Yahoo corta mas seguido a las IPs de los servidores que a una conexion
       # hogareña. Si falla, se reintenta dos veces antes de darse por vencido.
       - name: Bajar los precios y armar el sitio
@@ -80,18 +94,26 @@ jobs:
           echo "No pude bajar los datos despues de 3 intentos"
           exit 1
 
+      # Mejor los datos de ayer que un sitio roto: si la descarga vino
+      # incompleta o con medio universo atrasado, no se publica y queda en pie
+      # lo que ya estaba. No aflojes estos dos umbrales.
       - name: Revisar que el sitio tenga sentido
         run: |
           python - <<'PY'
           import json, sys, pathlib
           d = json.loads(pathlib.Path("sitio/datos.json").read_text())
           n = len(d["simbolos"])
-          print(f"simbolos: {n}  ·  ultimo cierre: {d['ultimo_cierre']}")
-          if n < 300:
-              sys.exit(f"[X] Solo {n} simbolos: la descarga vino incompleta, no publico")
+          tarde = d.get("atrasados", 0)
+          print(f"simbolos: {n}  ·  ultimo cierre: {d['ultimo_cierre']}  ·  "
+                f"atrasados: {tarde} ({tarde / max(1, n) * 100:.0f}%)")
           faltan = d.get("faltantes", [])
           if faltan:
               print(f"sin datos ({len(faltan)}): {', '.join(faltan)}")
+          if n < 300:
+              sys.exit(f"[X] Solo {n} simbolos: la descarga vino incompleta, no publico")
+          if tarde > 0.40 * n:
+              sys.exit(f"[X] {tarde} de {n} con la ultima barra atrasada (>40%): "
+                       "Yahoo devolvio series recortadas, no publico")
           PY
 
       - name: Publicar en GitHub Pages

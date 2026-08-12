@@ -1,0 +1,23 @@
+# Todo lo de aca lo regenera el proyecto. Nada de esto se commitea: el
+# datos.json pesa 8 MB y cambia todas las noches, asi que subirlo infla el
+# repo para siempre sin aportar nada (el sitio publicado vive en gh-pages).
+cache_precios.pkl
+cache_datos.json.gz
+cache_fundamentales.json
+sin_datos.json
+sitio/
+screener.html
+screener.xlsx
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+
+# Lo que generan las pruebas
+pruebas/tmp/
+pruebas/motor.js
+pruebas/series.json
+pruebas/salida_js.json
+pruebas/node_modules/

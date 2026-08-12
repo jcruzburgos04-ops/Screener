@@ -27,9 +27,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from screener import (BENCHMARK, bajar_fundamentales, bajar_precios,
+from screener import (BENCHMARK, atrasos, bajar_fundamentales, bajar_precios,
                       cargar_precios, datos_demo, guardar_precios,
-                      leer_universo)
+                      leer_universo, repescar_atrasados)
 
 PLANTILLA = Path("plantilla.html")
 SALIDA = Path("screener.html")
@@ -41,8 +41,12 @@ def serie(x, dec):
 
 
 MONEDAS = {".SA": "BRL", ".DE": "EUR", ".PA": "EUR", ".F": "EUR", ".MI": "EUR",
-            ".L": "GBP", ".IL": "USD", ".T": "JPY", ".TW": "TWD", ".HK": "HKD",
-            ".MX": "MXN", ".TO": "CAD", ".AX": "AUD"}
+           ".AS": "EUR", ".BR": "EUR", ".MC": "EUR", ".VI": "EUR", ".LS": "EUR",
+           ".IR": "EUR", ".HE": "EUR", ".SW": "CHF", ".ST": "SEK", ".OL": "NOK",
+           ".CO": "DKK", ".L": "GBP", ".IL": "USD", ".T": "JPY", ".TW": "TWD",
+           ".HK": "HKD", ".MX": "MXN", ".TO": "CAD", ".V": "CAD", ".NE": "CAD",
+           ".AX": "AUD", ".NZ": "NZD", ".SI": "SGD", ".KS": "KRW", ".KQ": "KRW",
+           ".JO": "ZAR", ".SS": "CNY", ".SZ": "CNY", ".NS": "INR", ".BO": "INR"}
 
 
 def moneda(ticker):
@@ -53,15 +57,38 @@ def moneda(ticker):
     return "USD"
 
 
+def limpiar_para_web(d):
+    """
+    Ultima pasada antes de mandar los precios al navegador.
+
+    El motor de JavaScript hace cuentas directas sobre estos arrays: un `null`
+    en High o en Low se propaga como NaN y se lleva puesto el ADR, el ATR y el
+    grafico del simbolo. Como el cache puede venir de una corrida vieja (de
+    antes de que la descarga limpiara), se revisa igual aca.
+    """
+    d = d.dropna(subset=["Close"])
+    d = d[d["Close"] > 0]
+    for c in ("Open", "High", "Low"):
+        d[c] = d[c].fillna(d["Close"])
+    d["High"] = d[["High", "Open", "Close"]].max(axis=1)
+    d["Low"] = d[["Low", "Open", "Close"]].min(axis=1)
+    d["Volume"] = d["Volume"].fillna(0)
+    return d[np.isfinite(d[["Open", "High", "Low", "Close"]]).all(axis=1)]
+
+
 def armar_payload(precios, meta, uni, barras):
     grupos = dict(zip(uni["ticker"], uni["grupo"]))
     locales = dict(zip(uni["ticker"], uni["local"]))
+    # Dias habiles de atraso de cada simbolo contra la ultima rueda de SU
+    # mercado. Viaja al navegador para que la tabla pueda marcar con ⚠ los que
+    # muestran un precio y una variacion que ya no son de hoy.
+    tarde = atrasos(precios)
     simbolos = []
     for t, d in precios.items():
         # El cache puede tener papeles de un universo anterior: que no se cuelen.
         if t not in grupos and t != BENCHMARK:
             continue
-        d = d.dropna(subset=["Close"]).iloc[-barras:]
+        d = limpiar_para_web(d).iloc[-barras:]
         if len(d) < 120:
             continue
         m = meta.get(t, {})
@@ -75,6 +102,7 @@ def armar_payload(precios, meta, uni, barras):
             "ind": m.get("industria", ""), "pais": m.get("pais", ""),
             "fl": m.get("float_shares") or m.get("shares_out") or None,
             "mc": m.get("mcap") or None,
+            "at": int(tarde.get(t, 0)),
             "d": fechas,
             "o": serie(d["Open"], dec), "h": serie(d["High"], dec),
             "l": serie(d["Low"], dec), "c": serie(d["Close"], dec),
@@ -83,6 +111,7 @@ def armar_payload(precios, meta, uni, barras):
     ultima = max((s["d"][-1] for s in simbolos), default=0)
     return {"fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "ultimo_cierre": ultima, "demo": False,
+            "atrasados": sum(1 for s in simbolos if s["at"] > 0),
             "benchmark": BENCHMARK, "barras": barras, "simbolos": simbolos}
 
 
@@ -117,6 +146,7 @@ def main():
     else:
         print("[2/3] Bajando precios...")
         precios = bajar_precios(pedir, args.periodo)
+        precios, _ = repescar_atrasados(precios, args.periodo)
         if not args.sin_fundamentales:
             print("      fundamentales (sector, float, market cap)...")
             meta = bajar_fundamentales(list(precios.keys()))

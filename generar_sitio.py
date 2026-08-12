@@ -35,9 +35,11 @@ import sys
 from pathlib import Path
 
 from generar_html import armar_payload
-from screener import (BENCHMARK, bajar_fundamentales, bajar_precios,
+from screener import (BENCHMARK, actualizar_cuarentena, atrasos,
+                      bajar_fundamentales, bajar_precios, cargar_cuarentena,
                       cargar_precios, datos_demo, guardar_precios,
-                      leer_universo)
+                      leer_universo, repescar_atrasados,
+                      simbolos_en_cuarentena)
 
 PLANTILLA = Path("plantilla.html")
 MARCA = '/*__DATOS__*/ {fecha:"", simbolos:[]}'
@@ -73,9 +75,17 @@ def main():
         meta = meta or {}
     else:
         print("[2/3] Bajando precios...")
-        precios = bajar_precios(pedir, args.periodo)
+        # Misma cuarentena que usa el servidor local: los deslistados de verdad
+        # (WBA, TTM, LFC...) no se piden por una semana. Antes el sitio los
+        # reintentaba todas las noches y se comia los reintentos de a uno.
+        cuarentena = cargar_cuarentena()
+        castigados = simbolos_en_cuarentena(cuarentena)
+        precios = bajar_precios(pedir, args.periodo, saltear=castigados)
         if not precios:
             sys.exit("[X] Yahoo no devolvio datos.")
+        precios, _ = repescar_atrasados(precios, args.periodo)
+        actualizar_cuarentena(cuarentena, [t for t in pedir if t not in castigados],
+                              set(precios))
         if not args.sin_fundamentales:
             print("      fundamentales (sector, industria, float)...")
             meta = bajar_fundamentales(list(precios.keys()))
@@ -85,6 +95,17 @@ def main():
     payload = armar_payload(precios, meta, uni, args.barras)
     payload["demo"] = args.demo
     payload["faltantes"] = faltan
+    # armar_payload tambien descarta lo que tiene menos de 120 barras: esos
+    # tambien son "sin datos" desde el punto de vista de la pagina.
+    quedaron = {s["t"] for s in payload["simbolos"]}
+    payload["faltantes"] = sorted(set(faltan) | {t for t in tickers if t not in quedaron})
+
+    tarde = {t: n for t, n in atrasos(precios).items() if n > 0 and t in quedaron}
+    if tarde:
+        peores = sorted(tarde.items(), key=lambda kv: -kv[1])[:15]
+        print(f"      [!] {len(tarde)} con la ultima barra atrasada: "
+              + ", ".join(f"{t}({n}d)" for t, n in peores)
+              + (" ..." if len(tarde) > 15 else ""))
 
     print("[3/3] Escribiendo el sitio...")
     out = Path(args.salida)
@@ -107,8 +128,11 @@ def main():
     print(f"  index.html  {kb:6.0f} KB")
     print(f"  datos.json  {mb:6.1f} MB   ({len(payload['simbolos'])} simbolos, "
           f"{args.barras} barras)")
-    if faltan:
-        print(f"  sin datos: {', '.join(faltan)}")
+    print(f"  atrasados   {payload['atrasados']:6d}   "
+          f"({payload['atrasados'] / max(1, len(payload['simbolos'])) * 100:.0f}% "
+          f"del total)")
+    if payload["faltantes"]:
+        print(f"  sin datos: {', '.join(payload['faltantes'])}")
     print("\nSubi esa carpeta a GitHub Pages, o dejá que lo haga el workflow.")
 
 
