@@ -1641,18 +1641,21 @@ function barrasDeYahoo(j){
   return o.c.length?o:null;
 }
 
-/* Pega las barras nuevas encima de las viejas. La ultima barra guardada se
-   reemplaza siempre: pudo haberse guardado a mitad de rueda. */
+/* Pega las barras nuevas encima de las viejas, indexando POR FECHA.
+   Cortar el historial desde la fecha mas vieja que trae Yahoo y pegar lo nuevo
+   pierde barras cuando Yahoo devuelve menos ruedas de las que ya habia. Con un
+   Map por fecha, lo nuevo pisa lo viejo donde coincide y lo demas queda como
+   estaba. La ultima barra guardada se pisa igual, que es lo que se busca: pudo
+   haberse guardado a mitad de rueda. */
 function fusionarBarras(s,nuevo){
-  const desde=nuevo.d[0];
-  let k=s.d.length;
-  while(k>0&&s.d[k-1]>=desde)k--;
+  const barras=new Map();
+  for(let i=0;i<s.d.length;i++)barras.set(s.d[i],[s.o[i],s.h[i],s.l[i],s.c[i],s.v[i]]);
+  for(let i=0;i<nuevo.d.length;i++)
+    barras.set(nuevo.d[i],[nuevo.o[i],nuevo.h[i],nuevo.l[i],nuevo.c[i],nuevo.v[i]]);
   const tope=+DATOS.barras||600;
-  let cambio=false;
-  for(const campo of ['d','o','h','l','c','v']){
-    const unido=s[campo].slice(0,k).concat(nuevo[campo]);
-    s[campo]=unido.slice(-tope);
-  }
+  const fechas=[...barras.keys()].sort((a,b)=>a-b).slice(-tope);
+  s.d=fechas;
+  ['o','h','l','c','v'].forEach((campo,j)=>{s[campo]=fechas.map(f=>barras.get(f)[j]);});
   return s.d[s.d.length-1];
 }
 

@@ -52,29 +52,41 @@ def a_fecha(aaaammdd):
 
 def fusionar(simbolo, nuevo, tope):
     """
-    Pega las barras nuevas sobre las viejas del payload.
+    Pega las barras nuevas sobre las viejas del payload, indexando POR FECHA.
 
-    La ultima barra guardada se reemplaza SIEMPRE: si la corrida anterior fue a
-    mitad de rueda, esa barra quedo con un cierre provisorio y hay que pisarla
-    con el valor de ahora. Devuelve True si algo cambio.
+    Se hace con un diccionario fecha -> barra y no cortando y pegando listas.
+    La primera version cortaba el historial desde la fecha mas vieja que traia
+    Yahoo y pegaba lo nuevo encima, y eso perdia barras: si el mes que devuelve
+    Yahoo tiene menos ruedas que las que ya estaban guardadas (pasa, y le paso a
+    91 de 448 simbolos en la primera corrida real), las que faltaban se borraban.
+    Indexando por fecha eso no puede pasar: lo nuevo pisa lo viejo cuando la
+    fecha coincide, y lo que Yahoo no manda se queda como estaba.
+
+    La ultima barra guardada se pisa igual, que es lo que se busca: si la
+    corrida anterior fue a mitad de rueda, ese cierre era provisorio.
+
+    Devuelve True si la ultima barra cambio.
     """
     if nuevo is None or len(nuevo) == 0:
         return False
-    fechas = [int(x.strftime("%Y%m%d")) for x in nuevo.index]
-    desde = fechas[0]
-    k = len(simbolo["d"])
-    while k > 0 and simbolo["d"][k - 1] >= desde:
-        k -= 1
+    barras = {f: (simbolo["o"][i], simbolo["h"][i], simbolo["l"][i],
+                  simbolo["c"][i], simbolo["v"][i])
+              for i, f in enumerate(simbolo["d"])}
+    antes = (simbolo["d"][-1], simbolo["c"][-1])
 
     px = float(nuevo["Close"].iloc[-1])
     dec = 4 if px < 5 else (3 if px < 100 else 2)
-    antes = (simbolo["d"][-1], simbolo["c"][-1])
+    o, h, l, c = (serie(nuevo[k], dec) for k in ("Open", "High", "Low", "Close"))
+    vol = [int(v) if pd.notna(v) else 0 for v in nuevo["Volume"]]
+    for i, ts in enumerate(nuevo.index):
+        if c[i] is None:
+            continue
+        barras[int(ts.strftime("%Y%m%d"))] = (o[i], h[i], l[i], c[i], vol[i])
 
-    simbolo["d"] = (simbolo["d"][:k] + fechas)[-tope:]
-    for campo, col in (("o", "Open"), ("h", "High"), ("l", "Low"), ("c", "Close")):
-        simbolo[campo] = (simbolo[campo][:k] + serie(nuevo[col], dec))[-tope:]
-    simbolo["v"] = (simbolo["v"][:k]
-                    + [int(v) if pd.notna(v) else 0 for v in nuevo["Volume"]])[-tope:]
+    fechas = sorted(barras)[-tope:]
+    simbolo["d"] = fechas
+    for j, campo in enumerate(("o", "h", "l", "c", "v")):
+        simbolo[campo] = [barras[f][j] for f in fechas]
     return (simbolo["d"][-1], simbolo["c"][-1]) != antes
 
 

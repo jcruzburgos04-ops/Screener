@@ -106,6 +106,24 @@ nuevo0 = d[previo["simbolos"][0]["t"]]["c"]
 assert any(abs(a - b) < 1e-9 for a in viejo0 for b in nuevo0), "se perdio el historial viejo"
 print("el historial anterior sigue ahi: OK")
 
+# El caso que se escapo en la primera corrida real: Yahoo devuelve la ventana
+# del mes con menos ruedas de las que ya habia guardadas. Antes eso borraba
+# barras buenas; ahora, indexando por fecha, no puede pasar.
+falso_ralo = {t: d.iloc[::2] for t, d in falso.items()}   # una rueda si, una no
+with open(tmp / "falso.pkl", "wb") as fh:
+    pickle.dump(falso_ralo, fh)
+r3 = subprocess.run([sys.executable, "-c", guion], cwd=RAIZ, capture_output=True, text=True)
+assert r3.returncode == 0, r3.stderr[-1500:]
+ralo = json.loads((tmp / "sitio" / "datos.json").read_text())
+perdidas = [(s["t"], antes[s["t"]][0], len(s["d"]))
+            for s in ralo["simbolos"] if len(s["d"]) < antes[s["t"]][0]]
+assert not perdidas, f"se perdieron barras: {perdidas[:5]}"
+assert all(len(set(s["d"])) == len(s["d"]) for s in ralo["simbolos"])
+assert all(s["d"] == sorted(s["d"]) for s in ralo["simbolos"]), "quedaron desordenadas"
+print(f"con Yahoo devolviendo la mitad de las ruedas, no se pierde ni una barra: OK")
+with open(tmp / "falso.pkl", "wb") as fh:
+    pickle.dump(falso, fh)
+
 # si Yahoo casi no contesta, NO se publica
 guion2 = guion.replace("{x: falso[x] for x in t if x in falso}",
                        "{x: falso[x] for x in t[:10] if x in falso}")
