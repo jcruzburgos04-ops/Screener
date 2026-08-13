@@ -20,7 +20,6 @@ y le pone el signo por color. Aca la columna guarda la DIFERENCIA CON SIGNO:
 USO
 ---
     pip install yfinance pandas numpy openpyxl
-    python screener.py --demo                  # prueba sin internet
     python screener.py                         # corrida real
     python screener.py --sin-fundamentales     # sin float/sector, mas rapido
     python screener.py --universo mi.csv --out salida.xlsx --periodo 3y
@@ -812,21 +811,6 @@ def cargar_precios(path=CACHE_PRECIOS):
         return None, None, None
 
 
-def datos_demo(tickers, n=760, semilla=7):
-    rng = np.random.default_rng(semilla)
-    idx = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=n)
-    out = {}
-    for k, t in enumerate(tickers):
-        r = rng.normal(rng.normal(0.0004, 0.0004), rng.uniform(0.012, 0.03), n)
-        c = 20 * np.exp(np.cumsum(r)) * (1 + k % 5)
-        rango = c * rng.uniform(0.005, 0.02, n)
-        out[t] = pd.DataFrame({"Open": c + rng.normal(0, rango / 3),
-                               "High": c + rango, "Low": c - rango, "Close": c,
-                               "Volume": rng.lognormal(13.5, 0.8, n).round()},
-                              index=idx)
-    return out
-
-
 # ==============================================================================
 # 6. METRICAS
 # ==============================================================================
@@ -1055,7 +1039,6 @@ def main():
     ap.add_argument("--out", default="screener.xlsx")
     ap.add_argument("--periodo", default=PERIODO)
     ap.add_argument("--sin-fundamentales", action="store_true")
-    ap.add_argument("--demo", action="store_true")
     ap.add_argument("--usar-cache", action="store_true",
                     help="usa los precios ya bajados (cache_precios.pkl)")
     args = ap.parse_args()
@@ -1069,9 +1052,7 @@ def main():
 
     print("[2/5] Precios diarios...")
     pedir = tickers if BENCHMARK in tickers else tickers + [BENCHMARK]
-    if args.demo:
-        precios = datos_demo(pedir)
-    elif args.usar_cache:
+    if args.usar_cache:
         precios, _, fecha = cargar_precios()
         if precios is None:
             sys.exit("[X] No hay cache de precios. Corré sin --usar-cache primero.")
@@ -1085,11 +1066,11 @@ def main():
     faltantes = [t for t in tickers if t not in precios]
     print(f"      {len(precios)} con datos, {len(faltantes)} descartados")
 
-    if not args.demo and not args.usar_cache:
+    if not args.usar_cache:
         guardar_precios(precios)
 
     print("[3/5] Fundamentales...")
-    meta = ({t: {} for t in precios} if (args.sin_fundamentales or args.demo)
+    meta = ({t: {} for t in precios} if args.sin_fundamentales
             else bajar_fundamentales(list(precios.keys())))
 
     print("[4/5] Indicadores (ASH D + ASH W, EMAs, ADR, RSI)...")

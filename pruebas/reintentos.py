@@ -5,9 +5,10 @@ RAIZ = os.path.dirname(AQUI)
 sys.path.insert(0, RAIZ)   # para importar screener.py desde la raiz
 import time
 import screener as S
+from fixtura import series_falsas
 
 S.time.sleep = lambda s: None          # sin pausas, es una prueba
-demo = S.datos_demo([f'T{i}' for i in range(120)] + ['MUERTO1','MUERTO2'], n=300)
+demo = series_falsas([f'T{i}' for i in range(120)] + ['MUERTO1','MUERTO2'], n=300)
 
 llamadas = {'n':0}
 def falso_descargar(grupo, periodo):

@@ -175,11 +175,12 @@ canvas{display:block;width:100%;cursor:crosshair}
 .check{display:flex;align-items:center;gap:.45rem;color:var(--tenue);font-size:.71rem;
   margin:.6rem 0 0;cursor:pointer}
 .check input{width:auto;margin:0;accent-color:var(--ambar)}
-#avisoDemo{display:none;background:#3A1A16;border-bottom:1px solid var(--bajista);
+#avisoYahoo{display:none;background:#3A1A16;border-bottom:1px solid var(--bajista);
   color:#F0C8C2;font-family:var(--mono);font-size:.76rem;padding:.55rem 1.1rem;
   letter-spacing:.03em;line-height:1.6}
-#avisoDemo b{color:var(--bajista);letter-spacing:.12em}
-#avisoDemo code{color:var(--ambar)}
+#avisoYahoo b{color:var(--bajista);letter-spacing:.12em}
+#avisoYahoo code{color:var(--ambar)}
+#avisoYahoo a{color:var(--ambar)}
 #globo{position:absolute;pointer-events:none;background:#0B0F15;border:1px solid var(--borde);
   border-radius:2px;padding:.4rem .55rem;font-family:var(--mono);font-size:.7rem;
   line-height:1.55;white-space:pre;opacity:0;transition:opacity .1s;z-index:9}
@@ -301,6 +302,28 @@ canvas{display:block;width:100%;cursor:crosshair}
 
   <details open><summary>Datos</summary><div class="cuerpo">
     <p class="nota" id="infoDatos"></p>
+
+    <div id="cajaYahoo" style="display:none">
+      <button id="btnYahoo">Traer precios de Yahoo ahora</button>
+      <label class="check"><input type="checkbox" id="yaAuto" checked>
+        al abrir, buscar los precios del día en Yahoo</label>
+      <p class="nota" id="infoYahoo"></p>
+      <details id="detProxy"><summary style="padding-left:0">Si Yahoo no contesta</summary>
+        <div style="padding:0">
+          <p class="nota">El navegador sólo puede pedirle precios a Yahoo si Yahoo
+            lo permite (CORS), y eso cambia sin aviso. Si acá abajo dice que está
+            bloqueado, hay dos salidas:</p>
+          <p class="nota">1. Abrir el screener con <code>python servidor.py</code>,
+            que baja los precios por afuera del navegador y nunca depende de esto.</p>
+          <p class="nota">2. Publicar el proxy de una línea que está en
+            <code>cloudflare-worker.js</code> (es gratis, tarda cinco minutos) y
+            pegar acá la dirección que te da:</p>
+          <input type="text" id="yaProxy" placeholder="https://algo.workers.dev">
+          <button id="btnProbarProxy">Probar</button>
+        </div>
+      </details>
+    </div>
+
     <div id="cajaServidor" style="display:none">
       <label>Historial a descargar</label>
       <select id="srvPeriodo"><option>2y</option><option selected>3y</option>
@@ -313,9 +336,10 @@ canvas{display:block;width:100%;cursor:crosshair}
         al abrir, actualizar solo si están viejos</label>
     </div>
     <p class="nota" id="infoFaltantes"></p>
-    <p class="nota" id="cajaArchivo">Este archivo tiene los datos adentro, así que
-      no se actualiza solo. Para que se actualicen con un botón, arrancá con
-      <code>servidor.py</code> (o el acceso directo <code>iniciar</code>).</p>
+    <p class="nota" id="cajaArchivo">El historial sale del archivo; la rueda del
+      día se le pide a Yahoo acá arriba. Si Yahoo no contesta, arrancá con
+      <code>python servidor.py</code>: baja los precios por fuera del navegador
+      y no depende de que Yahoo permita CORS.</p>
     <button id="btnCsv">Bajar la tabla en CSV</button>
     <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
       <code>[</code> oculta el panel · <code>G</code> oculta el gráfico<br>
@@ -328,7 +352,7 @@ canvas{display:block;width:100%;cursor:crosshair}
 
 <main>
   <div id="avisoCarga"><span id="txtCarga"></span><div class="barra-prog"><i id="barraCarga"></i></div></div>
-  <div id="avisoDemo"></div>
+  <div id="avisoYahoo"></div>
   <div class="marca">
     <button class="icono" id="btnAbrir" title="Mostrar el panel  ·  tecla [">›</button>
     <span class="titulo">Screener ASH</span>
@@ -856,7 +880,7 @@ function aplicar(ms){
       `⚠ ${ruedas} ruedas de atraso</span>`:'')+
     (tardeTodos?` · <span class="amb" title="Su última barra es anterior al cierre de su mercado">`+
       `⚠ ${tardeTodos} atrasado${tardeTodos>1?'s':''}</span>`:'')+
-    (DATOS.demo?' · <span style="color:var(--bajista)">DATOS DE PRUEBA</span>':'');
+    '';
   const act=Object.entries(F).filter(([,v])=>v!==null).length;
   $('#cuentaFiltros').textContent=act?act:'';
   $('#resumenFiltro').textContent=(industriaSel?industriaSel+' · ':'')+
@@ -1146,7 +1170,8 @@ function pintarPerfiles(){
 
 /* Los controles que NO forman parte de una vista: el nombre a guardar y todo
    lo del servidor, que es de la maquina y no del filtro. */
-const NO_ESTADO=['nomPerfil','selPerfil','selRapido','srvPeriodo','srvFund','srvAuto'];
+const NO_ESTADO=['nomPerfil','selPerfil','selRapido','srvPeriodo','srvFund','srvAuto',
+                 'yaAuto','yaProxy'];
 
 function ponerValores(obj,desdeCero){
   if(desdeCero){
@@ -1440,6 +1465,222 @@ async function traerArchivoDatos(){
   }catch(e){console.warn('no pude leer datos.json',e);mostrarCarga(null);return false;}
 }
 
+/* =========================================================================
+   PRECIOS FRESCOS DE YAHOO, PEDIDOS DESDE EL NAVEGADOR
+   =========================================================================
+   El sitio publicado trae el historial completo en datos.json, que lo arma el
+   cron todas las noches. Eso es lo pesado y ya esta resuelto. Lo que falta
+   cuando abris el link a media mañana es LA RUEDA DE HOY, que son pocas barras.
+
+   Asi que al abrir se piden solo las ultimas semanas de cada simbolo al
+   endpoint de graficos de Yahoo y se pegan encima del historial. Si Yahoo
+   contesta, ves el precio del momento; si no, ves el del ultimo cierre y la
+   pagina te lo dice con todas las letras.
+
+   LA LIMITACION, SIN VUELTAS: el navegador solo puede leer la respuesta de
+   Yahoo si Yahoo manda la cabecera CORS que lo permite. Eso Yahoo lo cambia
+   cuando quiere y no depende de este codigo. Por eso hay tres caminos y los
+   tres estan implementados: directo, atraves de un proxy propio de una linea
+   (cloudflare-worker.js), o con servidor.py, que baja los precios por afuera
+   del navegador y no depende de CORS para nada.
+
+   AJUSTE POR SPLITS Y DIVIDENDOS: el historial se baja con auto_adjust=True,
+   asi que las barras nuevas se escalan por adjclose/close para que peguen con
+   las viejas. Sin eso, un dividendo mete un escalon falso en el ASH. */
+
+const YAHOO_DIRECTO='https://query1.finance.yahoo.com';
+const CLAVE_PROXY='screener_ash_proxy', CLAVE_YA_AUTO='screener_ash_yahoo_auto';
+let bajandoYahoo=false, cancelarYahoo=false;
+
+function baseYahoo(){return (leerLS(CLAVE_PROXY)||'').replace(/\/+$/,'')||YAHOO_DIRECTO;}
+
+function urlYahoo(sym,rango){
+  return `${baseYahoo()}/v8/finance/chart/${encodeURIComponent(sym)}`+
+         `?range=${rango}&interval=1d&includePrePost=false`;
+}
+
+/* Convierte la respuesta de Yahoo al mismo formato que usa el resto de la
+   pagina. Devuelve null si no vino nada aprovechable. */
+function barrasDeYahoo(j){
+  const r=j&&j.chart&&j.chart.result&&j.chart.result[0];
+  if(!r||!r.timestamp||!r.indicators||!r.indicators.quote)return null;
+  const q=r.indicators.quote[0]||{};
+  const aj=r.indicators.adjclose&&r.indicators.adjclose[0]&&r.indicators.adjclose[0].adjclose;
+  // el desplazamiento horario del mercado: sin esto, una barra de Tokio o de
+  // Sao Paulo cae en el dia equivocado
+  const off=(r.meta&&+r.meta.gmtoffset)||0;
+  const o={d:[],o:[],h:[],l:[],c:[],v:[]};
+  for(let i=0;i<r.timestamp.length;i++){
+    const c=q.close?q.close[i]:null;
+    if(c==null||!isFinite(c)||c<=0)continue;
+    const f=(aj&&isFinite(aj[i])&&aj[i]>0)?aj[i]/c:1;   // mismo ajuste que yfinance
+    const t=new Date((r.timestamp[i]+off)*1000);
+    const ap=q.open&&isFinite(q.open[i])?q.open[i]:c;
+    let hi=q.high&&isFinite(q.high[i])?q.high[i]:c;
+    let lo=q.low&&isFinite(q.low[i])?q.low[i]:c;
+    hi=Math.max(hi,ap,c);lo=Math.min(lo,ap,c);
+    o.d.push(t.getUTCFullYear()*10000+(t.getUTCMonth()+1)*100+t.getUTCDate());
+    o.o.push(ap*f);o.h.push(hi*f);o.l.push(lo*f);o.c.push(c*f);
+    o.v.push(q.volume&&isFinite(q.volume[i])?q.volume[i]:0);
+  }
+  return o.c.length?o:null;
+}
+
+/* Pega las barras nuevas encima de las viejas. La ultima barra guardada se
+   reemplaza siempre: pudo haberse guardado a mitad de rueda. */
+function fusionarBarras(s,nuevo){
+  const desde=nuevo.d[0];
+  let k=s.d.length;
+  while(k>0&&s.d[k-1]>=desde)k--;
+  const tope=+DATOS.barras||600;
+  let cambio=false;
+  for(const campo of ['d','o','h','l','c','v']){
+    const unido=s[campo].slice(0,k).concat(nuevo[campo]);
+    s[campo]=unido.slice(-tope);
+  }
+  return s.d[s.d.length-1];
+}
+
+/* Recalcula el atraso de cada simbolo con la misma regla que usa Python:
+   contra la fecha MAS FRECUENTE de su propio mercado, no contra la maxima
+   global. Hace falta rehacerlo aca porque despues de refrescar cambio. */
+function recalcularAtrasos(){
+  const porMercado=new Map();
+  for(const s of DATOS.simbolos){
+    const p=s.t.slice(1).indexOf('.'), suf=p>=0?s.t.slice(p+1):'';
+    const f=s.d[s.d.length-1];
+    let m=porMercado.get(suf);
+    if(!m){m=new Map();porMercado.set(suf,m);}
+    m.set(f,(m.get(f)||0)+1);
+  }
+  const ref=new Map();
+  for(const [suf,cuenta] of porMercado){
+    let mejor=0,top=-1;
+    for(const [f,n] of cuenta)if(n>top||(n===top&&f>mejor)){top=n;mejor=f;}
+    ref.set(suf,mejor);
+  }
+  for(const s of DATOS.simbolos){
+    const p=s.t.slice(1).indexOf('.'), suf=p>=0?s.t.slice(p+1):'';
+    const f=s.d[s.d.length-1], r=ref.get(suf);
+    s.at=f>=r?0:ruedasEntre(f,r);
+  }
+  DATOS.ultimo_cierre=Math.max(...DATOS.simbolos.map(s=>s.d[s.d.length-1]));
+  DATOS.atrasados=DATOS.simbolos.filter(s=>s.at>0).length;
+}
+function ruedasEntre(a,b){
+  const f=x=>Date.UTC(Math.floor(x/10000),Math.floor(x/100)%100-1,x%100);
+  let n=0;
+  for(let d=f(a)+86400000;d<=f(b);d+=86400000){const w=new Date(d).getUTCDay();
+    if(w>=1&&w<=5)n++;}
+  return n;
+}
+
+async function pedirUno(sym,rango){
+  const r=await fetch(urlYahoo(sym,rango),{cache:'no-store',credentials:'omit'});
+  if(r.status===429){const e=new Error('429');e.frenado=true;throw e;}
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return barrasDeYahoo(await r.json());
+}
+
+/* El pedido de prueba: un solo simbolo, para saber si se puede antes de
+   largar 465. Distingue "Yahoo no me deja" de "ese papel no existe". */
+async function probarYahoo(){
+  try{
+    const b=await pedirUno('SPY','5d');
+    return b?{ok:true}:{ok:false,motivo:'Yahoo contestó pero sin datos'};
+  }catch(e){
+    return {ok:false,motivo:String(e&&e.message||e),cors:!(e&&e.message||'').startsWith('HTTP')};
+  }
+}
+
+async function traerDeYahoo(silenciosa){
+  if(bajandoYahoo)return;
+  bajandoYahoo=true;cancelarYahoo=false;
+  $('#btnYahoo').textContent='Cancelar';
+  const t0=performance.now();
+  try{
+    mostrarCarga('probando si Yahoo contesta…',0.02);
+    const prueba=await probarYahoo();
+    if(!prueba.ok){
+      mostrarCarga(null);
+      avisarYahooBloqueado(prueba);
+      return;
+    }
+    // pedir mas dias que los que faltan, por feriados y por la barra parcial
+    const ruedas=ruedasHasta(DATOS.ultimo_cierre);
+    const rango=ruedas>20?'3mo':(ruedas>5?'1mo':'5d');
+    const lista=DATOS.simbolos.map(s=>s);
+    let hechos=0,vivos=0,fallados=[],frenado=false;
+    const HILOS=6;
+    async function obrero(){
+      for(;;){
+        if(cancelarYahoo||frenado)return;
+        const s=lista.pop();
+        if(!s)return;
+        try{
+          const b=await pedirUno(s.t,rango);
+          if(b){fusionarBarras(s,b);vivos++;}
+        }catch(e){
+          if(e&&e.frenado){frenado=true;return;}
+          fallados.push(s.t);
+        }
+        hechos++;
+        if(hechos%10===0)mostrarCarga(
+          (silenciosa?'buscando precios en Yahoo — ':'')+
+          `${hechos} de ${DATOS.simbolos.length} · ${vivos} actualizados`,
+          0.05+0.9*hechos/DATOS.simbolos.length);
+      }
+    }
+    await Promise.all(Array.from({length:HILOS},obrero));
+
+    if(vivos){
+      recalcularAtrasos();
+      DATOS.fecha=new Date().toISOString().slice(0,16).replace('T',' ');
+      cacheBase.clear();cacheSem.clear();memoAsh.clear();claveBase='';
+      pintarInfoDatos();montarChips();recalcular();
+    }
+    const ms=Math.round(performance.now()-t0);
+    mostrarCarga(cancelarYahoo?'cancelado':`precios al día · ${vivos} de `+
+      `${DATOS.simbolos.length} actualizados en ${(ms/1000).toFixed(0)} s`,1);
+    setTimeout(()=>mostrarCarga(null),2500);
+    estadoYahoo(frenado
+      ? {ok:false,motivo:'Yahoo cortó por exceso de pedidos (429). Probá en un rato.'}
+      : {ok:true,vivos,fallados,ms,cancelado:cancelarYahoo});
+  }catch(e){
+    mostrarCarga(null);
+    avisarYahooBloqueado({ok:false,motivo:String(e&&e.message||e),cors:true});
+  }finally{
+    bajandoYahoo=false;cancelarYahoo=false;
+    $('#btnYahoo').textContent='Traer precios de Yahoo ahora';
+  }
+}
+
+function avisarYahooBloqueado(r){
+  const conProxy=!!leerLS(CLAVE_PROXY);
+  $('#avisoYahoo').style.display='block';
+  $('#avisoYahoo').innerHTML='<b>NO PUDE TRAER PRECIOS DE HOY</b> — '+
+    (conProxy?'tu proxy no contestó':'el navegador no consiguió hablar con Yahoo')+
+    ` (${esc(r.motivo||'sin detalle')}).<br>`+
+    'Lo que ves es el <b>último cierre publicado</b>, no hay nada inventado. '+
+    'Para que se actualice solo, mirá <i>Datos → Si Yahoo no contesta</i> en el panel.';
+  estadoYahoo(r);
+  $('#detProxy').open=true;
+}
+
+function estadoYahoo(r){
+  const el=$('#infoYahoo');if(!el)return;
+  if(!r){el.innerHTML='';return;}
+  if(r.ok){
+    $('#avisoYahoo').style.display='none';
+    el.innerHTML=r.cancelado?'Cancelado a mitad de camino.':
+      `<span class="amb">${r.vivos} símbolos actualizados</span> desde Yahoo`+
+      (r.fallados&&r.fallados.length?`, ${r.fallados.length} no contestaron`:'')+
+      ` · ${(r.ms/1000).toFixed(0)} s`;
+  }else{
+    el.innerHTML=`<span style="color:var(--bajista)">No pude: ${esc(r.motivo||'')}</span>`;
+  }
+}
+
 function datosViejos(){
   if(!DATOS.fecha)return true;
   const t=Date.parse(DATOS.fecha.replace(' ','T'));
@@ -1448,13 +1689,8 @@ function datosViejos(){
 
 /* ---------- pintar el estado de los datos ---------- */
 function pintarInfoDatos(){
-  $('#avisoDemo').style.display=DATOS.demo?'block':'none';
-  if(DATOS.demo)$('#avisoDemo').innerHTML='<b>DATOS DE PRUEBA</b> — estos precios son '+
-    'inventados (caminatas aleatorias), no se parecen en nada al mercado real.<br>'+
-    'Para cargar los de verdad, arrancá con <code>servidor.py</code> o corré '+
-    '<code>python generar_html.py</code>.';
   const tarde=DATOS.simbolos.filter(s=>+s.at>0);
-  $('#infoDatos').innerHTML=(DATOS.demo?'<b style="color:var(--bajista)">DATOS DE PRUEBA</b><br>':'')+
+  $('#infoDatos').innerHTML=
     `${DATOS.simbolos.length} símbolos<br>último cierre ${fechaCorta(DATOS.ultimo_cierre)}<br>`+
     `bajado ${hace(DATOS.fecha)}<br>${DATOS.barras||'?'} barras por símbolo`+
     (tarde.length?`<br><span class="amb">⚠ ${tarde.length} con el precio atrasado</span>`+
@@ -1595,6 +1831,23 @@ function iniciar(){
   $('#kpiAtraso').style.cursor='pointer';
   $('#kpiAtraso').onclick=()=>{const c=$('#fSinAtraso');c.checked=!c.checked;
     aplicar();guardarSesion();};
+  $('#btnYahoo').onclick=()=>{
+    if(bajandoYahoo){cancelarYahoo=true;return;}
+    traerDeYahoo(false);};
+  $('#yaAuto').checked=leerLS(CLAVE_YA_AUTO)!=='0';
+  $('#yaAuto').onchange=()=>escribirLS(CLAVE_YA_AUTO,$('#yaAuto').checked?'1':'0');
+  $('#yaProxy').value=leerLS(CLAVE_PROXY)||'';
+  $('#btnProbarProxy').onclick=async()=>{
+    const v=$('#yaProxy').value.trim();
+    escribirLS(CLAVE_PROXY,v);
+    $('#btnProbarProxy').textContent='probando…';
+    const r=await probarYahoo();
+    $('#btnProbarProxy').textContent='Probar';
+    estadoYahoo(r.ok?{ok:true,vivos:0,fallados:[],ms:0}:r);
+    if(r.ok){$('#avisoYahoo').style.display='none';
+      $('#infoYahoo').innerHTML='<span class="amb">Anda. '+
+        (v?'Los precios van a salir por tu proxy.':'Yahoo contesta directo.')+'</span>';}
+  };
   $('#btnVista').onclick=()=>copiarVista('#btnVista');
   $('#btnVista2').onclick=()=>copiarVista('#btnVista2');
   $('#btnExportar').onclick=exportarConfig;
@@ -1667,6 +1920,9 @@ async function arrancar(){
   if(SERVIDOR){
     $('#cajaServidor').style.display='block';
     $('#cajaArchivo').style.display='none';
+    // con servidor local no hace falta pedirle nada a Yahoo desde el navegador:
+    // lo baja el proceso de Python, que no depende de CORS
+    $('#cajaYahoo').style.display='none';
     if(leerLS('screener_ash_auto')==='0')$('#srvAuto').checked=false;
     if(est.hay_datos&&await traerDatos())iniciar();
     else pantallaSinDatos();
@@ -1675,10 +1931,16 @@ async function arrancar(){
     if($('#srvAuto').checked&&datosViejos())lanzarActualizacion(true,false);
     return;
   }
-  if(DATOS.simbolos&&DATOS.simbolos.length){iniciar();return;}
-  // sitio publicado: los precios estan en datos.json, al lado de la pagina
-  if(await traerArchivoDatos()){iniciar();return;}
-  pantallaSinDatos();
+  // sin servidor: el historial sale del archivo (sitio publicado o suelto) y la
+  // rueda de hoy se le pide a Yahoo desde el navegador
+  if(!(DATOS.simbolos&&DATOS.simbolos.length)&&!await traerArchivoDatos()){
+    pantallaSinDatos();return;}
+  iniciar();
+  $('#cajaYahoo').style.display='block';
+  // "cuando abro el link, que busque los precios": solo si el archivo no llega
+  // a la ultima rueda. Si ya esta al dia no tiene sentido molestar a Yahoo.
+  if($('#yaAuto').checked&&ruedasHasta(DATOS.ultimo_cierre)>=1)traerDeYahoo(true);
+  else estadoYahoo(null);
 }
 if(typeof document!=='undefined'&&document.getElementById('tabla'))arrancar();
 </script>

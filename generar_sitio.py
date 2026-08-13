@@ -18,7 +18,6 @@ solo cambian los datos, el HTML sigue en cache.
     python generar_sitio.py                 # baja y arma sitio/
     python generar_sitio.py --usar-cache    # rearma sin volver a descargar
     python generar_sitio.py --barras 400    # menos historial, archivo mas chico
-    python generar_sitio.py --demo          # datos sinteticos
 
 CUANTO HISTORIAL HACE FALTA
 ---------------------------
@@ -37,9 +36,8 @@ from pathlib import Path
 from generar_html import armar_payload
 from screener import (BENCHMARK, actualizar_cuarentena, atrasos,
                       bajar_fundamentales, bajar_precios, cargar_cuarentena,
-                      cargar_precios, datos_demo, guardar_precios,
-                      leer_universo, repescar_atrasados,
-                      simbolos_en_cuarentena)
+                      cargar_precios, guardar_precios, leer_universo,
+                      repescar_atrasados, simbolos_en_cuarentena)
 
 PLANTILLA = Path("plantilla.html")
 MARCA = '/*__DATOS__*/ {fecha:"", simbolos:[]}'
@@ -53,7 +51,6 @@ def main():
     ap.add_argument("--barras", type=int, default=400)
     ap.add_argument("--sin-fundamentales", action="store_true")
     ap.add_argument("--usar-cache", action="store_true")
-    ap.add_argument("--demo", action="store_true")
     args = ap.parse_args()
 
     if not PLANTILLA.exists():
@@ -65,9 +62,7 @@ def main():
     print(f"[1/3] Universo: {len(tickers)} simbolos")
 
     meta = {}
-    if args.demo:
-        precios = datos_demo(pedir)
-    elif args.usar_cache:
+    if args.usar_cache:
         precios, meta, fecha = cargar_precios()
         if not precios:
             sys.exit("[X] No hay cache. Corré sin --usar-cache.")
@@ -93,7 +88,6 @@ def main():
 
     faltan = [t for t in tickers if t not in precios]
     payload = armar_payload(precios, meta, uni, args.barras)
-    payload["demo"] = args.demo
     payload["faltantes"] = faltan
     # armar_payload tambien descarta lo que tiene menos de 120 barras: esos
     # tambien son "sin datos" desde el punto de vista de la pagina.

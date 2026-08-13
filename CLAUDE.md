@@ -48,6 +48,12 @@ GitHub Actions (cron nocturno)
 La página llega sin datos adentro y busca `datos.json` al lado (mismo origen, sin
 CORS). Se lee en streaming para mostrar barra de progreso.
 
+**Y al abrir, la página le pide a Yahoo la rueda del día**, desde el navegador,
+con `v8/finance/chart` de a un símbolo. El historial pesado sigue viniendo del
+cron; lo que se pide en vivo son las últimas barras y se pegan encima (ver la
+sección 8). Si Yahoo no deja, se ve el último cierre publicado **y la página lo
+dice con una banda roja**: nunca se muestra un precio viejo como si fuera de hoy.
+
 ### B. Servidor local (`servidor.py`)
 
 Para cuando se quieren precios del momento sin esperar al cron. Levanta un HTTP
@@ -57,9 +63,11 @@ en `127.0.0.1:8765`, sirve `plantilla.html` y expone tres endpoints:
 - `GET /api/datos` — el payload, pre-comprimido en memoria y en disco
 - `POST /api/actualizar?periodo=&fund=&completo=` — dispara la descarga
 
-**Por qué hace falta un servidor y no alcanza el HTML solo:** el navegador no
-puede pedirle precios a Yahoo directamente; la respuesta viene sin cabeceras CORS
-y la bloquea. Esto ya se explicó al usuario y está entendido — no lo replantees.
+**Para qué sigue existiendo, ahora que la página le pide precios a Yahoo sola:**
+porque este camino no depende de CORS. El navegador sólo puede leer la respuesta
+de Yahoo si Yahoo manda la cabecera que lo permite, y eso Yahoo lo cambia cuando
+quiere; `servidor.py` baja los precios desde Python, fuera del navegador, así que
+anda siempre. Es la red de seguridad del modo A, no un reemplazo.
 
 ### C. Archivo suelto (`screener.html`)
 
@@ -84,6 +92,7 @@ datos incrustados.
 | `servidor.py` | Servidor local con progreso, cuarentena y actualización a pedido. |
 | `verificar.py` | Imprime OHLC e indicadores de UN símbolo, para comparar a ojo contra TradingView. |
 | `diagnostico.py` | Lee un `datos.json` y reporta qué símbolos vienen con precios atrasados. |
+| `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 
 ### Datos y configuración
 
@@ -395,10 +404,53 @@ el cierre** en vez de tirar la barra, porque perder una barra corre todas las
 ventanas móviles. Un `null` en `High` viajando al navegador se lleva puesto el
 ADR, el ATR y el gráfico del símbolo.
 
+### Pedirle precios a Yahoo desde el navegador
+
+El sitio publicado se arma de noche. Si el usuario abre el link a media mañana,
+el historial ya está pero falta la rueda de hoy, que son pocas barras. Por eso al
+abrir se piden sólo las últimas semanas de cada símbolo a
+`query1.finance.yahoo.com/v8/finance/chart/SIMBOLO` y se fusionan con lo que ya
+había (`fusionarBarras`), con 6 pedidos en paralelo y barra de progreso.
+
+Tres cosas que no son obvias:
+
+1. **Hay que reajustar por dividendos.** El historial se baja con
+   `auto_adjust=True`, así que las barras nuevas se escalan por
+   `adjclose/close`. Sin eso un dividendo mete un escalón falso en el ASH.
+2. **La fecha sale de `meta.gmtoffset`**, no del epoch a secas. Una barra de
+   Tokio o de São Paulo caería en el día equivocado.
+3. **La última barra guardada se reemplaza siempre**, porque pudo haberse
+   guardado a mitad de rueda.
+
+Después de fusionar se recalcula el atraso en JS con la misma regla que Python
+(la fecha más frecuente de cada mercado), así el `⚠` queda correcto.
+
+> **La limitación, sin vueltas:** el navegador sólo puede leer la respuesta si
+> Yahoo manda la cabecera CORS. Eso Yahoo lo cambia cuando quiere y no depende
+> de este código. **Nunca se pudo verificar desde el entorno de desarrollo**,
+> porque ahí Yahoo está bloqueado por la red. Por eso hay tres caminos y los
+> tres están implementados: directo, por un proxy propio
+> (`cloudflare-worker.js`, se pega la dirección en *Datos → Si Yahoo no
+> contesta*), o con `servidor.py`, que baja los precios por fuera del navegador
+> y no depende de CORS para nada. Si el usuario dice que ve la banda roja, el
+> camino es el proxy — no hay forma de arreglarlo desde el código.
+
+Si Yahoo contesta 429 se corta enseguida en vez de insistir 465 veces.
+
 ### Símbolos muertos de verdad
 
 `WBA` (Walgreens, comprada por Sycamore en agosto 2025), `TTM`, `LFC`, `HNP`,
 `PCRFY`, `YZCHY`. Estos no vuelven.
+
+### Nada de datos de prueba
+
+**El proyecto no tiene modo demo y no hay que devolvérselo.** Había un `--demo`
+en `generar_sitio.py` y en `generar_html.py` que llenaba la tabla con caminatas
+aleatorias: velas creíbles, variaciones creíbles, cruces del ASH creíbles y todo
+falso. Al usuario lo confundía y con una bandera mal puesta se podía publicar.
+Las series sintéticas viven ahora en `pruebas/fixtura.py` y no salen de ahí.
+
+El screener, hoy, o muestra precios de Yahoo o no muestra nada.
 
 ### Cuarentena
 
@@ -460,6 +512,8 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `interfaz.js` | carga, filtros, orden, persistencia, URL, respaldo, teclas |
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
 | `estres.js` | períodos extremos, sin EMAs, sin columnas, industrias, CSV |
+| `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
+| `fixtura.py` | arma `tmp/sitio` con series sintéticas. **El único lugar con datos falsos.** |
 
 **No hay Chrome en el entorno de desarrollo.** Se usa **jsdom** desde Node, con el
 canvas stubbeado entero. Sirve para contar filas y columnas, leer KPIs, disparar
@@ -469,6 +523,11 @@ clics y eventos `input`, probar teclas, verificar persistencia (con un
 **No sirve para**: nada visual. El gráfico no se puede verificar así — lo único
 comprobable es que no lance excepciones y que las coordenadas caigan dentro del
 canvas (se hace capturando las llamadas a `fillRect`).
+
+**Ojo con las pruebas que dependen de la fecha:** `yahoo.js` dispara la descarga
+a mano en vez de esperar el refresco automático. Cuando dependía del automático,
+pasaba o fallaba según con qué fecha se hubiera armado la fixtura, y al cruzar la
+medianoche empezó a fallar sola.
 
 **Ojo con el debounce en los tests:** el guardado de sesión tiene 400 ms. Si el
 test lee `localStorage` antes de eso, ve `undefined` y parece un bug que no lo es.
@@ -496,6 +555,8 @@ necesitan internet.
 8. **La escala del panel del ASH incluye el cero y el histograma va clippeado.**
 9. **`bajar_precios` es una sola.** No la dupliques entre servidor y sitio.
 10. **Todo texto que venga de Yahoo pasa por `esc()`** antes de entrar al HTML.
+11. **Nunca datos inventados.** Sin modo demo, sin rellenos, sin precios de
+    mentira. Si no hay datos, la página lo dice.
 
 ---
 
@@ -503,6 +564,10 @@ necesitan internet.
 
 ### Alto
 
+0. **Confirmar si Yahoo deja pedirle precios desde el navegador.** Está todo
+   implementado pero no se pudo probar contra Yahoo de verdad; el entorno de
+   desarrollo lo tiene bloqueado. Si el usuario ve la banda roja al abrir el
+   link, la respuesta es el proxy de `cloudflare-worker.js`.
 1. **Lightweight Charts (TradingView, Apache 2.0, ~45 KB)** para reemplazar el
    canvas propio: zoom, arrastre, escala log, ejes de tiempo adaptativos,
    crosshair nativo. Incrustar el bundle en el HTML, no CDN. **Nunca se pudo

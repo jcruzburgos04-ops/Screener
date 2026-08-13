@@ -3,9 +3,11 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(AQUI)
 sys.path.insert(0, RAIZ)   # para importar screener.py desde la raiz
 import numpy as np, pandas as pd
-from screener import atrasos, datos_demo, limpiar_barras, sufijo_mercado, cargar_mapa_cedears
+from fixtura import series_falsas
+from screener import (atrasos, cargar_mapa_cedears, limpiar_barras,
+                      sufijo_mercado)
 
-p = datos_demo(['AAPL','MSFT','NVDA','PBR.SA','VALE3.SA','BAS.DE','SAP.DE','TSM','SONY.T'], n=300)
+p = series_falsas(['AAPL','MSFT','NVDA','PBR.SA','VALE3.SA','BAS.DE','SAP.DE','TSM','SONY.T'], n=300)
 # atraso simulado: NVDA 3 ruedas, PBR.SA 1 (solo), BAS.DE y SAP.DE juntos (feriado aleman)
 p['NVDA'] = p['NVDA'].iloc[:-3]
 p['PBR.SA'] = p['PBR.SA'].iloc[:-1]

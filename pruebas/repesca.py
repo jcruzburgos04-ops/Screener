@@ -5,9 +5,10 @@ RAIZ = os.path.dirname(AQUI)
 sys.path.insert(0, RAIZ)   # para importar screener.py desde la raiz
 import sys
 import screener as S
+from fixtura import series_falsas
 S.time.sleep = lambda s: None
 
-completo = S.datos_demo([f'T{i}' for i in range(20)], n=300)
+completo = series_falsas([f'T{i}' for i in range(20)], n=300)
 recortado = {t: (d.iloc[:-3] if i % 4 == 0 else d)
              for i, (t, d) in enumerate(completo.items())}
 

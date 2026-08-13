@@ -10,7 +10,6 @@ Todos los calculos (ASH, EMAs, RSI, ADR, ADX, filtros) pasan a hacerse en el
 navegador, asi que una vez generado el archivo no necesita ni Python ni internet.
 
     python generar_html.py                    # universo.csv -> screener.html
-    python generar_html.py --demo             # datos sinteticos, sin internet
     python generar_html.py --barras 500       # menos historial = archivo mas liviano
     python generar_html.py --sin-fundamentales
 
@@ -28,8 +27,8 @@ import numpy as np
 import pandas as pd
 
 from screener import (BENCHMARK, atrasos, bajar_fundamentales, bajar_precios,
-                      cargar_precios, datos_demo, guardar_precios,
-                      leer_universo, repescar_atrasados)
+                      cargar_precios, guardar_precios, leer_universo,
+                      repescar_atrasados)
 
 PLANTILLA = Path("plantilla.html")
 SALIDA = Path("screener.html")
@@ -110,7 +109,7 @@ def armar_payload(precios, meta, uni, barras):
         })
     ultima = max((s["d"][-1] for s in simbolos), default=0)
     return {"fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "ultimo_cierre": ultima, "demo": False,
+            "ultimo_cierre": ultima,
             "atrasados": sum(1 for s in simbolos if s["at"] > 0),
             "benchmark": BENCHMARK, "barras": barras, "simbolos": simbolos}
 
@@ -124,7 +123,6 @@ def main():
                     help="barras diarias por simbolo que van al HTML")
     ap.add_argument("--sin-fundamentales", action="store_true")
     ap.add_argument("--usar-cache", action="store_true")
-    ap.add_argument("--demo", action="store_true")
     args = ap.parse_args()
 
     if not PLANTILLA.exists():
@@ -136,9 +134,7 @@ def main():
     print(f"[1/3] Universo: {len(tickers)} simbolos")
 
     meta = {}
-    if args.demo:
-        precios = datos_demo(pedir)
-    elif args.usar_cache:
+    if args.usar_cache:
         precios, meta, fecha = cargar_precios()
         if precios is None:
             sys.exit("[X] No hay cache. Corré sin --usar-cache la primera vez.")
@@ -158,7 +154,6 @@ def main():
 
     print("[3/3] Escribiendo el HTML...")
     payload = armar_payload(precios, meta, uni, args.barras)
-    payload["demo"] = bool(args.demo)   # la pagina avisa fuerte si son inventados
     datos = json.dumps(payload, separators=(",", ":"), allow_nan=False)
 
     html = PLANTILLA.read_text(encoding="utf-8")
@@ -169,9 +164,6 @@ def main():
 
     mb = Path(args.out).stat().st_size / 1e6
     print(f"\nListo -> {args.out}   ({len(payload['simbolos'])} simbolos, {mb:.1f} MB)")
-    if args.demo:
-        print("[!] OJO: son datos SINTETICOS. La pagina lo avisa con una banda roja.")
-        print("    Para precios reales: python generar_html.py  (sin --demo)")
     print("Abrilo con doble clic. No necesita servidor ni internet.")
     if mb > 25:
         print("[!] Pesado. Bajá el historial con --barras 400 si tarda en abrir.")
