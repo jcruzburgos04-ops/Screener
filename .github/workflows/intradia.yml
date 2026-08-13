@@ -1,0 +1,98 @@
+# =============================================================================
+# Actualiza SOLO los precios del dia, cada media hora, mientras Nueva York
+# opera.
+#
+# POR QUE HACE FALTA
+# El navegador no puede pedirle precios a Yahoo por su cuenta: la respuesta
+# viene sin cabecera CORS y la bloquea con un "Failed to fetch". Eso no se
+# arregla desde este proyecto. La solucion que no depende de nadie es que el
+# sitio publicado ya este fresco cuando abris el link, y de eso se encarga este
+# workflow.
+#
+# ES BARATO A PROPOSITO: no vuelve a bajar tres años de historial. Agarra el
+# datos.json que ya esta publicado en gh-pages, le pide a Yahoo el ultimo mes
+# de cada simbolo y le pega las barras nuevas encima. La corrida pesada sigue
+# siendo la de la noche (actualizar.yml).
+# =============================================================================
+
+name: Precios del dia
+
+on:
+  schedule:
+    # Nueva York opera 13:30-20:00 UTC (horario de verano). Se corre cada media
+    # hora desde la apertura hasta media hora despues del cierre, de lunes a
+    # viernes. GitHub suele demorar los cron unos minutos: no es un problema,
+    # el objetivo es que lo publicado tenga menos de una hora.
+    - cron: "0,30 13-20 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Que no se pise con la corrida nocturna ni consigo misma.
+concurrency:
+  group: screener
+  cancel-in-progress: false
+
+jobs:
+  refrescar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Lo que ya esta publicado: de ahi sale el historial, que no se vuelve a
+      # bajar. Si todavia no hay nada publicado, este workflow no tiene nada
+      # que hacer y termina sin error.
+      - name: Traer el sitio publicado
+        id: previo
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: sitio_previo
+
+      - name: ¿Hay algo publicado?
+        id: hay
+        run: |
+          if [ -f sitio_previo/datos.json ]; then
+            echo "si=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Todavia no hay sitio publicado: corré 'Actualizar el screener' primero."
+            echo "si=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.hay.outputs.si == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        if: steps.hay.outputs.si == 'true'
+        run: pip install -q -r requirements.txt
+
+      - name: Actualizar los precios
+        if: steps.hay.outputs.si == 'true'
+        run: |
+          set -e
+          for intento in 1 2; do
+            if python actualizar_rapido.py --previo sitio_previo/datos.json --salida sitio; then
+              exit 0
+            fi
+            echo "Fallo el intento $intento, espero 60s"
+            sleep 60
+          done
+          echo "No pude actualizar; dejo el sitio anterior en pie"
+          exit 1
+
+      - name: Publicar
+        if: steps.hay.outputs.si == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./sitio
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "Precios del dia ${{ github.run_number }}"

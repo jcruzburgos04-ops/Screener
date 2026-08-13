@@ -503,7 +503,7 @@ def leer_universo(path, mapa=None):
 COLUMNAS_OHLCV = ["Open", "High", "Low", "Close", "Volume"]
 
 
-def limpiar_barras(d):
+def limpiar_barras(d, minimo=None):
     """
     Deja un DataFrame OHLCV usable, o None si no da la talla.
 
@@ -539,10 +539,11 @@ def limpiar_barras(d):
     d["High"] = d[["High", "Open", "Close"]].max(axis=1)
     d["Low"] = d[["Low", "Open", "Close"]].min(axis=1)
     d["Volume"] = d["Volume"].fillna(0).clip(lower=0)
-    return d if len(d) >= MIN_BARRAS else None
+    minimo = MIN_BARRAS if minimo is None else minimo
+    return d if len(d) >= minimo else None
 
 
-def _descargar(grupo, periodo):
+def _descargar(grupo, periodo, minimo=None):
     """Una tanda contra Yahoo. Devuelve solo lo que vino limpio y completo."""
     import yfinance as yf
     try:
@@ -564,7 +565,7 @@ def _descargar(grupo, periodo):
                 d = raw[t]
             else:
                 d = raw
-            d = limpiar_barras(d)
+            d = limpiar_barras(d, minimo)
             if d is not None:
                 out[t] = d
         except Exception:
@@ -572,7 +573,8 @@ def _descargar(grupo, periodo):
     return out
 
 
-def bajar_precios(tickers, periodo, lote=50, saltear=None, progreso=None):
+def bajar_precios(tickers, periodo, lote=50, saltear=None, progreso=None,
+                  minimo=None):
     """
     Baja los precios diarios, con tres vueltas de reintento.
 
@@ -619,7 +621,7 @@ def bajar_precios(tickers, periodo, lote=50, saltear=None, progreso=None):
             grupo = faltan[i:i + tam]
             if tam == lote:
                 print(f"    lote {i // tam + 1}: {len(grupo)} simbolos...", flush=True)
-            datos.update(_descargar(grupo, periodo))
+            datos.update(_descargar(grupo, periodo, minimo))
             if progreso:
                 texto = ("bajando precios" if tam == lote
                          else f"reintentando los que fallaron ({nombre})")
@@ -648,6 +650,12 @@ def ultima_fecha(d):
 
 
 def atrasos(precios):
+    """Dias habiles de atraso de cada simbolo. Ver atrasos_por_fecha."""
+    ultimas = {t: ultima_fecha(d) for t, d in precios.items()}
+    return atrasos_por_fecha({t: f for t, f in ultimas.items() if f is not None})
+
+
+def atrasos_por_fecha(ultimas):
     """
     Dias habiles de atraso de cada simbolo contra la ultima rueda de su mercado.
 
@@ -655,8 +663,6 @@ def atrasos(precios):
     fecha maxima global para no marcar como atrasado a media Europa cada vez
     que tienen un feriado propio.
     """
-    ultimas = {t: ultima_fecha(d) for t, d in precios.items()}
-    ultimas = {t: f for t, f in ultimas.items() if f is not None}
     if not ultimas:
         return {}
     refs = {}

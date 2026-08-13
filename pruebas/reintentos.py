@@ -11,7 +11,7 @@ S.time.sleep = lambda s: None          # sin pausas, es una prueba
 demo = series_falsas([f'T{i}' for i in range(120)] + ['MUERTO1','MUERTO2'], n=300)
 
 llamadas = {'n':0}
-def falso_descargar(grupo, periodo):
+def falso_descargar(grupo, periodo, minimo=None):
     llamadas['n'] += 1
     # regla 1: los muertos nunca vuelven
     grupo = [t for t in grupo if not t.startswith('MUERTO')]

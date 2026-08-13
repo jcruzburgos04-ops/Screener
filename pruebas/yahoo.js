@@ -155,16 +155,44 @@ function abrirCon(datosTexto,respondedor,almacenInicial){
     w.eval('traerDeYahoo(false)');
     for(let i=0;i<200&&w.eval('bajandoYahoo');i++)await esperar(50);
     await esperar(300);
-    ok('muestra la banda de aviso',$('#avisoYahoo').style.display==='block',
-       $('#avisoYahoo').style.display);
-    ok('el aviso dice que son del ultimo cierre',
-       /último cierre publicado/.test($('#avisoYahoo').textContent),
-       $('#avisoYahoo').textContent.slice(0,80));
-    ok('abre solo la ayuda del proxy',$('#detProxy').open);
+    // Con los datos frescos, que Yahoo bloquee es lo NORMAL y no merece alarma:
+    // el sitio se actualiza solo cada media hora del lado del servidor.
+    ok('no mete una banda roja si los datos estan frescos',
+       $('#avisoYahoo').style.display!=='block',$('#avisoYahoo').style.display);
+    ok('pero lo deja anotado en el panel',/No pude/.test($('#infoYahoo').textContent),
+       $('#infoYahoo').textContent);
+    ok('la pastilla no dice que este viejo',
+       !$('#frescura').classList.contains('viejo'),$('#frescura').className);
     ok('la tabla sigue mostrando el historial',$$0(w)>100,$$0(w));
     ok('no se inventa ningun precio',
        w.eval('DATOS.simbolos[0].c.length')===datos.simbolos[0].c.length);
     ok('no intento 465 pedidos al pedo',w.__pedidos.length<=2,w.__pedidos.length);
+  }
+
+  console.log('\n== datos viejos Y Yahoo bloqueado: ahi si hay que gritar ==');
+  {
+    const viejo=JSON.parse(JSON.stringify(datos));
+    for(const s of viejo.simbolos){
+      const f=s.d[s.d.length-1];
+      const t0=Date.UTC(Math.floor(f/10000),Math.floor(f/100)%100-1,f%100)-9*86400000;
+      const dd=new Date(t0);
+      s.d[s.d.length-1]=dd.getUTCFullYear()*10000+(dd.getUTCMonth()+1)*100+dd.getUTCDate();
+      s.at=0;
+    }
+    viejo.ultimo_cierre=Math.max(...viejo.simbolos.map(s=>s.d[s.d.length-1]));
+    const w=await abrirCon(JSON.stringify(viejo),async()=>{
+      throw new TypeError('Failed to fetch');});
+    for(let i=0;i<200&&w.eval('bajandoYahoo');i++)await esperar(50);
+    await esperar(400);
+    const d=w.document;
+    ok('ahora si aparece la banda',d.querySelector('#avisoYahoo').style.display==='block',
+       d.querySelector('#avisoYahoo').style.display);
+    ok('y dice que los precios estan viejos',
+       /VIEJOS/.test(d.querySelector('#avisoYahoo').textContent));
+    ok('la pastilla se pone en rojo',
+       d.querySelector('#frescura').classList.contains('viejo'),
+       d.querySelector('#frescura').className+' | '+d.querySelector('#frescura').textContent);
+    ok('sigue sin inventar nada',w.eval('DATOS.simbolos.length')===datos.simbolos.length);
   }
 
   console.log('\n== Yahoo contesta: actualiza y limpia el atraso ==');
@@ -211,8 +239,8 @@ function abrirCon(datosTexto,respondedor,almacenInicial){
     w.eval('traerDeYahoo(false)');
     for(let i=0;i<200&&w.eval('bajandoYahoo');i++)await esperar(50);
     await esperar(300);
-    ok('sin proxy configurado, falla',$('#avisoYahoo').style.display==='block',
-       $('#avisoYahoo').style.display);
+    ok('sin proxy configurado, falla',/No pude/.test($('#infoYahoo').textContent),
+       $('#infoYahoo').textContent);
     $('#yaProxy').value='https://mi-proxy.workers.dev/';
     $('#btnProbarProxy').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
     await esperar(600);

@@ -52,5 +52,9 @@ echo; echo "== estres =="
 node estres.js
 echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
+echo; echo "== pantalla angosta y pastilla de frescura =="
+node movil.js
+echo; echo "== Python: actualizacion rapida (intradia) =="
+python3 rapido.py
 
 echo; echo "TODO OK"

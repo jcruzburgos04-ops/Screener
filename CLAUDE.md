@@ -48,11 +48,17 @@ GitHub Actions (cron nocturno)
 La página llega sin datos adentro y busca `datos.json` al lado (mismo origen, sin
 CORS). Se lee en streaming para mostrar barra de progreso.
 
-**Y al abrir, la página le pide a Yahoo la rueda del día**, desde el navegador,
-con `v8/finance/chart` de a un símbolo. El historial pesado sigue viniendo del
-cron; lo que se pide en vivo son las últimas barras y se pegan encima (ver la
-sección 8). Si Yahoo no deja, se ve el último cierre publicado **y la página lo
-dice con una banda roja**: nunca se muestra un precio viejo como si fuera de hoy.
+**Hay dos crones, no uno.** `actualizar.yml` corre de noche y baja los 3 años de
+historial. `intradia.yml` corre **cada media hora mientras Nueva York opera**,
+agarra el `datos.json` que ya está publicado, le pide a Yahoo sólo el último mes
+de cada símbolo y le pega las barras nuevas encima (`actualizar_rapido.py`). Por
+eso, cuando abrís el link, lo publicado tiene menos de una hora sin que el
+navegador tenga que hablar con nadie.
+
+La página *además* intenta pedirle la rueda del día a Yahoo por su cuenta, pero
+eso es un extra: **Yahoo no manda CORS y el navegador lo bloquea con un "Failed
+to fetch"** (verificado con el usuario, 13/8/2026). Cuando falla no pasa nada
+grave y **no se muestra ninguna alarma**, porque lo publicado ya está fresco.
 
 ### B. Servidor local (`servidor.py`)
 
@@ -92,6 +98,7 @@ datos incrustados.
 | `servidor.py` | Servidor local con progreso, cuarentena y actualización a pedido. |
 | `verificar.py` | Imprime OHLC e indicadores de UN símbolo, para comparar a ojo contra TradingView. |
 | `diagnostico.py` | Lee un `datos.json` y reporta qué símbolos vienen con precios atrasados. |
+| `actualizar_rapido.py` | **La actualización intradía.** Toma el `datos.json` publicado, pide sólo el último mes y fusiona. Barato: es lo que corre cada media hora. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 
 ### Datos y configuración
@@ -102,7 +109,8 @@ datos incrustados.
 | `cedears.csv` | `local,subyacente` — 400 mapeos del panel oficial de BYMA del 12/6/2026. |
 | `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico. ~83 KB. |
 | `requirements.txt` | pandas, numpy, yfinance. El servidor usa sólo la stdlib. |
-| `.github/workflows/actualizar.yml` | El cron que publica. |
+| `.github/workflows/actualizar.yml` | El cron nocturno: historial completo. |
+| `.github/workflows/intradia.yml` | Cada media hora durante la rueda: sólo los precios del día. |
 | `pruebas/` | La batería completa. `cd pruebas && ./correr.sh`. |
 
 ### Generados (no se commitean, están en `.gitignore`)
@@ -249,8 +257,22 @@ Otras decisiones de peso:
 ## 7. La interfaz
 
 ### Barra superior
-`★ favoritos` · `Gráfico` · `Industrias ▾` · `Columnas N ▾` · desplegable de
-filtros guardados.
+Pastilla de **frescura** · `★ favoritos` · `Gráfico` · `Industrias ▾` ·
+`Columnas N ▾` · desplegable de filtros guardados.
+
+La pastilla es lo primero que se mira y por eso está antes que todo lo demás:
+**verde** = se actualizó hace menos de 75 minutos, **ámbar** = es el cierre de la
+última rueda (lo correcto con el mercado cerrado), **rojo** = el archivo quedó
+viejo de verdad, dos ruedas o más.
+
+### Pantallas angostas
+
+El screener se abre desde un link, así que tarde o temprano se abre desde el
+teléfono. Abajo de 860 px el panel deja de robarle ancho a la tabla y pasa a ser
+un **cajón** que se abre encima, con un velo detrás que lo cierra al tocarlo. El
+estado plegado del escritorio no abre el cajón solo al entrar desde el teléfono.
+`matchMedia` está guardado con un `innerWidth` de respaldo porque jsdom no lo
+trae y reventaba las pruebas.
 
 ### KPIs
 En el universo · Pasan el filtro · ASH diario + · ASH semanal + · Los dos + ·
@@ -425,15 +447,20 @@ Tres cosas que no son obvias:
 Después de fusionar se recalcula el atraso en JS con la misma regla que Python
 (la fecha más frecuente de cada mercado), así el `⚠` queda correcto.
 
-> **La limitación, sin vueltas:** el navegador sólo puede leer la respuesta si
-> Yahoo manda la cabecera CORS. Eso Yahoo lo cambia cuando quiere y no depende
-> de este código. **Nunca se pudo verificar desde el entorno de desarrollo**,
-> porque ahí Yahoo está bloqueado por la red. Por eso hay tres caminos y los
-> tres están implementados: directo, por un proxy propio
-> (`cloudflare-worker.js`, se pega la dirección en *Datos → Si Yahoo no
-> contesta*), o con `servidor.py`, que baja los precios por fuera del navegador
-> y no depende de CORS para nada. Si el usuario dice que ve la banda roja, el
-> camino es el proxy — no hay forma de arreglarlo desde el código.
+> **Esto NO funciona, y ya está comprobado.** El usuario probó el link el
+> 13/8/2026 y le dio `Failed to fetch`: Yahoo no manda la cabecera CORS, así que
+> el navegador descarta la respuesta. No se arregla desde este código.
+>
+> **Por eso la solución de verdad es `intradia.yml`**, que refresca el sitio
+> cada media hora del lado del servidor y no depende de CORS para nada. El
+> intento desde el navegador quedó como extra por si algún día Yahoo lo permite,
+> pero **cuando falla no se muestra ninguna alarma**: sería ruido sobre algo que
+> ya está resuelto. La banda roja quedó reservada para lo único que sí es un
+> problema real: que los datos publicados tengan 2 ruedas o más de atraso.
+>
+> Si alguna vez hace falta que el navegador sí pueda, están `cloudflare-worker.js`
+> (proxy propio, se pega la dirección en *Datos → Si Yahoo no contesta*) y
+> `servidor.py`.
 
 Si Yahoo contesta 429 se corta enseguida en vez de insistir 465 veces.
 
@@ -513,6 +540,8 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
 | `estres.js` | períodos extremos, sin EMAs, sin columnas, industrias, CSV |
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
+| `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |
+| `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial |
 | `fixtura.py` | arma `tmp/sitio` con series sintéticas. **El único lugar con datos falsos.** |
 
 **No hay Chrome en el entorno de desarrollo.** Se usa **jsdom** desde Node, con el
@@ -564,10 +593,6 @@ necesitan internet.
 
 ### Alto
 
-0. **Confirmar si Yahoo deja pedirle precios desde el navegador.** Está todo
-   implementado pero no se pudo probar contra Yahoo de verdad; el entorno de
-   desarrollo lo tiene bloqueado. Si el usuario ve la banda roja al abrir el
-   link, la respuesta es el proxy de `cloudflare-worker.js`.
 1. **Lightweight Charts (TradingView, Apache 2.0, ~45 KB)** para reemplazar el
    canvas propio: zoom, arrastre, escala log, ejes de tiempo adaptativos,
    crosshair nativo. Incrustar el bundle en el HTML, no CDN. **Nunca se pudo
