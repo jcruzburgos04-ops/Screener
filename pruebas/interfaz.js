@@ -77,6 +77,42 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   await new Promise(r=>setTimeout(r,400));
   ok('al destildar vuelven',filas()===antes,filas()+' vs '+antes);
 
+  console.log('\n== la columna CEDEAR no repite el ticker ==');
+  {
+    const celdas=$$('#tabla tbody tr').map(tr=>{
+      const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+      const i=ths.indexOf('local');
+      return {t:tr.children[ths.indexOf('t')].textContent.trim(),
+              c:tr.children[i].textContent.trim()};});
+    const repetidos=celdas.filter(x=>x.c===x.t);
+    ok('ninguna fila repite el ticker en CEDEAR',repetidos.length===0,
+       JSON.stringify(repetidos.slice(0,3)));
+    ok('los que no tienen CEDEAR propio muestran un punto',
+       celdas.some(x=>x.c==='·'),celdas.slice(0,3).map(x=>x.c).join('|'));
+  }
+
+  console.log('\n== el ticker queda fijo al desplazar a lo ancho ==');
+  {
+    // jsdom no hace layout, pero si aplica el CSS: se comprueba que las dos
+    // primeras columnas esten declaradas sticky y en posiciones distintas
+    const tr=$$('#tabla tbody tr')[0];
+    const c1=w.getComputedStyle(tr.children[0]), c2=w.getComputedStyle(tr.children[1]);
+    ok('la estrella esta fija a la izquierda',c1.position==='sticky'&&c1.left==='0px',
+       c1.position+'/'+c1.left);
+    ok('el ticker tambien, corrido a su derecha',c2.position==='sticky'&&c2.left==='30px',
+       c2.position+'/'+c2.left);
+  }
+
+  console.log('\n== los textos largos se cortan pero no se pierden ==');
+  {
+    const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+    const i=ths.indexOf('sector');
+    const td=$$('#tabla tbody tr')[0].children[i];
+    ok('la celda de sector se corta',td.classList.contains('corto'),td.className);
+    ok('y guarda el texto entero en el title',!!td.getAttribute('title'),
+       td.getAttribute('title'));
+  }
+
   console.log('\n== ordenar por todas las columnas ==');
   let malas=[];
   for(const th of $$('#tabla thead th')){

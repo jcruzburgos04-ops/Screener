@@ -326,6 +326,18 @@ opción del desplegable es `— sin filtros —` (valor `'0'`), que limpia todo.
 
 ### Columnas
 
+**La columna CEDEAR sólo se muestra cuando difiere del ticker.** En 347 de 448
+papeles el código BYMA es idéntico (MU/MU, AMAT/AMAT), así que repetirlo era una
+columna entera de ruido. Los 36 que sí difieren son justo los que hay que mirar
+(DISN→DIS, BA.C→BAC, BRKB→BRK-B, AOCA→ACH). Los demás muestran un `·`.
+
+**Se fijan dos columnas al desplazar, no una.** Con sólo la estrella fija, al
+correr la tabla a la derecha se perdía el ticker y no se sabía de qué fila era
+cada número. La estrella mide 30 px y el ticker se ancla ahí.
+
+Sector, industria y nombre llevan `corto:1`: se cortan con puntos suspensivos y
+el texto entero queda en el `title`. Sin eso estiraban la tabla a lo ancho.
+
 `COLS` define las columnas; las que tienen `def:1` son el set por defecto.
 `nosel:1` marca las que no se pueden apagar (★ y Ticker). El desplegable las
 agrupa según `GRUPOS_COL`. La selección viaja en la sesión, en la URL y dentro de

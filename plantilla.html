@@ -26,7 +26,7 @@
   --ambar-t:rgba(224,164,88,.13);
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
-  --panel-w:300px; --r:3px;
+  --panel-w:272px; --r:3px;
   --sombra:0 10px 34px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box}
@@ -45,14 +45,14 @@ aside{width:var(--panel-w);flex:none;background:var(--panel);
   border-right:1px solid var(--borde);overflow-y:auto;overflow-x:hidden;
   transition:width .18s ease;padding-bottom:3rem;z-index:40}
 body.compacto aside{border-right:none}
-aside .interior{width:300px}
-.cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.9rem 1rem .8rem;
+aside .interior{width:272px}
+.cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.75rem .85rem .7rem;
   border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--panel);z-index:6}
 .cabecera-panel h1{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;
   font-weight:600;text-transform:uppercase;margin:0;flex:1;color:var(--hueso)}
 details{border-bottom:1px solid var(--borde)}
-summary{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--tenue);padding:.7rem 1rem;cursor:pointer;user-select:none;list-style:none;
+summary{font-family:var(--mono);font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--tenue);padding:.52rem .85rem;cursor:pointer;user-select:none;list-style:none;
   display:flex;align-items:center;transition:color .12s,background .12s}
 summary:hover{color:var(--hueso);background:rgba(255,255,255,.02)}
 summary::-webkit-details-marker{display:none}
@@ -64,8 +64,8 @@ summary .cuenta{margin-left:auto;color:var(--ambar);font-size:.65rem;letter-spac
   background:var(--ambar-t);border-radius:999px;padding:.05rem .42rem;min-width:1.3em;
   text-align:center}
 summary .cuenta:empty{display:none}
-.cuerpo{padding:.15rem 1rem 1.15rem}
-label{display:flex;font-size:.71rem;color:var(--tenue);margin:.75rem 0 .28rem;
+.cuerpo{padding:.1rem .85rem 1rem}
+label{display:flex;font-size:.7rem;color:var(--tenue);margin:.6rem 0 .24rem;
   justify-content:space-between;align-items:baseline;gap:.5rem}
 label b{color:var(--ambar);font-family:var(--mono);font-weight:500;
   font-variant-numeric:tabular-nums}
@@ -95,6 +95,10 @@ button:hover{border-color:var(--ambar);color:var(--ambar);background:var(--panel
 button:active{transform:translateY(1px)}
 .icono{width:27px;height:27px;padding:0;margin:0;display:grid;place-items:center;
   font-size:.9rem;letter-spacing:0;flex:none}
+/* Tener la flecha de abrir y la de cerrar al mismo tiempo no tenia sentido:
+   cada una aparece solo cuando hace algo. */
+body:not(.compacto) #btnAbrir{display:none}
+body.cajon #btnAbrir{display:none}
 
 /* --------------------------------- principal ------------------------------ */
 main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative}
@@ -122,12 +126,12 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .kpis{display:flex;gap:1px;background:var(--borde);border-bottom:1px solid var(--borde);
   flex:none;overflow-x:auto;scrollbar-width:none}
 .kpis::-webkit-scrollbar{display:none}
-.kpi{flex:1;background:var(--tinta);padding:.55rem 1rem;min-width:120px}
+.kpi{flex:1;background:var(--tinta);padding:.45rem .85rem;min-width:108px}
 .kpi span{display:block;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
   color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   margin-bottom:.1rem}
 .kpi b{font-family:var(--mono);font-size:1.28rem;font-weight:500;
-  font-variant-numeric:tabular-nums;line-height:1.15}
+  font-variant-numeric:tabular-nums;line-height:1.1}
 #kpiAtraso{cursor:pointer;transition:background .12s}
 #kpiAtraso:hover{background:var(--panel2)}
 #kpiAtraso.hay b{color:var(--ambar)}
@@ -179,23 +183,33 @@ body.sin-grafico .detalle{display:none}
 table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mono);
   font-size:.775rem;font-variant-numeric:tabular-nums}
 thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-weight:500;
-  font-size:.61rem;letter-spacing:.08em;text-transform:uppercase;text-align:right;
-  padding:.52rem .5rem;border-bottom:1px solid var(--borde2);cursor:pointer;
+  font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;text-align:right;
+  padding:.45rem .5rem;border-bottom:1px solid var(--borde2);cursor:pointer;
   white-space:nowrap;z-index:3;user-select:none;transition:color .12s}
 thead th:hover{color:var(--hueso);background:var(--panel2)}
 thead th.izq{text-align:left}
 thead th.act{color:var(--ambar)}
-tbody td{padding:.32rem .5rem;text-align:right;border-bottom:1px solid rgba(37,48,62,.5);
+tbody td{padding:.28rem .5rem;text-align:right;border-bottom:1px solid rgba(37,48,62,.5);
   white-space:nowrap}
 tbody td.izq{text-align:left}
+/* Sector, industria y nombre son largos y estiraban la tabla a lo ancho: se
+   cortan con puntos suspensivos y el texto entero queda en el title. */
+td.corto{max-width:140px;overflow:hidden;text-overflow:ellipsis}
 tbody tr{cursor:pointer}
 tbody tr:hover td{background:var(--panel2)}
 tbody tr.sel td{background:var(--panel3)}
 tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
-th:first-child,td:first-child{position:sticky;left:0;background:var(--tinta);z-index:2}
-thead th:first-child{z-index:4;background:var(--panel)}
-tbody tr:hover td:first-child{background:var(--panel2)}
-tbody tr.sel td:first-child{background:var(--panel3)}
+/* Se fijan DOS columnas, no una: con solo la estrella fija, al desplazar a la
+   derecha se perdia de vista el ticker y no se sabia de que fila era cada
+   numero. La estrella mide 30 px, asi que el ticker se ancla ahi. */
+th:nth-child(1),td:nth-child(1),th:nth-child(2),td:nth-child(2){
+  position:sticky;background:var(--tinta);z-index:2}
+th:nth-child(1),td:nth-child(1){left:0;width:30px;min-width:30px;padding-left:.55rem;
+  padding-right:0}
+th:nth-child(2),td:nth-child(2){left:30px;box-shadow:1px 0 0 var(--borde)}
+thead th:nth-child(1),thead th:nth-child(2){z-index:4;background:var(--panel)}
+tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2){background:var(--panel2)}
+tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2){background:var(--panel3)}
 .up{color:var(--alcista)}.dn{color:var(--bajista)}.gris{color:var(--apagado)}
 .amb{color:var(--ambar)}
 .tk{font-weight:600;letter-spacing:.02em}
@@ -254,7 +268,7 @@ canvas{display:block;width:100%;cursor:crosshair}
 body.cajon #velo{display:block}
 @media (max-width:860px){
   body{--panel-w:0px}
-  aside{position:fixed;top:0;bottom:0;left:0;width:300px;
+  aside{position:fixed;top:0;bottom:0;left:0;width:272px;
     transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--sombra)}
   body.cajon aside{transform:none}
   body.compacto aside{border-right:1px solid var(--borde)}
@@ -269,6 +283,7 @@ body.cajon #velo{display:block}
   .barra .sep{display:none}
   .desplegable{right:.5rem;left:.5rem;width:auto;top:48px}
   tbody td,thead th{padding-left:.42rem;padding-right:.42rem}
+  td.corto{max-width:96px}
   .detalle .cab{padding:.45rem .7rem;gap:.5rem}
   .detalle .meta{flex-basis:100%;order:5}
 }
@@ -797,11 +812,19 @@ const COLS=[
    fmt:(v,f)=>`<span class="tk">${esc(v)}</span>`+(f.atraso?
      `<span class="atraso" title="Última barra: ${fechaCorta(f.ultima)} · ${f.atraso} `+
      `rueda${f.atraso>1?'s':''} de atraso. El precio y la variación no son de hoy.">⚠</span>`:'')},
-  {k:'local',  t:'CEDEAR', izq:1, def:1, fmt:v=>v?`<span class="gris">${esc(v.replace('.BA',''))}</span>`:''},
+  /* El codigo BYMA es igual al ticker en la enorme mayoria de los CEDEARs
+     (MU/MU, AMAT/AMAT, LRCX/LRCX...). Repetirlo era una columna entera de
+     ruido: solo se muestra cuando de verdad difiere, que son los casos que
+     hay que mirar (DISN->DIS, BA.C->BAC, TEN->TS, UN->NU). */
+  {k:'local',  t:'CEDEAR', izq:1, def:1, fmt:(v,f)=>{
+     const c=(v||'').replace('.BA','');
+     return c&&c!==f.t?`<span class="amb">${esc(c)}</span>`
+                      :'<span class="gris" title="El CEDEAR se llama igual">·</span>';}},
   {k:'moneda', t:'Mon',    izq:1, def:1, fmt:v=>`<span class="mon">${esc(v)}</span>`},
-  {k:'grupo',  t:'Grupo',  izq:1, def:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
-  {k:'sector', t:'Sector', izq:1, def:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
-  {k:'industria',t:'Industria',izq:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
+  {k:'grupo',  t:'Grupo',  izq:1, def:1, corto:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
+  {k:'sector', t:'Sector', izq:1, def:1, corto:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
+  {k:'industria',t:'Industria',izq:1, corto:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
+  {k:'nombre', t:'Nombre', izq:1, corto:1, fmt:v=>`<span class="gris">${esc(v)}</span>`},
   {k:'precio', t:'Precio', def:1, fmt:v=>num(v,2)},
   {k:'chg',    t:'Chg %',  def:1, color:1,
    fmt:(v,f)=>f.atraso?`<span class="viejo" title="variación del ${fechaCorta(f.ultima)}">${pct(v)}</span>`:pct(v)},
@@ -1003,8 +1026,8 @@ function columnas(){
 }
 
 const GRUPOS_COL=[
-  ['Identificación',['local','moneda','grupo','sector','industria','precio','chg',
-          'atraso','ultima']],
+  ['Identificación',['local','moneda','nombre','grupo','sector','industria','precio',
+          'chg','atraso','ultima']],
   ['ASH',['ash_d','ash_tend','ash_w','ash_w_tend','ash_d_norm','ash_d_cruce',
           'ash_d_pend','serie_d','serie_w']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
@@ -1090,7 +1113,10 @@ function render(){
     const f=visibles[i];let fila='<tr data-i="'+i+'" class="'+(seleccion===f.t?'sel':'')+'">';
     for(const c of usar){const v=f[c.k];let cls=c.izq?'izq':'';
       if(c.color&&isFinite(v))cls+=v>0?' up':(v<0?' dn':'');
-      fila+=`<td class="${cls}">${c.fmt?c.fmt(v,f):(v==null?'':v)}</td>`;}
+      if(c.corto)cls+=' corto';
+      // el texto completo queda en el title: la columna se corta pero no se pierde
+      const tit=c.corto&&v?` title="${esc(v)}"`:'';
+      fila+=`<td class="${cls}"${tit}>${c.fmt?c.fmt(v,f):(v==null?'':v)}</td>`;}
     html[i]=fila+'</tr>';}
   $('#tabla tbody').innerHTML=html.join('');
   if(!visibles.find(f=>f.t===seleccion))seleccionar(visibles[0].t);
