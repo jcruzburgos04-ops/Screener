@@ -73,7 +73,7 @@ function abrir(respondedor){
 
 /* Abre la pagina con un datos.json cualquiera. Se usa para simular "abri el
    link un lunes a la mañana con los datos del viernes". */
-function abrirCon(datosTexto,respondedor){
+function abrirCon(datosTexto,respondedor,almacenInicial){
   return new Promise(res=>{
     const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,
       url:'https://local/',
@@ -82,7 +82,7 @@ function abrirCon(datosTexto,respondedor){
         w.HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get:()=>noop,set:()=>true});
         w.Element.prototype.scrollIntoView=noop;
         Object.defineProperty(w.HTMLElement.prototype,'clientWidth',{get(){return 1200}});
-        Object.defineProperty(w,'localStorage',{value:{_m:{},
+        Object.defineProperty(w,'localStorage',{value:{_m:{...(almacenInicial||{})},
           getItem(k){return this._m[k]??null},setItem(k,v){this._m[k]=String(v)},
           removeItem(k){delete this._m[k]}},configurable:true});
         w.TextEncoder=require('util').TextEncoder;w.TextDecoder=require('util').TextDecoder;
@@ -262,17 +262,55 @@ function abrirCon(datosTexto,respondedor){
        w.document.querySelector('#avisoYahoo').style.display==='block');
   }
 
-  console.log('\n== ya al dia: no molesta a Yahoo ==');
+  console.log('\n== recargar enseguida no dispara otra vuelta ==');
   {
+    // sin marca previa: sale a buscar aunque el archivo diga que esta al dia
     const hoy=new Date();
     const f=hoy.getUTCFullYear()*10000+(hoy.getUTCMonth()+1)*100+hoy.getUTCDate();
     const alDia=JSON.parse(JSON.stringify(datos));
     for(const s of alDia.simbolos){s.d[s.d.length-1]=f;s.at=0;}
     alDia.ultimo_cierre=f;
-    const w=await abrirCon(JSON.stringify(alDia),async()=>{
-      throw new Error('no deberia pedir nada');});
+    const w1=await abrirCon(JSON.stringify(alDia),async()=>{
+      throw new TypeError('Failed to fetch');});
     await esperar(1200);
-    ok('con los datos al dia no pide nada',w.__pedidos.length===0,w.__pedidos.length);
+    ok('aunque el archivo diga que esta al dia, igual busca',w1.__pedidos.length>0,
+       w1.__pedidos.length);
+
+    // con una marca de hace un minuto: no repite
+    const w2=await abrirCon(JSON.stringify(alDia),async()=>{
+      throw new TypeError('Failed to fetch');},
+      {screener_ash_yahoo_ultimo:String(Date.now()-60*1000)});
+    await esperar(1200);
+    ok('si recargaste hace un minuto, no repite',w2.__pedidos.length===0,w2.__pedidos.length);
+
+    // con una marca de hace media hora: vuelve a buscar
+    const w3=await abrirCon(JSON.stringify(alDia),async()=>{
+      throw new TypeError('Failed to fetch');},
+      {screener_ash_yahoo_ultimo:String(Date.now()-30*60*1000)});
+    await esperar(1200);
+    ok('media hora despues, vuelve a buscar',w3.__pedidos.length>0,w3.__pedidos.length);
+
+    // y con el tilde apagado, nunca
+    const w4=await abrirCon(JSON.stringify(alDia),async()=>{
+      throw new TypeError('Failed to fetch');},
+      {screener_ash_yahoo_auto:'0'});
+    await esperar(1200);
+    ok('con el tilde apagado, no pide nada',w4.__pedidos.length===0,w4.__pedidos.length);
+  }
+
+  console.log('\n== la fecha de la mayoria, no la maxima ==');
+  {
+    // el caso real: 430 papeles de Nueva York en el cierre de ayer y uno de
+    // Tokio que ya opera hoy. El maximo dice "al dia" y es mentira.
+    const mezcla=JSON.parse(JSON.stringify(datos));
+    const ayer=20260812, hoy=20260813;
+    mezcla.simbolos.forEach((s,i)=>{s.d[s.d.length-1]=(i===0?hoy:ayer);s.at=0;});
+    mezcla.ultimo_cierre=hoy;
+    const w=await abrirCon(JSON.stringify(mezcla),async()=>{
+      throw new TypeError('Failed to fetch');},{screener_ash_yahoo_auto:'0'});
+    await esperar(600);
+    ok('la mayoria manda',w.eval('fechaMayoritaria()')===ayer,w.eval('fechaMayoritaria()'));
+    ok('y no es la maxima',w.eval('DATOS.ultimo_cierre')===hoy);
   }
 
   console.log(fallas?'\nFALLAS: '+fallas:'\nYAHOO OK');

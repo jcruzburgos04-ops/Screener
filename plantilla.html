@@ -869,7 +869,9 @@ function aplicar(ms){
   if(ms!==undefined)$('#estado').textContent=`recalculado en ${ms.toFixed(0)} ms`;
   const c=config();
   const tardeTodos=filas.filter(f=>f.atraso>0).length;
-  const ruedas=ruedasHasta(DATOS.ultimo_cierre);
+  // contra la fecha de la mayoria: un papel de Asia adelantado no puede
+  // tapar que todo Nueva York quedo en el cierre de anteayer
+  const ruedas=ruedasHasta(fechaMayoritaria());
   $('#firma').innerHTML=`<em>${esc(c.ash.modo)} · ${c.ash.length}/${c.ash.smooth} · ${esc(c.ash.ma_type)}</em>`+
     ` · ${DATOS.simbolos.length} símbolos · último cierre ${fechaCorta(DATOS.ultimo_cierre)}`+
     // Que TODO el archivo este viejo (el cron fallo, la pestaña quedo abierta
@@ -1489,7 +1491,8 @@ async function traerArchivoDatos(){
    las viejas. Sin eso, un dividendo mete un escalon falso en el ASH. */
 
 const YAHOO_DIRECTO='https://query1.finance.yahoo.com';
-const CLAVE_PROXY='screener_ash_proxy', CLAVE_YA_AUTO='screener_ash_yahoo_auto';
+const CLAVE_PROXY='screener_ash_proxy', CLAVE_YA_AUTO='screener_ash_yahoo_auto',
+      CLAVE_YA_ULTIMO='screener_ash_yahoo_ultimo';
 let bajandoYahoo=false, cancelarYahoo=false;
 
 function baseYahoo(){return (leerLS(CLAVE_PROXY)||'').replace(/\/+$/,'')||YAHOO_DIRECTO;}
@@ -1567,6 +1570,22 @@ function recalcularAtrasos(){
   DATOS.ultimo_cierre=Math.max(...DATOS.simbolos.map(s=>s.d[s.d.length-1]));
   DATOS.atrasados=DATOS.simbolos.filter(s=>s.at>0).length;
 }
+/* La fecha de la MAYORIA del universo, no la maxima.
+   A las 22:30 de Buenos Aires en Tokio ya es el dia siguiente y hay papeles
+   operando: si se mira el maximo, el archivo entero parece del dia de hoy
+   aunque los 430 papeles de Nueva York esten en el cierre de ayer. Con eso la
+   pagina se convencia sola de que estaba al dia y no salia a buscar nada. */
+function fechaMayoritaria(){
+  const cuenta=new Map();
+  for(const s of DATOS.simbolos){
+    const f=s.d[s.d.length-1];
+    cuenta.set(f,(cuenta.get(f)||0)+1);
+  }
+  let mejor=0,top=-1;
+  for(const [f,n] of cuenta)if(n>top||(n===top&&f>mejor)){top=n;mejor=f;}
+  return mejor;
+}
+
 function ruedasEntre(a,b){
   const f=x=>Date.UTC(Math.floor(x/10000),Math.floor(x/100)%100-1,x%100);
   let n=0;
@@ -1596,6 +1615,7 @@ async function probarYahoo(){
 async function traerDeYahoo(silenciosa){
   if(bajandoYahoo)return;
   bajandoYahoo=true;cancelarYahoo=false;
+  escribirLS(CLAVE_YA_ULTIMO,String(Date.now()));
   $('#btnYahoo').textContent='Cancelar';
   const t0=performance.now();
   try{
@@ -1607,7 +1627,7 @@ async function traerDeYahoo(silenciosa){
       return;
     }
     // pedir mas dias que los que faltan, por feriados y por la barra parcial
-    const ruedas=ruedasHasta(DATOS.ultimo_cierre);
+    const ruedas=ruedasHasta(fechaMayoritaria());
     const rango=ruedas>20?'3mo':(ruedas>5?'1mo':'5d');
     const lista=DATOS.simbolos.map(s=>s);
     let hechos=0,vivos=0,fallados=[],frenado=false;
@@ -1937,9 +1957,13 @@ async function arrancar(){
     pantallaSinDatos();return;}
   iniciar();
   $('#cajaYahoo').style.display='block';
-  // "cuando abro el link, que busque los precios": solo si el archivo no llega
-  // a la ultima rueda. Si ya esta al dia no tiene sentido molestar a Yahoo.
-  if($('#yaAuto').checked&&ruedasHasta(DATOS.ultimo_cierre)>=1)traerDeYahoo(true);
+  /* "Cuando abro el link, que busque los precios": se hace siempre, porque
+     durante la rueda el precio se mueve y el archivo publicado es del cierre
+     anterior. Lo unico que se evita es repetirlo si recargaste hace menos de
+     cinco minutos, para no comerse un 429 de Yahoo recargando tres veces
+     seguidas. Con el tilde de arriba se apaga. */
+  const ultimoIntento=+leerLS(CLAVE_YA_ULTIMO)||0;
+  if($('#yaAuto').checked&&Date.now()-ultimoIntento>5*60*1000)traerDeYahoo(true);
   else estadoYahoo(null);
 }
 if(typeof document!=='undefined'&&document.getElementById('tabla'))arrancar();
