@@ -355,14 +355,24 @@ Yahoo pasa por `esc()`.**
 > rompía el panel del detalle con un `Cannot access 'esc' before initialization`.
 > No la vuelvas a llamar `esc`.
 
-### Industrias
+### Sectores e industrias
 
 `agregarPorGrupo()` calcula, por industria y por sector:
 - **RS** — percentil 1-99 de la mediana de rendimiento a 3 meses del grupo.
 - **breadth** — qué fracción del grupo tiene el ASH diario positivo.
 
-Sólo se rankean grupos con ≥2 miembros. El panel `Industrias ▾` las lista
-ordenadas y permite filtrar la tabla por una.
+Sólo se rankean grupos con ≥2 miembros.
+
+**El panel agrupa por SECTOR, no por industria** (`campoGrupo`, con un chip para
+cambiar). Medido sobre los datos reales: 11 sectores contra 95 industrias, y
+**31 de esas industrias tienen un solo papel**, así que ni siquiera se pueden
+rankear. Sumado a que la clasificación de Yahoo es mediocre (el caso `ACH`), la
+industria sirve para afinar pero no para decidir. Cambiar de campo **suelta la
+selección**: si no, quedaba filtrando por «Semiconductors» con la lista de
+sectores en pantalla y no se entendía por qué la tabla mostraba veinte papeles.
+
+El buscador también matchea sector e industria, así que escribir `energy` deja
+el sector entero sin abrir el desplegable.
 
 ### Gráfico
 

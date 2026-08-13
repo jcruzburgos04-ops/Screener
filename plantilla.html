@@ -473,20 +473,25 @@ body.cajon #velo{display:block}
     <div class="tf">
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
-      <span class="chip" id="btnInd" title="Ranking de industrias">Industrias ▾</span>
+      <span class="chip" id="btnInd" title="Ranking de sectores">Sectores ▾</span>
       <span class="chip" id="btnCols" title="Elegir qué columnas ver">Columnas <b id="cuentaCols"></b> ▾</span>
     </div>
   </div>
   <div class="desplegable" id="panelInd">
     <div class="dcab">
-      <b>Industrias · ordenadas por fuerza relativa</b>
-      <span class="chip" id="indTodas">Todas</span>
+      <b id="tituloInd">Sectores · ordenados por fuerza relativa</b>
+      <span class="chip on" data-campo="sector">Sector</span>
+      <span class="chip" data-campo="industria">Industria</span>
+      <span class="chip" id="indTodas">Todos</span>
     </div>
     <table class="tind" id="tablaInd"></table>
-    <p class="nota">Tocá una para ver sólo esos papeles. <b style="color:var(--tenue)">RS</b>
-      es la mediana de rendimiento a 3 meses de la industria contra las demás;
-      <b style="color:var(--tenue)">verde</b> es qué parte de ella tiene el ASH
-      diario positivo. Sólo se rankean industrias con dos papeles o más.</p>
+    <p class="nota">Tocá uno para ver sólo esos papeles. <b style="color:var(--tenue)">RS</b>
+      es la mediana de rendimiento a 3 meses del grupo contra los demás;
+      <b style="color:var(--tenue)">verde</b> es qué parte de él tiene el ASH
+      diario positivo. Sólo se rankean grupos con dos papeles o más.<br>
+      El sector es el corte grande y confiable (once grupos). La industria parte
+      el universo en más de cien y Yahoo la clasifica mal seguido, así que sirve
+      para afinar pero no para decidir.</p>
   </div>
   <div class="desplegable" id="panelCols">
     <div class="dcab">
@@ -510,7 +515,7 @@ body.cajon #velo{display:block}
     <div class="kpi" id="kpiAtraso" title="Su última barra es anterior al cierre de su mercado. Tocá acá para esconderlos."><span>⚠ Precio atrasado</span><b id="kA">—</b></div>
   </div>
   <div class="barra">
-    <input type="search" id="buscar" placeholder="Buscar ticker, nombre o CEDEAR">
+    <input type="search" id="buscar" placeholder="Buscar ticker, nombre, CEDEAR o sector">
     <span class="nota" id="resumenFiltro"></span>
     <button class="mini" id="btnCopiar" title="Para pegar en una watchlist">Copiar tickers</button>
     <button class="mini" id="btnGuardarRapido">Guardar estos filtros</button>
@@ -734,7 +739,13 @@ const EMAS_DISP=[8,10,20,21,50,100,150,200];
 let emasOn=[20,50], gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
     seleccion=null, tfDetalle='d', filas=[], visibles=[],
     cacheBase=new Map(), cacheSem=new Map(), claveBase='',
-    favoritos=new Set(), soloFav=false, memoAsh=new Map(), industriaSel=null;
+    favoritos=new Set(), soloFav=false, memoAsh=new Map(), industriaSel=null,
+    /* Por que sector y no industria: Yahoo parte el universo en mas de cien
+       industrias diminutas y encima las clasifica mal seguido (ACH, que es
+       aluminio, aparece como Healthcare). Los once sectores son grandes,
+       estables y sirven para lo que se usa esto: ver que parte del mercado
+       esta en verde. La industria sigue disponible con el chip de al lado. */
+    campoGrupo='sector';
 
 /* Filtros listos para usar. Son los mismos controles de la izquierda: cada
    clave es el id de un control y su valor lo que se le pone. */
@@ -968,10 +979,15 @@ function agregarPorGrupo(campo,claveRS,claveBreadth,claveN){
 function aplicar(ms){
   const F=filtros(), q=$('#buscar').value.trim().toUpperCase();
   visibles=filas.filter(f=>pasaFiltros(f,F)
-    &&(!industriaSel||f.industria===industriaSel)
+    &&(!industriaSel||f[campoGrupo]===industriaSel)
     &&(!soloFav||favoritos.has(f.t))
     &&(!gruposOn.size||gruposOn.has(f.grupo))
-    &&(!q||f.t.includes(q)||(f.local||'').includes(q)||(f.nombre||'').toUpperCase().includes(q)));
+    // el buscador tambien entiende sector e industria: escribir "energy"
+    // deja el sector entero, sin tener que abrir el desplegable
+    &&(!q||f.t.includes(q)||(f.local||'').includes(q)
+        ||(f.nombre||'').toUpperCase().includes(q)
+        ||(f.sector||'').toUpperCase().includes(q)
+        ||(f.industria||'').toUpperCase().includes(q)));
   const s=orden.col, dir=orden.asc?1:-1;
   visibles.sort((a,b)=>{const x=a[s],y=b[s];
     if(typeof x==='string')return dir*String(x).localeCompare(String(y));
@@ -1058,14 +1074,20 @@ function montarColumnas(){
 }
 
 function montarIndustrias(){
+  const porSector=campoGrupo==='sector';
+  const claveRS=porSector?'rs_sector':'rs_ind';
   const g=new Map();
   for(const f of filas){
-    const k=f.industria;if(!k)continue;
+    const k=f[campoGrupo];if(!k)continue;
     let x=g.get(k);
-    if(!x){x={n:0,pos:0,rs:f.rs_ind,sector:f.sector};g.set(k,x);}
+    if(!x){x={n:0,pos:0,rs:f[claveRS]};g.set(k,x);}
     x.n++;if(f.ash_d>0)x.pos++;
   }
   const lista=[...g.entries()].sort((a,b)=>(b[1].rs||0)-(a[1].rs||0));
+  $('#tituloInd').textContent=(porSector?'Sectores':'Industrias')+
+    ' · ordenados por fuerza relativa';
+  $$('#panelInd .chip[data-campo]').forEach(c=>
+    c.classList.toggle('on',c.dataset.campo===campoGrupo));
   $('#tablaInd').innerHTML=lista.length?lista.map(([nombre,x])=>{
     const verde=x.n?x.pos/x.n:0;
     return `<tr class="${industriaSel===nombre?'sel':''}" data-ind="${esc(nombre)}">`+
@@ -1074,12 +1096,22 @@ function montarIndustrias(){
       `<td class="der">${isFinite(x.rs)?Math.round(x.rs):'—'}</td>`+
       `<td class="der"><span class="verde"><i style="width:${(verde*44).toFixed(0)}px"></i></span>`+
       ` ${(verde*100).toFixed(0)}%</td></tr>`;}).join('')
-    : '<tr><td class="gris">Los datos no traen industria. Bajalos con los '+
-      'fundamentales activados para que aparezca.</td></tr>';
+    : `<tr><td class="gris">Los datos no traen ${porSector?'sector':'industria'}. `+
+      'Bajalos con los fundamentales activados para que aparezca.</td></tr>';
 }
 
 function elegirIndustria(nombre){
   industriaSel=(industriaSel===nombre)?null:nombre;
+  montarIndustrias();aplicar();guardarSesion();
+}
+
+/* Cambiar de sector a industria vacia la seleccion: si no, quedaba filtrando
+   por "Semiconductors" con la lista de sectores en pantalla y no se entendia
+   por que la tabla mostraba veinte papeles. */
+function cambiarCampoGrupo(campo){
+  if(campo===campoGrupo)return;
+  campoGrupo=campo;industriaSel=null;
+  $('#btnInd').textContent=(campo==='sector'?'Sectores':'Industrias')+' ▾';
   montarIndustrias();aplicar();guardarSesion();
 }
 
@@ -1329,7 +1361,8 @@ function estadoActual(){const o={};
   /* Estos tres se olvidaban al recargar y era lo que mas molestaba: volvias y
      la busqueda, la industria elegida y el perfil del desplegable estaban en
      blanco aunque los filtros si volvieran. */
-  o._buscar=$('#buscar').value;o._ind=industriaSel;o._perfil=$('#selRapido').value;
+  o._buscar=$('#buscar').value;o._ind=industriaSel;o._indCampo=campoGrupo;
+  o._perfil=$('#selRapido').value;
   return o;}
 function aplicarEstado(o){
   ponerValores(o,true);
@@ -1339,6 +1372,7 @@ function aplicarEstado(o){
   if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
+  if(o._indCampo)campoGrupo=o._indCampo;
   industriaSel=o._ind||null;
   if(o._sel)seleccion=o._sel;
   montarChips();montarColumnas();etiquetas();recalcular();guardarSesion();}
@@ -1367,6 +1401,7 @@ function restaurarSesion(){
     if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
+    if(o._indCampo)campoGrupo=o._indCampo;
     if(o._ind)industriaSel=o._ind;
     if(o._sel)seleccion=o._sel;
     if(o._perfil)perfilPendiente=o._perfil;
@@ -1987,6 +2022,8 @@ function iniciar(){
     verPanelInd(!$('#panelInd').classList.contains('abierto'));};
   $('#panelCols').onclick=e=>e.stopPropagation();
   $('#panelInd').onclick=e=>{e.stopPropagation();
+    const chip=e.target.closest('.chip[data-campo]');
+    if(chip){cambiarCampoGrupo(chip.dataset.campo);return;}
     const tr=e.target.closest('tr[data-ind]');if(tr)elegirIndustria(tr.dataset.ind);};
   $('#indTodas').onclick=()=>{industriaSel=null;montarIndustrias();aplicar();};
   document.addEventListener('click',()=>{verPanelCols(false);verPanelInd(false);});
@@ -2083,6 +2120,7 @@ function iniciar(){
     if(vista._cols&&vista._cols.length)colsOn=new Set(vista._cols);
     if(typeof vista._fav==='boolean')soloFav=vista._fav;
     if(typeof vista._buscar==='string')$('#buscar').value=vista._buscar;
+    if(vista._indCampo)campoGrupo=vista._indCampo;
     if(vista._ind)industriaSel=vista._ind;
     if(vista._sel)seleccion=vista._sel;
     if(vista._perfil)perfilPendiente=vista._perfil;
@@ -2094,6 +2132,7 @@ function iniciar(){
   // el desplegable tiene que mostrar el perfil con el que estabas, no "— sin filtros —"
   if(perfilPendiente){$('#selRapido').value=perfilPendiente;
     $('#selPerfil').value=perfilPendiente;}
+  $('#btnInd').textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+' ▾';
   avisarAlmacen();engancharGuardadoFinal();
   montarChips();etiquetas();recalcular();
 }

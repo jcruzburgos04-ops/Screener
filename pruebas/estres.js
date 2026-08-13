@@ -58,20 +58,55 @@ setTimeout(async()=>{
   $('#colEsencial').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(300);
 
-  console.log('== filtro por industria ==');
+  console.log('== filtro por sector (y por industria) ==');
   $('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(200);
-  const fils=$$('#tablaInd tr[data-ind]');
-  ok('hay ranking de industrias',fils.length>0,fils.length);
+  ok('el boton dice Sectores',/Sectores/.test($('#btnInd').textContent),$('#btnInd').textContent);
+  const sectores=$$('#tablaInd tr[data-ind]');
+  ok('hay ranking de sectores',sectores.length>0,sectores.length);
+  ok('son pocos grupos, no cien',sectores.length<=20,sectores.length);
   const antes=$$('#tabla tbody tr').length;
-  fils[0].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  const nombreSec=sectores[0].querySelector('td').textContent;
+  sectores[0].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(700);   // el guardado tiene 400 ms de debounce
-  ok('filtrar por industria achica',$$('#tabla tbody tr').length<antes,
+  ok('filtrar por sector achica',$$('#tabla tbody tr').length<antes,
      $$('#tabla tbody tr').length+' vs '+antes);
-  ok('y queda guardado',JSON.parse(w.localStorage.getItem('screener_ash_sesion'))._ind!=null);
+  const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+  const iSec=ths.indexOf('sector');
+  ok('y todas las filas son de ese sector',
+     $$('#tabla tbody tr').every(tr=>tr.children[iSec].textContent.trim()===nombreSec),
+     nombreSec);
+  const ses=JSON.parse(w.localStorage.getItem('screener_ash_sesion'));
+  ok('queda guardado el sector',ses._ind===nombreSec,ses._ind);
+  ok('y el campo elegido',ses._indCampo==='sector',ses._indCampo);
+
+  $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='industria')
+    .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await esperar(400);
+  ok('se puede cambiar a industria',/Industrias/.test($('#btnInd').textContent),
+     $('#btnInd').textContent);
+  ok('cambiar de campo suelta el filtro',$$('#tabla tbody tr').length===antes,
+     $$('#tabla tbody tr').length+' vs '+antes);
+  ok('y hay mas industrias que sectores',
+     $$('#tablaInd tr[data-ind]').length>sectores.length,
+     $$('#tablaInd tr[data-ind]').length+' vs '+sectores.length);
+  $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+    .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await esperar(300);
   $('#indTodas').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(300);
-  ok('"Todas" lo saca',$$('#tabla tbody tr').length===antes,$$('#tabla tbody tr').length);
+  ok('"Todos" lo saca',$$('#tabla tbody tr').length===antes,$$('#tabla tbody tr').length);
+
+  console.log('== el buscador entiende sectores ==');
+  $('#buscar').value=nombreSec;
+  $('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));
+  await esperar(300);
+  ok('buscar el nombre de un sector filtra',
+     $$('#tabla tbody tr').length>0&&$$('#tabla tbody tr').length<antes,
+     $$('#tabla tbody tr').length);
+  $('#buscar').value='';
+  $('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));
+  await esperar(200);
 
   console.log('== CSV ==');
   let blob=null;

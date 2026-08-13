@@ -7,8 +7,9 @@ const html=fs.readFileSync(SITIO+'/index.html','utf8');
 let datos=JSON.parse(fs.readFileSync(SITIO+'/datos.json','utf8'));
 // un nombre hostil, para probar el escapado
 datos.simbolos[0].n='<img src=x onerror=alert(1)>  "AT&T" & <b>';
-datos.simbolos[0].ind='Sector "raro" & <peligroso>';
-datos.simbolos[0].sec='S&P <test>';
+// el panel agrupa por SECTOR, asi que el nombre hostil va ahi
+datos.simbolos[0].sec='Sector "raro" & <peligroso>';
+datos.simbolos[0].ind='Industria & <rara>';
 datos=JSON.stringify(datos);
 
 const rects=[],textos=[];
@@ -69,8 +70,8 @@ setTimeout(async()=>{
   doc.querySelector('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await new Promise(r=>setTimeout(r,120));
   const ind=doc.querySelector('#tablaInd').innerHTML;
-  ok('la industria con comillas no rompe el data-ind',ind.indexOf('data-ind="Sector &quot;raro&quot;')>=0,
-     ind.slice(0,120));
+  ok('un sector con comillas no rompe el data-ind',
+     ind.indexOf('data-ind="Sector &quot;raro&quot;')>=0,ind.slice(0,140));
   // seleccionar EXPLICITAMENTE el simbolo hostil
   doc.querySelector('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   w.eval('limpiarFiltros()');
