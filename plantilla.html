@@ -212,6 +212,7 @@ tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2){background:var(--p
 tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2){background:var(--panel3)}
 .up{color:var(--alcista)}.dn{color:var(--bajista)}.gris{color:var(--apagado)}
 .amb{color:var(--ambar)}
+.fig{color:var(--azul)}
 .tk{font-weight:600;letter-spacing:.02em}
 .mon{font-size:.63rem;color:var(--apagado);letter-spacing:.06em}
 /* Un precio atrasado no es un error de calculo: es un dato que Yahoo no
@@ -333,6 +334,16 @@ body.cajon #velo{display:block}
       <div><label>ATR período</label><input type="number" id="atrLen" value="14" min="2"></div>
       <div><label>ADX período</label><input type="number" id="adxLen" value="14" min="2"></div>
     </div>
+    <div class="par">
+      <div><label>Tendencia: ruedas</label>
+        <input type="number" id="tlBarras" value="120" min="30" max="400" step="10"></div>
+      <div><label>Tendencia: pivote</label>
+        <input type="number" id="tlPivote" value="5" min="2" max="20"></div>
+    </div>
+    <p class="nota">Las líneas de soporte y resistencia se ajustan sobre los
+      máximos y mínimos de las últimas <code>ruedas</code>. El <code>pivote</code>
+      es cuántas barras a cada lado tiene que dominar un máximo para contar:
+      más grande, menos líneas y más importantes.</p>
   </div></details>
 
   <details open><summary>Filtros <span class="cuenta" id="cuentaFiltros"></span></summary>
@@ -370,6 +381,16 @@ body.cajon #velo{display:block}
     <input type="number" id="fFloat" value="0" step="100">
     <label>RS rank mínimo <b id="lRs">off</b></label>
     <input type="range" id="fRs" min="1" max="99" value="1">
+    <label>Figura</label>
+    <select id="fPatron"><option value="">—</option>
+      <option>Canal alcista</option><option>Canal bajista</option>
+      <option>Triángulo asc.</option><option>Triángulo desc.</option>
+      <option>Cuña / triángulo</option><option>Rango</option>
+      <option>Se abre</option></select>
+    <label>A menos de X% de la resistencia <b id="lResDist">off</b></label>
+    <input type="range" id="fResDist" min="0" max="30" step="0.5" value="0">
+    <label>Toques mínimos de las líneas <b id="lToques">off</b></label>
+    <input type="range" id="fToques" min="0" max="8" value="0">
     <label class="check"><input type="checkbox" id="fSinAtraso">
       esconder los que tienen el precio atrasado</label>
     <button id="btnReset">Limpiar filtros</button>
@@ -532,6 +553,7 @@ body.cajon #velo{display:block}
       <div class="tf">
         <span class="chip on" data-tf="d">Diario</span>
         <span class="chip" data-tf="w">Semanal</span>
+        <span class="chip on" id="chipTL" title="Soporte y resistencia">S/R</span>
         <span class="chip" id="chipCerrarGraf" title="Ocultar el gráfico · tecla G">✕</span>
       </div>
     </div>
@@ -661,6 +683,129 @@ function rend(c,k){const i=c.length-1-k;return i>=0?c[c.length-1]/c[i]-1:NaN;}
 function promSimple(a,n){let s=0;const ini=Math.max(0,a.length-n);
   for(let i=ini;i<a.length;i++)s+=a[i];return s/(a.length-ini);}
 
+
+/* ---------- lineas de tendencia (soporte y resistencia) ----------
+   Es lo mismo que dibuja Finviz. NO es una regresion sobre todos los cierres:
+   una regresion comun pasa por el MEDIO del precio y no sirve como soporte ni
+   como resistencia. Lo que se hace es:
+
+     1. Buscar los pivotes: maximos y minimos locales, un maximo es una barra
+        cuyo High es el mas alto de las k barras a cada lado.
+     2. Regresionar sobre esos pivotes y despues tirar los que quedaron del
+        lado de adentro, y volver a regresionar. Repetido tres veces, la recta
+        termina APOYADA sobre los extremos en vez de partirlos al medio.
+     3. Contar cuantos pivotes toca la recta: una linea que apoya en cuatro
+        maximos vale mucho mas que una que pasa por dos.
+
+   Los ultimos k bares nunca pueden ser pivote (no se sabe todavia si son un
+   maximo local), asi que la recta se extrapola hasta la ultima barra. Eso es
+   lo correcto: la resistencia de hoy sale de los maximos de antes. */
+
+function pivotes(serie,k,alto){
+  const out=[];
+  for(let i=k;i<serie.length-k;i++){
+    let ok=true;
+    for(let j=i-k;j<=i+k;j++){
+      if(j===i)continue;
+      if(alto?serie[j]>serie[i]:serie[j]<serie[i]){ok=false;break;}
+    }
+    if(ok)out.push(i);
+  }
+  return out;
+}
+
+function regresion(xs,ys){
+  const n=xs.length;
+  if(n<2)return null;
+  let sx=0,sy=0,sxx=0,sxy=0;
+  for(let i=0;i<n;i++){sx+=xs[i];sy+=ys[i];sxx+=xs[i]*xs[i];sxy+=xs[i]*ys[i];}
+  const den=n*sxx-sx*sx;
+  if(!isFinite(den)||Math.abs(den)<1e-12)return null;
+  const m=(n*sxy-sx*sy)/den;
+  return {m,b:(sy-m*sx)/n};
+}
+
+/* La recta envolvente: se regresiona, se tiran los puntos de adentro y se
+   vuelve a regresionar. `arriba` = la recta tiene que quedar por encima. */
+function envolvente(xs,ys,arriba,vueltas){
+  let X=xs.slice(),Y=ys.slice(),r=regresion(X,Y);
+  for(let v=0;v<(vueltas||3);v++){
+    if(!r||X.length<=2)break;
+    const nx=[],ny=[];
+    for(let i=0;i<X.length;i++){
+      const d=Y[i]-(r.m*X[i]+r.b);
+      if(arriba?d>=-1e-9:d<=1e-9){nx.push(X[i]);ny.push(Y[i]);}
+    }
+    if(nx.length<2||nx.length===X.length)break;
+    X=nx;Y=ny;
+    const rr=regresion(X,Y);
+    if(!rr)break;
+    r=rr;
+  }
+  return r;
+}
+
+/* Devuelve las dos rectas y como clasifica la figura. `x` va de 0 a N-1 sobre
+   la ventana mirada, asi que el valor de hoy es m*(N-1)+b. */
+function tendencias(b,cfg){
+  const n=b.c.length;
+  const N=Math.min(n,(cfg&&cfg.tlBarras)||120);
+  const k=(cfg&&cfg.tlPivote)||5;
+  const vacio={N:0,res:null,sop:null,patron:'',tocRes:0,tocSop:0,
+               distRes:NaN,distSop:NaN,pendRes:NaN,pendSop:NaN};
+  if(N<3*k+4)return vacio;
+  const ini=n-N;
+  const h=b.h.slice(ini),l=b.l.slice(ini),c=b.c.slice(ini);
+  const px=c[c.length-1];
+  if(!isFinite(px)||px<=0)return vacio;
+
+  let mx=-Infinity,mn=Infinity;
+  for(let i=0;i<N;i++){if(h[i]>mx)mx=h[i];if(l[i]<mn)mn=l[i];}
+  const rango=mx-mn;
+  // La tolerancia sale del rango de la ventana y no de un porcentaje fijo:
+  // un papel que se movio 5% en el trimestre y otro que se movio 80% no
+  // pueden medirse con la misma vara.
+  const tol=Math.max(rango*0.035,px*0.002);
+
+  const ph=pivotes(h,k,true), pl=pivotes(l,k,false);
+  const linea=(idx,serie,arriba)=>{
+    if(idx.length<2)return null;
+    const r=envolvente(idx,idx.map(i=>serie[i]),arriba,3);
+    if(!r||!isFinite(r.m)||!isFinite(r.b))return null;
+    let toques=0;
+    for(const i of idx)if(Math.abs(serie[i]-(r.m*i+r.b))<=tol)toques++;
+    return {m:r.m,b:r.b,toques};
+  };
+  const res=linea(ph,h,true), sop=linea(pl,l,false);
+
+  const val=r=>r?r.m*(N-1)+r.b:NaN;
+  const vRes=val(res), vSop=val(sop);
+  // pendiente en % por mes (21 ruedas), para que se pueda comparar y ordenar
+  const pend=r=>r?r.m*21/px:NaN;
+  const pRes=pend(res), pSop=pend(sop);
+
+  let patron='';
+  const CH=0.015;                       // menos de 1,5% por mes = plana
+  if(res&&sop&&res.toques>=2&&sop.toques>=2){
+    const ar=pRes>CH, br=pRes<-CH, as=pSop>CH, bs=pSop<-CH;
+    if(ar&&as)patron='Canal alcista';
+    else if(br&&bs)patron='Canal bajista';
+    else if(br&&as)patron='Cuña / triángulo';
+    else if(!ar&&!br&&as)patron='Triángulo asc.';
+    else if(br&&!as&&!bs)patron='Triángulo desc.';
+    else if(!ar&&!br&&!as&&!bs)patron='Rango';
+    else if(ar&&bs)patron='Se abre';
+    else patron='';
+  }
+  return {N,res,sop,patron,
+          tocRes:res?res.toques:0, tocSop:sop?sop.toques:0,
+          // > 0 = la resistencia esta por ENCIMA del precio (cuanto le falta)
+          distRes:isFinite(vRes)?vRes/px-1:NaN,
+          // > 0 = el precio esta por ENCIMA del soporte (cuanto le sobra)
+          distSop:isFinite(vSop)?px/vSop-1:NaN,
+          pendRes:pRes, pendSop:pSop};
+}
+
 /* ---------- parte de la fila que NO depende del ASH ----------
    Se cachea: mientras no toques ADR/RSI/ATR/ADX/EMAs, no se recalcula. */
 function calcularBase(s,cfg){
@@ -683,6 +828,13 @@ function calcularBase(s,cfg){
     dolar_vol20:promSimple(dvol,20),
     float_musd:s.fl?s.fl*px/1e6:NaN,rotacion:s.fl?vol20/s.fl:NaN,
     mcap_musd:s.mc?s.mc/1e6:NaN};
+  // Lineas de tendencia: se calculan aca porque dependen solo de los precios
+  // y de sus dos parametros, asi que viajan en el mismo cache que el resto.
+  const T=tendencias(b,cfg);
+  f.patron=T.patron;
+  f.tl_res_dist=T.distRes; f.tl_sop_dist=T.distSop;
+  f.tl_res_pend=T.pendRes; f.tl_sop_pend=T.pendSop;
+  f.tl_toques=Math.min(T.tocRes,T.tocSop);
   for(const e of cfg.emas){const v=ultimo(ema(b.c,e));
     f['vs_ema'+e]=px/v-1;f['sobre_ema'+e]=px>v;}
   if(cfg.emas.includes(20)&&cfg.emas.includes(50))
@@ -721,9 +873,15 @@ function pasaFiltros(f,F){
     (F.cruceMax===null||(f.ash_d>0&&isFinite(f.ash_d_cruce)&&f.ash_d_cruce<=F.cruceMax))&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
     // Esconder los atrasados evita mirar variaciones que no son de hoy.
-    (!F.sinAtraso||!f.atraso)&&(F.adxMin===null||ge(f.adx,F.adxMin));
+    (!F.sinAtraso||!f.atraso)&&(F.adxMin===null||ge(f.adx,F.adxMin))&&
+    // --- lineas de tendencia ---
+    (F.patron===null||f.patron===F.patron)&&
+    // "a menos de X% de la resistencia" incluye a los que ya la rompieron
+    (F.resDist===null||(isFinite(f.tl_res_dist)&&f.tl_res_dist<=F.resDist/100))&&
+    (F.toques===null||(f.tl_toques>=F.toques));
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
+  pivotes,regresion,envolvente,tendencias,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,pasaFiltros};
 </script>
 
@@ -755,13 +913,17 @@ const PRESETS={
  'Pullback en tendencia':{fAshW:'1',fAshD:'0',fEma50:'1',fRsiMax:'45',fDVol:'5000000'},
  'Se mueve y es líquido':{fAdr:'3',fDVol:'20000000',fVol:'500000'},
  'Fuerza relativa top':{fRs:'80',fEma50:'1',fAshW:'1',fDVol:'5000000'},
+ 'Pegado a la resistencia':{fResDist:'3',fToques:'3',fAshD:'1',fDVol:'5000000'},
+ 'Triángulo ascendente':{fPatron:'Triángulo asc.',fToques:'3',fDVol:'5000000'},
+ 'Canal alcista con ASH':{fPatron:'Canal alcista',fAshD:'1',fAshW:'1',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
  fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',
- fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1'};
+ fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
+ fPatron:'',fResDist:'0',fToques:'0'};
 const NEUTRO_CHECK={fSinAtraso:false};
 
 /* ---------- formato ---------- */
@@ -851,6 +1013,18 @@ const COLS=[
   {k:'ash_d_pend',t:'ASH D pend', fmt:v=>num(v,4), color:1},
   {k:'serie_d',t:'Cinta D',fmt:chispa},
   {k:'serie_w',t:'Cinta W',fmt:chispa},
+  // --- lineas de tendencia ---
+  {k:'patron', t:'Figura', izq:1, def:1, corto:1,
+   fmt:v=>v?`<span class="fig">${esc(v)}</span>`:'<span class="gris">·</span>'},
+  {k:'tl_res_dist',t:'a Resistencia', def:1,
+   fmt:v=>!isFinite(v)?'':(v<0?`<span class="up">rota ${(-v*100).toFixed(1)}%</span>`
+                              :(v*100).toFixed(1)+'%')},
+  {k:'tl_sop_dist',t:'sobre Soporte', def:1,
+   fmt:v=>!isFinite(v)?'':(v<0?`<span class="dn">rota ${(-v*100).toFixed(1)}%</span>`
+                              :(v*100).toFixed(1)+'%')},
+  {k:'tl_res_pend',t:'Pend. resist.', fmt:v=>isFinite(v)?(v*100).toFixed(1)+'%':'', color:1},
+  {k:'tl_sop_pend',t:'Pend. soporte', fmt:v=>isFinite(v)?(v*100).toFixed(1)+'%':'', color:1},
+  {k:'tl_toques',t:'Toques', fmt:v=>isFinite(v)&&v?v:'<span class="gris">·</span>'},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -889,7 +1063,8 @@ function config(){
       smooth:+$('#ashSmooth').value,alma_offset:+$('#almaOff').value,alma_sigma:+$('#almaSig').value},
     emas:emasOn.slice().sort((a,b)=>a-b),
     adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
-    atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value};
+    atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value,
+    tlBarras:+$('#tlBarras').value,tlPivote:+$('#tlPivote').value};
 }
 const val=id=>{const v=$(id).value;return v===''?null:+v;};
 const tri=id=>{const v=$(id).value;return v===''?null:v==='1';};
@@ -902,7 +1077,9 @@ function filtros(){return{
   cruceMax:val('#fCruceMax')||null, adxMin:val('#fAdx')||null,
   precio:val('#fPrecio')||null,
   floatMax:val('#fFloat')||null, rsMin:val('#fRs')===1?null:val('#fRs'),
-  sinAtraso:$('#fSinAtraso').checked?true:null};}
+  sinAtraso:$('#fSinAtraso').checked?true:null,
+  patron:$('#fPatron').value||null,
+  resDist:val('#fResDist')||null, toques:val('#fToques')||null};}
 
 /* ---------- calculo ----------
    Dos capas de cache: la base (RSI, ADR, EMAs, volumen...) sobrevive mientras
@@ -910,7 +1087,8 @@ function filtros(){return{
    moviendo. Por eso cambiar un filtro no recalcula nada. */
 function recalcular(){
   const t0=performance.now(), cfg=config();
-  const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,cfg.emas.join('-')].join('|');
+  const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,
+                    cfg.tlBarras,cfg.tlPivote,cfg.emas.join('-')].join('|');
   if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
 
   const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
@@ -1046,6 +1224,8 @@ const GRUPOS_COL=[
           'chg','atraso','ultima']],
   ['ASH',['ash_d','ash_tend','ash_w','ash_w_tend','ash_d_norm','ash_d_cruce',
           'ash_d_pend','serie_d','serie_w']],
+  ['Líneas de tendencia',['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
+          'tl_sop_pend','tl_toques']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
   ['Momentum y tendencia',['rsi','adr','atr_pct','adx','__emas','dist_max52',
           'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
@@ -1171,6 +1351,10 @@ function moverSeleccion(paso){
 
 /* ---------- grafico ---------- */
 let ctxGraf=null;   // guarda escalas y series para el crosshair
+// Ojo: NO leer leerLS() aca. Es un const declarado mas abajo y en este punto
+// esta en la zona muerta temporal, asi que reventaba la pagina entera al
+// arrancar. El valor guardado se lee en iniciar().
+let mostrarTL=true;
 
 function dibujar(cursor){
   if(document.body.classList.contains('sin-grafico'))return;   // oculto: ni se calcula
@@ -1232,6 +1416,32 @@ function dibujar(cursor){
       p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();
     g.fillStyle=EMACOL[k%EMACOL.length];g.font='10px ui-monospace,monospace';
     g.textAlign='left';g.fillText('EMA '+e.n,x0+6+k*52,20);});
+
+  /* ---- soporte y resistencia ----
+     Se calculan sobre la ventana visible, no sobre las 400 barras: la linea
+     que se dibuja tiene que ser la misma que se ve. Van clippeadas al panel
+     del precio porque, extrapoladas, se salen para arriba o para abajo. */
+  if(mostrarTL){
+    const vis={d:D,o:O,h:H,l:L,c:C,v:new Array(N).fill(0)};
+    const T=tendencias(vis,{tlBarras:Math.min(N,cfg.tlBarras),tlPivote:cfg.tlPivote});
+    if(T.N>2){
+      const desde=N-T.N;
+      g.save();g.beginPath();g.rect(x0-2,7,x1-x0+4,h1+2);g.clip();
+      const recta=(r,col)=>{
+        if(!r)return;
+        g.strokeStyle=col;g.lineWidth=1.4;g.setLineDash([6,4]);
+        g.beginPath();
+        g.moveTo(x0+paso*(desde+.5),escY(r.b,mn,mx,8,h1));
+        g.lineTo(x0+paso*(N-1+.5),escY(r.m*(T.N-1)+r.b,mn,mx,8,h1));
+        g.stroke();g.setLineDash([]);};
+      recta(T.res,'#C77DDB');     // resistencia, como en Finviz
+      recta(T.sop,'#4FA8E8');     // soporte
+      g.restore();
+      if(T.patron){g.fillStyle=C_.tn;g.font='10px ui-monospace,monospace';
+        g.textAlign='right';
+        g.fillText(T.patron+'  ·  '+T.tocRes+'/'+T.tocSop+' toques',x1-4,20);}
+    }
+  }
 
   // ---- panel del ASH
   const y2=8+h1+gap;
@@ -1528,6 +1738,8 @@ function etiquetas(){
   p('#fAdr','#lAdr',v=>v.toFixed(1)+'%');
   p('#fCruceMax','#lCruce');
   p('#fAdx','#lAdx');
+  p('#fResDist','#lResDist',v=>'≤ '+v.toFixed(1)+'%');
+  p('#fToques','#lToques',v=>'≥ '+v);
   p('#fFloat','#lFloat',v=>'$'+v+'M');
   const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
 }
@@ -1996,6 +2208,11 @@ function iniciar(){
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
   $('#chipGrafico').onclick=()=>verGrafico(document.body.classList.contains('sin-grafico'));
   $('#chipCerrarGraf').onclick=()=>verGrafico(false);
+  mostrarTL=leerLS('screener_ash_tl')!=='0';
+  $('#chipTL').classList.toggle('on',mostrarTL);
+  $('#chipTL').onclick=()=>{mostrarTL=!mostrarTL;
+    $('#chipTL').classList.toggle('on',mostrarTL);
+    escribirLS('screener_ash_tl',mostrarTL?'1':'0');dibujar();};
   $('#btnCopiar').onclick=copiarTickers;
   $('#btnGuardarRapido').onclick=()=>{
     const n=prompt('Nombre para estos filtros:');

@@ -31,6 +31,7 @@ const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'h
     w.TextEncoder=require('util').TextEncoder;w.TextDecoder=require('util').TextDecoder;
   }});
 const w=dom.window;const errores=[];w.addEventListener('error',e=>errores.push(e.message));
+const esperar=ms=>new Promise(r=>setTimeout(r,ms));
 setTimeout(async()=>{
   const doc=w.document;
   let fallas=0;
@@ -55,6 +56,19 @@ setTimeout(async()=>{
   ok('las fechas se escriben al pie',fechasAbajo.length>0&&fechasAbajo.every(([,,y])=>y>H-12),
      fechasAbajo.length);
   ok('sin excepciones',errores.length===0,errores.join('|'));
+
+  // las lineas de tendencia van punteadas y clippeadas al panel del precio
+  const lineas=textos.filter(([t])=>/toques/.test(t));
+  ok('el grafico rotula la figura cuando la hay',lineas.length>0,lineas.length);
+  const cerrar=doc.querySelector('#chipTL');
+  ok('hay chip para apagar las lineas',!!cerrar);
+  const antes=rects.length;
+  cerrar.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await esperar(150);
+  ok('apagarlas no rompe nada',errores.length===0,errores.join('|'));
+  cerrar.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  await esperar(150);
+  ok('y prenderlas tampoco',errores.length===0,errores.join('|'));
 
   // crosshair sobre el canvas
   const cv=doc.querySelector('#grafico');

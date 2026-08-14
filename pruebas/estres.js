@@ -108,6 +108,64 @@ setTimeout(async()=>{
   $('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));
   await esperar(200);
 
+  console.log('== filtros por linea de tendencia ==');
+  {
+    const total=$$('#tabla tbody tr').length;
+    const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+    const iFig=ths.indexOf('patron');
+    ok('la columna Figura esta por defecto',iFig>=0,ths.join(','));
+
+    $('#fPatron').value='Canal alcista';
+    $('#fPatron').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    const n=$$('#tabla tbody tr').length;
+    ok('filtrar por figura achica',n>0&&n<total,n+' de '+total);
+    ok('y todas son canales alcistas',
+       $$('#tabla tbody tr').every(tr=>tr.children[iFig].textContent.trim()==='Canal alcista'));
+    $('#fPatron').value='';
+    $('#fPatron').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+
+    $('#fResDist').value='3';
+    $('#fResDist').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    const iRes=ths.indexOf('tl_res_dist');
+    const cerca=$$('#tabla tbody tr').length;
+    ok('"cerca de la resistencia" achica',cerca<total,cerca+' de '+total);
+    ok('la etiqueta muestra el valor',/3.0%/.test($('#lResDist').textContent),
+       $('#lResDist').textContent);
+    ok('ninguna queda a mas de 3% de la resistencia',
+       $$('#tabla tbody tr').every(tr=>{
+         const s=tr.children[iRes].textContent.trim();
+         if(!s)return false;
+         if(/rota/.test(s))return true;          // ya la rompio: cuenta
+         return parseFloat(s)<=3.0001;}),
+       $$('#tabla tbody tr').slice(0,3).map(tr=>tr.children[iRes].textContent).join(' | '));
+    $('#fResDist').value='0';
+    $('#fResDist').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+
+    $('#fToques').value='4';
+    $('#fToques').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    ok('el filtro de toques achica',$$('#tabla tbody tr').length<total,
+       $$('#tabla tbody tr').length+' de '+total);
+    $('#fToques').value='0';
+    $('#fToques').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    ok('al soltarlos vuelven todas',$$('#tabla tbody tr').length===total,
+       $$('#tabla tbody tr').length+' vs '+total);
+
+    // cambiar la ventana rehace las lineas y no debe romper
+    for(const [barras,piv] of [[40,2],[400,20],[120,5]]){
+      $('#tlBarras').value=barras;$('#tlPivote').value=piv;
+      $('#tlBarras').dispatchEvent(new w.Event('input',{bubbles:true}));
+      await esperar(450);
+    }
+    ok('cambiar los parametros de la tendencia no rompe',
+       $$('#tabla tbody tr').length>0&&errores.length===0,errores.join('|'));
+  }
+
   console.log('== CSV ==');
   let blob=null;
   w.URL.createObjectURL=b=>{blob=b;return 'blob:x';};

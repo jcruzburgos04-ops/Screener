@@ -374,6 +374,44 @@ sectores en pantalla y no se entendía por qué la tabla mostraba veinte papeles
 El buscador también matchea sector e industria, así que escribir `energy` deja
 el sector entero sin abrir el desplegable.
 
+### Líneas de tendencia (soporte y resistencia)
+
+Es lo que dibuja Finviz. **No es una regresión sobre los cierres**: una
+regresión común pasa por el medio del precio y no sirve ni de soporte ni de
+resistencia. El método, en `tendencias()`:
+
+1. **Pivotes**: un máximo es una barra cuyo `High` domina las `k` barras a cada
+   lado (`tlPivote`, por defecto 5).
+2. **Regresión envolvente**: se ajusta una recta sobre esos pivotes, se tiran
+   los que quedaron del lado de adentro y se vuelve a ajustar. Tres vueltas.
+   Así la recta queda *apoyada* sobre los extremos en vez de partirlos al medio.
+3. **Toques**: cuántos pivotes caen dentro de la tolerancia. La tolerancia sale
+   del **rango de la ventana** (3,5%), no de un porcentaje fijo del precio: un
+   papel que se movió 5% en el trimestre y otro que se movió 80% no se pueden
+   medir con la misma vara.
+
+Los últimos `k` bares nunca pueden ser pivote, así que la recta se **extrapola**
+hasta la última barra. Eso es lo correcto: la resistencia de hoy sale de los
+máximos de antes.
+
+La figura se clasifica con las dos pendientes normalizadas a **% por mes**
+(21 ruedas), con un umbral de 1,5%/mes para considerar una recta plana: Canal
+alcista, Canal bajista, Triángulo asc., Triángulo desc., Cuña / triángulo,
+Rango, Se abre. Hace falta un mínimo de 2 toques en cada recta o no se
+clasifica.
+
+Cuesta **6-17 ms** para los 465 símbolos, y viaja en `cacheBase`: `tlBarras` y
+`tlPivote` entran en `claveBase`, así que cambiarlos invalida el caché.
+
+`pruebas/tendencias.js` verifica contra figuras **construidas a mano**, donde la
+respuesta se conoce de antemano. Es la única forma seria de probar esto sin ojo
+humano: con series reales no hay contra qué comparar.
+
+> **Trampa:** `mostrarTL` no puede inicializarse con `leerLS()` en la
+> declaración — `leerLS` es un `const` de más abajo y ahí está en la zona muerta
+> temporal, lo que rompía la página entera al arrancar. Es el mismo error que ya
+> había pasado con `esc`/`escY`. Se lee dentro de `iniciar()`.
+
 ### Gráfico
 
 Canvas propio, ~120 líneas. Velas + EMAs arriba, ASH abajo (bulls, bears,

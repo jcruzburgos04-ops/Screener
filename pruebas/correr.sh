@@ -44,6 +44,8 @@ python3 series.py
 node paridad_js.js
 python3 paridad.py
 
+echo; echo "== lineas de tendencia =="
+node tendencias.js
 echo; echo "== interfaz (jsdom) =="
 node interfaz.js
 echo; echo "== grafico y escapado =="
