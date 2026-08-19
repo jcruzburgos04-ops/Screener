@@ -19,11 +19,11 @@ name: Precios del dia
 
 on:
   schedule:
-    # Nueva York opera 13:30-20:00 UTC (horario de verano). Se corre cada media
-    # hora desde la apertura hasta media hora despues del cierre, de lunes a
-    # viernes. GitHub suele demorar los cron unos minutos: no es un problema,
-    # el objetivo es que lo publicado tenga menos de una hora.
-    - cron: "0,30 13-20 * * 1-5"
+    # Nueva York: pre-market 8:00-13:30 UTC, rueda 13:30-20:00, after-hours
+    # 20:00-24:00 (horario de verano). Se cubre todo el arco, de lunes a
+    # viernes, cada media hora. GitHub suele demorar los cron unos minutos: no
+    # es un problema, el objetivo es que lo publicado tenga menos de una hora.
+    - cron: "0,30 8-23 * * 1-5"
   workflow_dispatch:
 
 permissions:

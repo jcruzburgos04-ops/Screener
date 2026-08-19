@@ -1122,3 +1122,118 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ==============================================================================
+# 9. PRE-MARKET Y AFTER-HOURS
+# ==============================================================================
+#
+# DE DONDE SALEN. Del mismo endpoint de graficos de Yahoo, pero con dos cosas
+# distintas: intervalo intradia (5m) y includePrePost=1. Ahi vienen las barras
+# de las tres sesiones pegadas. yfinance lo expone como prepost=True.
+#
+# COMO SE SEPARAN. Yahoo no marca cada barra con su sesion, asi que hay que
+# mirar la hora local del mercado: antes de las 9:30 es pre-market, de 16:00 en
+# adelante es after-hours. yfinance ya devuelve el indice en la zona horaria del
+# mercado, asi que no hay que adivinar husos.
+#
+# CONTRA QUE SE COMPARA. El pre-market se compara contra el cierre del dia
+# ANTERIOR, y el after-hours contra el cierre de HOY. Compararlos contra
+# cualquier otra cosa da porcentajes que no significan nada.
+#
+# LO QUE NO SE PUEDE PROMETER. Fuera de horario el volumen es una fraccion del
+# de la rueda: en un papel liquido el dato es util, en uno que no lo es puede
+# haber una sola operacion suelta moviendo el precio 4%. Por eso viaja tambien
+# el volumen extendido: sirve para saber cuanto creerle.
+
+APERTURA_REGULAR = (9, 30)     # hora local del mercado
+CIERRE_REGULAR = (16, 0)
+
+
+def _minutos(ts):
+    return ts.hour * 60 + ts.minute
+
+
+def extendido_de_barras(d, cierre_previo=None):
+    """
+    Saca el precio de pre-market o after-hours de un DataFrame de barras 5m.
+
+    Devuelve {"px":, "pct":, "tipo": "pre"|"post", "vol":} o None si la ultima
+    barra es de la rueda regular (o si no hay nada aprovechable).
+    """
+    if d is None or len(d) == 0 or "Close" not in d:
+        return None
+    d = d.dropna(subset=["Close"])
+    if len(d) == 0:
+        return None
+    ini = APERTURA_REGULAR[0] * 60 + APERTURA_REGULAR[1]
+    fin = CIERRE_REGULAR[0] * 60 + CIERRE_REGULAR[1]
+
+    idx = d.index
+    if getattr(idx, "tz", None) is None:
+        return None                      # sin zona no se puede saber la sesion
+    minutos = np.array([_minutos(t) for t in idx])
+    regular = (minutos >= ini) & (minutos < fin)
+
+    ult = len(d) - 1
+    if regular[ult]:
+        return None                      # la rueda esta abierta: no hay extendido
+    tipo = "pre" if minutos[ult] < ini else "post"
+
+    # referencia: el ultimo cierre regular que haya en la ventana; si no hay
+    # (pre-market de un dia nuevo), el cierre diario que ya teniamos
+    ref = None
+    if regular.any():
+        ref = float(d["Close"].to_numpy()[regular][-1])
+    if tipo == "pre" or ref is None:
+        ref = float(cierre_previo) if cierre_previo else ref
+    if not ref or not np.isfinite(ref):
+        return None
+
+    px = float(d["Close"].iloc[-1])
+    fuera = ~regular
+    vol = float(np.nansum(d["Volume"].to_numpy()[fuera])) if "Volume" in d else 0.0
+    return {"px": round(px, 4), "pct": round(px / ref - 1, 6),
+            "tipo": tipo, "vol": int(vol)}
+
+
+def bajar_extendido(tickers, cierres=None, lote=50, progreso=None):
+    """
+    {ticker: {"px","pct","tipo","vol"}} para los que tengan pre o after.
+
+    Es una pasada aparte de la de precios diarios porque necesita otro
+    intervalo. Se piden barras de 5 minutos del ultimo dia: es lo mas barato
+    que cubre las tres sesiones.
+    """
+    import yfinance as yf
+    cierres = cierres or {}
+    out = {}
+    for i in range(0, len(tickers), lote):
+        grupo = tickers[i:i + lote]
+        try:
+            raw = yf.download(grupo, period="1d", interval="5m", prepost=True,
+                              group_by="ticker", threads=True, progress=False,
+                              auto_adjust=False)
+        except Exception as e:
+            print(f"      [!] fallo el lote extendido: {e}")
+            continue
+        if raw is None or len(raw) == 0:
+            continue
+        multi = isinstance(raw.columns, pd.MultiIndex)
+        for t in grupo:
+            try:
+                if multi:
+                    if t not in raw.columns.get_level_values(0):
+                        continue
+                    d = raw[t]
+                else:
+                    d = raw
+                e = extendido_de_barras(d, cierres.get(t))
+                if e:
+                    out[t] = e
+            except Exception:
+                pass
+        if progreso:
+            progreso(len(out), len(tickers), "pre-market / after-hours")
+        time.sleep(0.5)
+    return out

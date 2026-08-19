@@ -262,6 +262,65 @@ canvas{display:block;width:100%;cursor:crosshair}
 #avisoYahoo code{color:var(--ambar)}
 #avisoYahoo a{color:var(--ambar)}
 
+
+/* ------------------------------- panorama ---------------------------------
+   La vista de tarjetas: un vistazo al mercado sin leer una tabla. Cada tarjeta
+   es un simbolo con su mini-grafico, la variacion, lo que marca el ASH y donde
+   esta su fuerza relativa. Se usa para los indices y los sectores, que es lo
+   que se mira ANTES de elegir un papel. */
+#panorama{display:none;flex:1;overflow:auto;padding:0 0 1rem}
+body.panorama #panorama{display:block}
+body.panorama .tabla-wrap{display:none}
+body.panorama .barra{display:none}
+.pan-cab{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.1rem;
+  border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--tinta);
+  z-index:5;flex-wrap:wrap}
+.pan-tabs{display:flex;gap:.3rem;flex-wrap:wrap}
+.amplitud{padding:.5rem 1.1rem .2rem}
+.amp-txt{font-family:var(--mono);font-size:.7rem;color:var(--tenue);
+  margin-bottom:.35rem;letter-spacing:.02em}
+.amp-txt b{color:var(--hueso);font-weight:500}
+.amp-barra{height:4px;border-radius:2px;overflow:hidden;display:flex;background:var(--panel2)}
+.amp-barra i{display:block;height:100%}
+#ampVerde{background:var(--alcista)}
+#ampRojo{background:var(--bajista)}
+
+.tarjetas{display:grid;gap:10px;padding:.75rem 1.1rem;
+  grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+.tarjeta{background:var(--panel);border:1px solid var(--borde);border-radius:6px;
+  padding:.6rem .7rem .5rem;cursor:pointer;position:relative;
+  transition:border-color .12s,background .12s}
+.tarjeta:hover{border-color:var(--borde2);background:var(--panel2)}
+.tarjeta.sel{border-color:var(--ambar)}
+.tj-cab{display:flex;align-items:baseline;gap:.4rem}
+.tj-tk{font-family:var(--mono);font-weight:600;font-size:.86rem;letter-spacing:.02em}
+.tj-px{margin-left:auto;font-family:var(--mono);font-size:.84rem;
+  font-variant-numeric:tabular-nums}
+.tj-sub{display:flex;align-items:baseline;gap:.4rem;margin-top:.1rem}
+.tj-n{font-size:.68rem;color:var(--apagado);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;flex:1;min-width:0}
+.tj-chg{font-family:var(--mono);font-size:.74rem;font-variant-numeric:tabular-nums}
+.tj-graf{margin:.45rem 0 .35rem;height:84px}
+.tj-graf canvas{height:84px}
+.tj-pie{display:flex;align-items:center;gap:.5rem;font-family:var(--mono);
+  font-size:.66rem;color:var(--apagado);border-top:1px solid var(--borde);
+  padding-top:.35rem;flex-wrap:wrap}
+.tj-pie b{font-weight:500;font-variant-numeric:tabular-nums}
+.tj-rs{margin-left:auto;color:var(--tenue)}
+/* El precio de afuera de hora va marcado: es otro mercado, con otro volumen. */
+.tj-ext{font-family:var(--mono);font-size:.65rem;padding:.05rem .3rem;border-radius:2px;
+  background:var(--panel3);color:var(--tenue);white-space:nowrap}
+.tj-ext.pre{color:var(--azul)}
+.tj-ext.post{color:var(--ambar)}
+.tj-fav{color:#39434F;cursor:pointer;user-select:none;font-size:.8rem}
+.tj-fav.on{color:var(--ambar)}
+@media (max-width:860px){
+  .tarjetas{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;
+    padding:.6rem .7rem}
+  .pan-cab,.amplitud{padding-left:.7rem;padding-right:.7rem}
+  .tj-graf,.tj-graf canvas{height:64px}
+}
+
 /* --------------------------- pantallas angostas ---------------------------
    El screener se abre desde un link, asi que tambien se abre desde el telefono.
    Ahi el panel pasa a ser un cajon que tapa la tabla en vez de robarle ancho. */
@@ -492,6 +551,7 @@ body.cajon #velo{display:block}
     <span class="firma" id="firma"></span>
     <select id="selRapido" title="Filtros guardados"></select>
     <div class="tf">
+      <span class="chip" id="chipVista" title="Tarjetas de índices y sectores · tecla P">Panorama</span>
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
       <span class="chip" id="btnInd" title="Ranking de sectores">Sectores ▾</span>
@@ -543,6 +603,23 @@ body.cajon #velo{display:block}
     <button class="mini" id="btnVista2" title="Todo el estado dentro de la dirección">Copiar vista</button>
     <span class="sep"></span>
     <span class="nota" id="estado"></span>
+  </div>
+  <div id="panorama">
+    <div class="pan-cab">
+      <div class="pan-tabs" id="panTabs"></div>
+      <span class="sep"></span>
+      <div class="tf">
+        <span class="chip on" data-orden="rs" title="Los mas fuertes primero">RS</span>
+        <span class="chip" data-orden="sube" title="Mayores subas">▲ Subas</span>
+        <span class="chip" data-orden="baja" title="Mayores bajas">▼ Bajas</span>
+        <span class="chip" data-orden="ash" title="Fuerza del ASH">ASH</span>
+      </div>
+    </div>
+    <div class="amplitud">
+      <div class="amp-txt" id="ampTxt"></div>
+      <div class="amp-barra"><i id="ampVerde"></i><i id="ampRojo"></i></div>
+    </div>
+    <div class="tarjetas" id="tarjetas"></div>
   </div>
   <div class="tabla-wrap"><table id="tabla"><thead></thead><tbody></tbody></table></div>
   <div class="detalle">
@@ -951,6 +1028,9 @@ function ruedasHasta(aaaammdd){
   return n;}
 const num=(v,d)=>isFinite(v)?v.toFixed(d):'';
 const pct=v=>isFinite(v)?(v*100).toFixed(1)+'%':'';
+/* Con signo: en las tarjetas el "+" se lee antes que el color, y en una
+   captura en blanco y negro es lo unico que queda. */
+const pctS=v=>isFinite(v)?(v>0?'+':'')+(v*100).toFixed(2)+'%':'';
 const miles=v=>isFinite(v)?Math.round(v).toLocaleString('es-AR'):'';
 const pct1=v=>isFinite(v)?(v*100).toFixed(0)+'%':'';
 /* Cuatro estados, en un numero para que la columna se pueda ordenar:
@@ -1311,6 +1391,7 @@ function ponerColumnas(lista){
 
 function render(){
   marcarAtajoColumnas();
+  if(vistaPanorama){renderPanorama();return;}
   const usar=columnas();
   $('#tabla thead').innerHTML='<tr>'+usar.map(c=>
     `<th class="${c.izq?'izq':''} ${orden.col===c.k?'act':''}" data-k="${c.k}" title="${c.t}">${
@@ -1494,6 +1575,145 @@ function dibujar(cursor){
   }else globo.style.opacity=0;
 }
 
+
+/* ============================ VISTA PANORAMA ==============================
+   Tarjetas con mini-grafico para mirar el mercado de arriba hacia abajo: los
+   indices primero, despues los sectores, y recien despues un papel. Es el
+   orden en que se decide, y la tabla sola no lo mostraba.
+
+   Los grupos son listas fijas de ETFs porque son los que representan cada
+   cosa; no se pueden deducir del sector que informa Yahoo (a un ETF de
+   semiconductores lo clasifica como "Technology", igual que a Apple). */
+const PANELES=[
+  ['Índices',      ['SPY','QQQ','DIA','IWM','IJH','RSP','IVW','IVE','SPHQ','VIG','ACWI']],
+  ['Sectores',     ['XLK','XLC','XLY','XLF','XLI','XLE','XLB','XLV','XLP','XLU','XLRE']],
+  ['Temáticos',    ['SMH','IBB','ITA','XME','COPX','URA','ICLN','CIBR','ARKK']],
+  ['Commodities',  ['GLD','SLV','GDX','USO','IBIT','ETHA']],
+  ['Mundo',        ['EFA','VEA','IEUR','VGK','IEMG','EEM','ILF','EWZ','EWJ','EWY','FXI','EWH']],
+  ['Favoritos',    null],          // null = los favoritos del usuario
+];
+let panelSel=0, ordenPan='rs', vistaPanorama=false;
+
+function esNegativo(v){return isFinite(v)&&v<0;}
+
+/* Mini grafico de velas. Sin ejes ni grilla: en 84 px lo unico que se lee es
+   la forma, y una grilla ahi es ruido. La linea punteada es el cierre previo,
+   asi se ve de un vistazo si el dia esta en verde o en rojo. */
+function miniGrafico(cv,s,barras){
+  const n=Math.min(s.c.length,barras||60), ini=s.c.length-n;
+  if(n<2)return;
+  const O=s.o.slice(ini),H=s.h.slice(ini),L=s.l.slice(ini),C=s.c.slice(ini);
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth||220, Hp=cv.clientHeight||84;
+  cv.width=W*dpr;cv.height=Hp*dpr;
+  const g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,Hp);
+  let mn=Infinity,mx=-Infinity;
+  for(let i=0;i<n;i++){if(L[i]<mn)mn=L[i];if(H[i]>mx)mx=H[i];}
+  if(!isFinite(mn)||!isFinite(mx)||mx===mn)return;
+  const m=(mx-mn)*.08;mn-=m;mx+=m;
+  const y=v=>Hp*(1-(v-mn)/(mx-mn));
+  const paso=W/n, ancho=Math.max(1,Math.min(6,paso*.62));
+  // referencia: el cierre de ayer
+  const ref=C[n-2];
+  if(isFinite(ref)){
+    g.strokeStyle='rgba(132,148,168,.35)';g.setLineDash([2,3]);g.lineWidth=1;
+    g.beginPath();g.moveTo(0,y(ref)+.5);g.lineTo(W,y(ref)+.5);g.stroke();
+    g.setLineDash([]);
+  }
+  for(let i=0;i<n;i++){
+    if(!isFinite(C[i]))continue;
+    const x=paso*(i+.5), sube=C[i]>=O[i];
+    g.strokeStyle=g.fillStyle=sube?'#4FB286':'#D45647';
+    g.lineWidth=1;
+    g.beginPath();g.moveTo(x,y(H[i]));g.lineTo(x,y(L[i]));g.stroke();
+    const a=y(Math.max(O[i],C[i])), b=y(Math.min(O[i],C[i]));
+    g.fillRect(x-ancho/2,a,ancho,Math.max(1,b-a));
+  }
+}
+
+function simbolosDelPanel(){
+  const [,lista]=PANELES[panelSel];
+  const porT=new Map(filas.map(f=>[f.t,f]));
+  let out;
+  if(lista===null)out=[...favoritos].map(t=>porT.get(t)).filter(Boolean);
+  else out=lista.map(t=>porT.get(t)).filter(Boolean);
+  const cmp={
+    rs:(a,b)=>(b.rs_rank||0)-(a.rs_rank||0),
+    sube:(a,b)=>(b.chg||-9)-(a.chg||-9),
+    baja:(a,b)=>(a.chg||9)-(b.chg||9),
+    ash:(a,b)=>(b.ash_d_norm||-9)-(a.ash_d_norm||-9),
+  }[ordenPan];
+  return out.sort(cmp);
+}
+
+function pintarAmplitud(lista){
+  const suben=lista.filter(f=>f.chg>0), bajan=lista.filter(f=>f.chg<0);
+  const tot=Math.max(1,suben.length+bajan.length);
+  $('#ampVerde').style.width=(suben.length/tot*100)+'%';
+  $('#ampRojo').style.width=(bajan.length/tot*100)+'%';
+  const mejor=lista.reduce((a,f)=>(!a||f.chg>a.chg)?f:a,null);
+  const peor=lista.reduce((a,f)=>(!a||f.chg<a.chg)?f:a,null);
+  $('#ampTxt').innerHTML=
+    `<b class="up">${suben.length} suben</b> · <b class="dn">${bajan.length} bajan</b>`+
+    (mejor&&isFinite(mejor.chg)?`   Mayor suba <b>${esc(mejor.t)}</b> `+
+      `<span class="up">${pctS(mejor.chg)}</span>`:'')+
+    (peor&&isFinite(peor.chg)?`   Mayor baja <b>${esc(peor.t)}</b> `+
+      `<span class="dn">${pctS(peor.chg)}</span>`:'');
+}
+
+function renderPanorama(){
+  if(!vistaPanorama)return;
+  $('#panTabs').innerHTML=PANELES.map(([n],i)=>
+    `<span class="chip ${i===panelSel?'on':''}" data-panel="${i}">${esc(n)}</span>`).join('');
+  $$('#panorama .tf .chip[data-orden]').forEach(c=>
+    c.classList.toggle('on',c.dataset.orden===ordenPan));
+
+  const lista=simbolosDelPanel();
+  pintarAmplitud(lista);
+  if(!lista.length){
+    $('#tarjetas').innerHTML='<div class="vacio">'+(PANELES[panelSel][1]===null
+      ? 'Todavía no marcaste ningún favorito.<br>Tocá la estrella de cualquier fila.'
+      : 'Ninguno de estos símbolos está en los datos.')+'</div>';
+    return;
+  }
+  const porT=new Map(DATOS.simbolos.map(s=>[s.t,s]));
+  $('#tarjetas').innerHTML=lista.map(f=>{
+    const s=porT.get(f.t)||{};
+    const ext=s.ext?`<span class="tj-ext ${s.ext}" title="${s.ext==='pre'?'Pre-market':'After-hours'}: `+
+      `${num(s.ex,2)} · volumen ${miles(s.exv)}">${s.ext==='pre'?'PRE':'AH'} `+
+      `${pctS(s.exp)}</span>`:'';
+    const flechaD=isFinite(f.ash_d)?(f.ash_d>0?'<span class="up">▲</span>':'<span class="dn">▼</span>'):'·';
+    const flechaW=isFinite(f.ash_w)?(f.ash_w>0?'<span class="up">▲</span>':'<span class="dn">▼</span>'):'·';
+    return `<div class="tarjeta ${seleccion===f.t?'sel':''}" data-t="${esc(f.t)}">`+
+      `<div class="tj-cab">`+
+        `<span class="tj-fav ${favoritos.has(f.t)?'on':''}" data-fav="${esc(f.t)}">`+
+        `${favoritos.has(f.t)?'★':'☆'}</span>`+
+        `<span class="tj-tk">${esc(f.t)}</span>`+
+        `<span class="tj-px">${num(f.precio,2)}</span></div>`+
+      `<div class="tj-sub"><span class="tj-n" title="${esc(f.nombre)}">${esc(f.nombre||'')}</span>`+
+        `<span class="tj-chg ${f.chg>0?'up':(f.chg<0?'dn':'')}">${pctS(f.chg)}</span></div>`+
+      `<div class="tj-graf"><canvas data-mini="${esc(f.t)}"></canvas></div>`+
+      `<div class="tj-pie">${ext}`+
+        `<span title="ASH diario">D ${flechaD}</span>`+
+        `<span title="ASH semanal">W ${flechaW}</span>`+
+        (f.patron?`<span class="fig" title="Figura">${esc(f.patron)}</span>`:'')+
+        `<span class="tj-rs" title="Fuerza relativa 1-99">RS <b>${
+          isFinite(f.rs_rank)?Math.round(f.rs_rank):'—'}</b></span></div>`+
+    `</div>`;}).join('');
+  // los canvas se dibujan despues de que el navegador les dio ancho
+  requestAnimationFrame(()=>$$('#tarjetas canvas[data-mini]').forEach(cv=>{
+    const s=porT.get(cv.dataset.mini);if(s)miniGrafico(cv,s,60);}));
+}
+
+function verPanorama(mostrar){
+  vistaPanorama=mostrar;
+  document.body.classList.toggle('panorama',mostrar);
+  $('#chipVista').classList.toggle('on',mostrar);
+  escribirLS('screener_ash_vista',mostrar?'p':'t');
+  if(mostrar)renderPanorama(); else render();
+}
+
 /* ---------- chips ---------- */
 function chips(cont,valores,activos,cb){
   const on=v=>activos.has?activos.has(v):activos.includes(v);
@@ -1572,6 +1792,7 @@ function estadoActual(){const o={};
      la busqueda, la industria elegida y el perfil del desplegable estaban en
      blanco aunque los filtros si volvieran. */
   o._buscar=$('#buscar').value;o._ind=industriaSel;o._indCampo=campoGrupo;
+  o._panel=panelSel;o._ordenPan=ordenPan;
   o._perfil=$('#selRapido').value;
   return o;}
 function aplicarEstado(o){
@@ -1583,6 +1804,8 @@ function aplicarEstado(o){
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
   if(o._indCampo)campoGrupo=o._indCampo;
+  if(isFinite(o._panel))panelSel=+o._panel;
+  if(o._ordenPan)ordenPan=o._ordenPan;
   industriaSel=o._ind||null;
   if(o._sel)seleccion=o._sel;
   montarChips();montarColumnas();etiquetas();recalcular();guardarSesion();}
@@ -1612,6 +1835,8 @@ function restaurarSesion(){
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
     if(o._indCampo)campoGrupo=o._indCampo;
+    if(isFinite(o._panel))panelSel=+o._panel;
+    if(o._ordenPan)ordenPan=o._ordenPan;
     if(o._ind)industriaSel=o._ind;
     if(o._sel)seleccion=o._sel;
     if(o._perfil)perfilPendiente=o._perfil;
@@ -2206,6 +2431,16 @@ function iniciar(){
   $('#selPerfil').onchange=()=>elegirPerfil($('#selPerfil').value);
   $('#selRapido').onchange=()=>elegirPerfil($('#selRapido').value);
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
+  $('#chipVista').onclick=()=>verPanorama(!vistaPanorama);
+  $('#panTabs').onclick=e=>{const c=e.target.closest('.chip[data-panel]');if(!c)return;
+    panelSel=+c.dataset.panel;renderPanorama();guardarSesion();};
+  $('#panorama .tf').onclick=e=>{const c=e.target.closest('.chip[data-orden]');if(!c)return;
+    ordenPan=c.dataset.orden;renderPanorama();guardarSesion();};
+  $('#tarjetas').onclick=e=>{
+    const est=e.target.closest('.tj-fav');
+    if(est){marcarFavorito(est.dataset.fav);renderPanorama();e.stopPropagation();return;}
+    const tj=e.target.closest('.tarjeta');
+    if(tj){seleccionar(tj.dataset.t);renderPanorama();}};
   $('#chipGrafico').onclick=()=>verGrafico(document.body.classList.contains('sin-grafico'));
   $('#chipCerrarGraf').onclick=()=>verGrafico(false);
   mostrarTL=leerLS('screener_ash_tl')!=='0';
@@ -2320,11 +2555,16 @@ function iniciar(){
       $('#buscar').value='';$('#buscar').blur();aplicar();}
     else if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!escribiendo){
       moverSeleccion(e.key==='ArrowDown'?1:-1);e.preventDefault();}
+    else if((e.key==='p'||e.key==='P')&&!escribiendo){verPanorama(!vistaPanorama);}
     else if((e.key==='g'||e.key==='G')&&!escribiendo){
       verGrafico(document.body.classList.contains('sin-grafico'));}
     else if((e.key==='f'||e.key==='F')&&!escribiendo&&seleccion){marcarFavorito(seleccion);}});
 
-  window.addEventListener('resize',()=>{if(seleccion)dibujar();});
+  let tempResize=null;
+  window.addEventListener('resize',()=>{
+    if(seleccion)dibujar();
+    clearTimeout(tempResize);
+    tempResize=setTimeout(()=>{if(vistaPanorama)renderPanorama();},180);});
   if(leerLS('screener_ash_panel')==='0'||angosto())document.body.classList.add('compacto');
   cargarFavoritos();
   /* La URL le gana a la sesion guardada: si abriste un enlace de "Copiar vista"
@@ -2352,6 +2592,8 @@ function iniciar(){
   $('#btnInd').textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+' ▾';
   avisarAlmacen();engancharGuardadoFinal();
   montarChips();etiquetas();recalcular();
+  // la vista va al final: renderPanorama() necesita `filas` ya calculadas
+  if(leerLS('screener_ash_vista')==='p')verPanorama(true);
 }
 
 /* ---------- secuencia de arranque ----------

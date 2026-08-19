@@ -56,6 +56,10 @@ echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
 echo; echo "== pantalla angosta y pastilla de frescura =="
 node movil.js
+echo; echo "== vista panorama (indices y sectores) =="
+node panorama.js
+echo; echo "== Python: pre-market y after-hours =="
+python3 extendido.py
 echo; echo "== Python: actualizacion rapida (intradia) =="
 python3 rapido.py
 

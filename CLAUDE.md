@@ -256,6 +256,45 @@ Otras decisiones de peso:
 
 ## 7. La interfaz
 
+### Vista Panorama (tarjetas)
+
+Tarjetas con mini-gráfico de velas para mirar el mercado **de arriba hacia
+abajo**: primero los índices, después los sectores, y recién después un papel.
+Ese es el orden en que se decide y la tabla sola no lo mostraba. Se abre con el
+chip `Panorama` o con la tecla `P`.
+
+Seis paneles: Índices · Sectores · Temáticos · Commodities · Mundo · Favoritos.
+**Las listas son fijas** (`PANELES`), no se deducen del sector que informa
+Yahoo: a un ETF de semiconductores lo clasifica como *Technology*, igual que a
+Apple.
+
+Cada tarjeta trae precio, variación con signo, mini-velas de 60 ruedas con la
+línea del cierre previo, **RS**, el estado del **ASH diario y semanal** (▲/▼),
+la figura si la hay, y la etiqueta `PRE`/`AH` cuando hay precio fuera de hora.
+Arriba, la barra de amplitud: cuántos suben, cuántos bajan, mayor suba y mayor
+baja del panel.
+
+### Pre-market y after-hours
+
+**De dónde salen:** del mismo endpoint de gráficos de Yahoo, pero con intervalo
+intradía (5m) y `includePrePost=1`. yfinance lo expone como `prepost=True`.
+
+**Cómo se separan las sesiones:** Yahoo no marca cada barra, así que se mira la
+hora local del mercado — antes de 9:30 es pre, de 16:00 en adelante es after.
+yfinance devuelve el índice en la zona del mercado, así que no hay que adivinar
+husos.
+
+**Contra qué se compara:** el pre-market contra el cierre del día **anterior**,
+el after-hours contra el cierre de **hoy**. Cualquier otra referencia da
+porcentajes que no significan nada.
+
+**Lo que no se puede prometer:** fuera de horario el volumen es una fracción del
+de la rueda. Por eso viaja también `exv` (volumen extendido): sirve para saber
+cuánto creerle. En un papel líquido el dato es útil; en uno que no lo es, una
+sola operación suelta mueve el precio 4%.
+
+`intradia.yml` corre 8:00-23:30 UTC para cubrir las tres sesiones.
+
 ### Barra superior
 Pastilla de **frescura** · `★ favoritos` · `Gráfico` · `Industrias ▾` ·
 `Columnas N ▾` · desplegable de filtros guardados.

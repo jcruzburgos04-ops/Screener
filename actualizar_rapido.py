@@ -39,7 +39,7 @@ from pathlib import Path
 import pandas as pd
 
 from generar_html import serie
-from screener import atrasos_por_fecha, bajar_precios
+from screener import atrasos_por_fecha, bajar_extendido, bajar_precios
 
 PLANTILLA = Path("plantilla.html")
 MARCA = '/*__DATOS__*/ {fecha:"", simbolos:[]}'
@@ -99,6 +99,8 @@ def main():
                     help="cuanto pedirle a Yahoo: con 1mo sobra")
     ap.add_argument("--min-actualizados", type=int, default=200,
                     help="si se actualizan menos que esto, no se publica")
+    ap.add_argument("--sin-extendido", action="store_true",
+                    help="no pedir pre-market ni after-hours")
     args = ap.parse_args()
 
     previo = Path(args.previo)
@@ -136,6 +138,27 @@ def main():
     payload["atrasados"] = sum(1 for s in simbolos if s["at"] > 0)
     payload["fecha"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     payload["parcial"] = True     # se armo durante la rueda, no despues del cierre
+
+    # Pre-market y after-hours. Es una pasada aparte porque necesita barras de
+    # 5 minutos; cuando la rueda esta abierta no devuelve nada y se nota en el
+    # conteo, que es lo esperado.
+    payload["extendido"] = {}
+    if not args.sin_extendido:
+        print("      pre-market / after-hours...")
+        cierres = {s["t"]: s["c"][-1] for s in simbolos}
+        ext = bajar_extendido(tickers, cierres)
+        for s in simbolos:
+            e = ext.get(s["t"])
+            if e:
+                s["ex"] = e["px"]; s["exp"] = e["pct"]
+                s["ext"] = e["tipo"]; s["exv"] = e["vol"]
+            else:
+                s.pop("ex", None); s.pop("exp", None)
+                s.pop("ext", None); s.pop("exv", None)
+        pre = sum(1 for e in ext.values() if e["tipo"] == "pre")
+        post = len(ext) - pre
+        payload["extendido"] = {"pre": pre, "post": post}
+        print(f"      {pre} en pre-market, {post} en after-hours")
 
     print(f"      {len(precios)} contestaron, {cambiados} con barras nuevas, "
           f"{payload['atrasados']} atrasados")
