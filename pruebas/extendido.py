@@ -78,4 +78,31 @@ nan = barras(["16:30"], [float("nan")])
 assert extendido_de_barras(nan) is None
 print("  None, DataFrame vacio, sin zona, sin referencia y con NaN: OK")
 
+
+print("\n== solo Estados Unidos ==")
+# La ventana 9:30-16:00 es la de Nueva York. Aplicarsela a Tokio da cualquier
+# cosa: en la primera corrida real los dos unicos "pre-market" que salieron
+# fueron 6701.T y 2317.TW.
+import screener
+llamados = []
+screener.yf = None
+orig = screener.bajar_extendido
+
+
+def _falso_download(grupo, **k):
+    llamados.extend(grupo)
+    raise RuntimeError("no importa el resultado, solo a quien se le pide")
+
+
+import types
+mod = types.ModuleType("yfinance")
+mod.download = _falso_download
+sys.modules["yfinance"] = mod
+screener.bajar_extendido(["AAPL", "MSFT", "6701.T", "2317.TW", "PBR.SA", "BAS.DE", "BRK-B"])
+assert "AAPL" in llamados and "BRK-B" in llamados, llamados
+assert not any("." in t and not t.startswith("BRK") for t in llamados), llamados
+assert "6701.T" not in llamados and "PBR.SA" not in llamados, llamados
+print("  pide:", ", ".join(llamados))
+print("  saltea Tokio, Taiwan, Sao Paulo y Frankfurt: OK")
+
 print("\nEXTENDIDO OK")

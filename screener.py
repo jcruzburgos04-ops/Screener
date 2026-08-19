@@ -1201,6 +1201,12 @@ def bajar_extendido(tickers, cierres=None, lote=50, progreso=None):
     """
     {ticker: {"px","pct","tipo","vol"}} para los que tengan pre o after.
 
+    SOLO PARA ESTADOS UNIDOS. La ventana 9:30-16:00 que usa extendido_de_barras
+    es la de Nueva York, y aplicarsela a Tokio o a Sao Paulo da cualquier cosa:
+    en la primera corrida real los dos unicos "pre-market" que salieron fueron
+    6701.T y 2317.TW, justamente por eso. Ademas Yahoo casi no publica sesiones
+    extendidas fuera de EE.UU. Los simbolos con sufijo de mercado se saltean.
+
     Es una pasada aparte de la de precios diarios porque necesita otro
     intervalo. Se piden barras de 5 minutos del ultimo dia: es lo mas barato
     que cubre las tres sesiones.
@@ -1208,6 +1214,7 @@ def bajar_extendido(tickers, cierres=None, lote=50, progreso=None):
     import yfinance as yf
     cierres = cierres or {}
     out = {}
+    tickers = [t for t in tickers if not sufijo_mercado(t)]
     for i in range(0, len(tickers), lote):
         grupo = tickers[i:i + lote]
         try:

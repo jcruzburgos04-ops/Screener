@@ -288,6 +288,11 @@ husos.
 el after-hours contra el cierre de **hoy**. Cualquier otra referencia da
 porcentajes que no significan nada.
 
+**Sólo para Estados Unidos.** La ventana 9:30-16:00 es la de Nueva York;
+aplicársela a Tokio o a São Paulo da cualquier cosa. En la primera corrida real
+los dos únicos «pre-market» que salieron fueron `6701.T` y `2317.TW`, justamente
+por eso. `bajar_extendido` saltea todo lo que tenga sufijo de mercado.
+
 **Lo que no se puede prometer:** fuera de horario el volumen es una fracción del
 de la rueda. Por eso viaja también `exv` (volumen extendido): sirve para saber
 cuánto creerle. En un papel líquido el dato es útil; en uno que no lo es, una
