@@ -1134,6 +1134,26 @@ const COLS=[
 const COLS_DEF=COLS.filter(c=>c.def).map(c=>c.k);
 let colsOn=new Set(COLS_DEF);
 
+/* PROBLEMA QUE ESTO RESUELVE: cuando se agrega una columna al set por defecto,
+   el que ya tenia una seleccion guardada NUNCA la ve, porque su lista pisa la
+   nueva. Paso de verdad: se agregaron las tres columnas de lineas de tendencia
+   y en pantalla seguian apareciendo las 16 de antes.
+
+   La sesion guarda ahora que columnas EXISTIAN cuando se guardo. Al restaurar,
+   las que son del set por defecto y no existian entonces se agregan; las que el
+   usuario apago a proposito quedan apagadas, porque esas si las conocia. */
+const COLS_AGREGADAS=['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
+  'tl_sop_pend','tl_toques','atraso','ultima','nombre'];
+function fusionarColumnas(guardadas,conocidas){
+  const on=new Set(guardadas);
+  // las sesiones viejas no guardaban la lista: se asume que conocian todas
+  // menos las que se agregaron despues
+  const sabia=new Set(conocidas&&conocidas.length ? conocidas
+    : COLS.map(c=>c.k).filter(k=>!COLS_AGREGADAS.includes(k)));
+  for(const c of COLS)if(c.def&&!sabia.has(c.k))on.add(c.k);
+  return on;
+}
+
 
 /* ---------- estado desde los controles ---------- */
 function config(){
@@ -1371,8 +1391,15 @@ function elegirIndustria(nombre){
 function cambiarCampoGrupo(campo){
   if(campo===campoGrupo)return;
   campoGrupo=campo;industriaSel=null;
-  $('#btnInd').textContent=(campo==='sector'?'Sectores':'Industrias')+' ▾';
-  montarIndustrias();aplicar();guardarSesion();
+  etiquetaGrupo();montarIndustrias();aplicar();guardarSesion();
+}
+
+/* Un solo lugar decide como se llama el boton. Estaba en tres, y al cargar un
+   perfil guardado con "industria" el boton seguia diciendo "Sectores" mientras
+   el panel listaba industrias. */
+function etiquetaGrupo(){
+  $('#btnInd').textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+' ▾';
+  $('#btnInd').title='Ranking de '+(campoGrupo==='sector'?'sectores':'industrias');
 }
 
 function verPanelInd(abrir){
@@ -1788,6 +1815,7 @@ function estadoActual(){const o={};
     o[el.id]=el.type==='checkbox'?el.checked:el.value;});
   o._emas=emasOn.slice();o._grupos=[...gruposOn];
   o._orden={...orden};o._cols=[...colsOn];o._fav=soloFav;o._sel=seleccion;
+  o._colsVistas=COLS.map(c=>c.k);
   /* Estos tres se olvidaban al recargar y era lo que mas molestaba: volvias y
      la busqueda, la industria elegida y el perfil del desplegable estaban en
      blanco aunque los filtros si volvieran. */
@@ -1800,7 +1828,7 @@ function aplicarEstado(o){
   if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
   if(o._grupos)gruposOn=new Set(o._grupos);
   if(o._orden&&o._orden.col)orden={...o._orden};
-  if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
+  if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
   if(o._indCampo)campoGrupo=o._indCampo;
@@ -1808,7 +1836,7 @@ function aplicarEstado(o){
   if(o._ordenPan)ordenPan=o._ordenPan;
   industriaSel=o._ind||null;
   if(o._sel)seleccion=o._sel;
-  montarChips();montarColumnas();etiquetas();recalcular();guardarSesion();}
+  montarChips();montarColumnas();etiquetas();etiquetaGrupo();recalcular();guardarSesion();}
 
 /* ---------- la sesion se recuerda sola ---------- */
 const SESION='screener_ash_sesion';
@@ -1831,7 +1859,7 @@ function restaurarSesion(){
     if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
     if(o._grupos)gruposOn=new Set(o._grupos);
     if(o._orden&&o._orden.col)orden={...o._orden};
-    if(o._cols&&o._cols.length)colsOn=new Set(o._cols);
+    if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
     if(o._indCampo)campoGrupo=o._indCampo;
@@ -2574,7 +2602,7 @@ function iniciar(){
     if(vista._emas&&vista._emas.length)emasOn=vista._emas.map(Number);
     if(vista._grupos)gruposOn=new Set(vista._grupos);
     if(vista._orden&&vista._orden.col)orden={...vista._orden};
-    if(vista._cols&&vista._cols.length)colsOn=new Set(vista._cols);
+    if(vista._cols&&vista._cols.length)colsOn=fusionarColumnas(vista._cols,vista._colsVistas);
     if(typeof vista._fav==='boolean')soloFav=vista._fav;
     if(typeof vista._buscar==='string')$('#buscar').value=vista._buscar;
     if(vista._indCampo)campoGrupo=vista._indCampo;
@@ -2589,7 +2617,7 @@ function iniciar(){
   // el desplegable tiene que mostrar el perfil con el que estabas, no "— sin filtros —"
   if(perfilPendiente){$('#selRapido').value=perfilPendiente;
     $('#selPerfil').value=perfilPendiente;}
-  $('#btnInd').textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+' ▾';
+  etiquetaGrupo();
   avisarAlmacen();engancharGuardadoFinal();
   montarChips();etiquetas();recalcular();
   // la vista va al final: renderPanorama() necesita `filas` ya calculadas

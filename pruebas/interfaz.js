@@ -177,6 +177,39 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   ok('la tabla filtro por la busqueda',b.$$('#tabla tbody tr').length<50,
      b.$$('#tabla tbody tr').length);
 
+  console.log('\n== una seleccion vieja de columnas recibe las nuevas ==');
+  {
+    // el caso real: una sesion guardada antes de que existieran las columnas
+    // de lineas de tendencia, sin _colsVistas
+    const viejo=nuevoAlmacen();
+    viejo.setItem('screener_ash_sesion',JSON.stringify({
+      _cols:['fav','t','sector','precio','chg','ash_d','rsi'],
+      _orden:{col:'ash_d_norm',asc:false}}));
+    const v=await abrir(viejo);
+    const cols=v.$$('#tabla thead th').map(x=>x.dataset.k);
+    ok('conserva las que habia elegido',cols.includes('sector')&&cols.includes('rsi'),
+       cols.join(','));
+    ok('respeta lo que habia apagado',!cols.includes('grupo')&&!cols.includes('perf_3m'),
+       cols.join(','));
+    ok('y suma las nuevas de tendencia',cols.includes('patron')&&
+       cols.includes('tl_res_dist')&&cols.includes('tl_sop_dist'),cols.join(','));
+
+    // una sesion guardada por la version nueva NO recibe agregados
+    const actual=nuevoAlmacen();
+    const w0=await abrir(actual);
+    w0.$$('#chipsCols .chip').filter(c=>c.dataset.v==='patron')
+      .forEach(c=>c.dispatchEvent(new w0.w.MouseEvent('click',{bubbles:true})));
+    await new Promise(r=>setTimeout(r,700));
+    w0.w.dispatchEvent(new w0.w.Event('pagehide'));
+    const g=JSON.parse(actual.getItem('screener_ash_sesion'));
+    ok('la sesion guarda que columnas conocia',Array.isArray(g._colsVistas)&&
+       g._colsVistas.includes('patron'),(g._colsVistas||[]).length);
+    const v2=await abrir(actual);
+    ok('apagar una columna a proposito se respeta',
+       !v2.$$('#tabla thead th').map(x=>x.dataset.k).includes('patron'),
+       v2.$$('#tabla thead th').map(x=>x.dataset.k).join(','));
+  }
+
   console.log('\n== la vista dentro de la URL, con almacen vacio ==');
   const hash='#'+vistaURL.split('#')[1];
   const c=await abrir(nuevoAlmacen(),hash);

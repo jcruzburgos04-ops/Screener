@@ -97,6 +97,30 @@ setTimeout(async()=>{
   await esperar(300);
   ok('"Todos" lo saca',$$('#tabla tbody tr').length===antes,$$('#tabla tbody tr').length);
 
+  console.log('== la etiqueta del boton acompaña al campo elegido ==');
+  {
+    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='industria')
+      .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(300);
+    $('#nomPerfil').value='con industrias';
+    $('#btnGuardar').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(300);
+    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+      .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(300);
+    ok('al volver a sector el boton lo dice',/Sectores/.test($('#btnInd').textContent),
+       $('#btnInd').textContent);
+    $('#selPerfil').value='m:con industrias';
+    $('#selPerfil').dispatchEvent(new w.Event('change'));
+    await esperar(500);
+    ok('al cargar el perfil el boton se actualiza',/Industrias/.test($('#btnInd').textContent),
+       $('#btnInd').textContent);
+    ok('y el panel lista industrias',w.eval('campoGrupo')==='industria',w.eval('campoGrupo'));
+    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+      .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(300);
+  }
+
   console.log('== el buscador entiende sectores ==');
   $('#buscar').value=nombreSec;
   $('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));

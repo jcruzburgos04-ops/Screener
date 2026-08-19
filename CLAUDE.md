@@ -382,6 +382,15 @@ cada número. La estrella mide 30 px y el ticker se ancla ahí.
 Sector, industria y nombre llevan `corto:1`: se cortan con puntos suspensivos y
 el texto entero queda en el `title`. Sin eso estiraban la tabla a lo ancho.
 
+> **Trampa que ya mordió:** cuando se agrega una columna al set por defecto, el
+> que ya tenía una selección guardada **nunca la ve**, porque su lista pisa la
+> nueva. Pasó de verdad: se agregaron las tres columnas de líneas de tendencia y
+> en pantalla seguían apareciendo las 16 de antes, así que la función entera era
+> invisible. Ahora la sesión guarda en `_colsVistas` qué columnas existían al
+> guardarla, y `fusionarColumnas()` agrega las de `def:1` que no estaban
+> entonces; lo que el usuario apagó a propósito queda apagado, porque eso sí lo
+> conocía. `COLS_AGREGADAS` cubre las sesiones viejas que no traen la lista.
+
 `COLS` define las columnas; las que tienen `def:1` son el set por defecto.
 `nosel:1` marca las que no se pueden apagar (★ y Ticker). El desplegable las
 agrupa según `GRUPOS_COL`. La selección viaja en la sesión, en la URL y dentro de
