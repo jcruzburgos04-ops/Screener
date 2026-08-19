@@ -26,7 +26,7 @@
   --ambar-t:rgba(224,164,88,.13);
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
-  --panel-w:272px; --r:3px;
+  --panel-ancho:282px; --barra-sc:14px; --panel-w:var(--panel-ancho); --r:3px;
   --sombra:0 10px 34px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box}
@@ -45,7 +45,11 @@ aside{width:var(--panel-w);flex:none;background:var(--panel);
   border-right:1px solid var(--borde);overflow-y:auto;overflow-x:hidden;
   transition:width .18s ease;padding-bottom:3rem;z-index:40}
 body.compacto aside{border-right:none}
-aside .interior{width:272px}
+/* El interior mide el ancho del panel MENOS la barra de desplazamiento. Antes
+   median lo mismo y la barra se montaba encima de los controles: los sliders
+   quedaban cortados contra el borde y parecia todo superpuesto. No se puede
+   usar width:100% porque al plegar el panel (width:0) se aplastaria todo. */
+aside .interior{width:calc(var(--panel-ancho) - var(--barra-sc))}
 .cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.75rem .85rem .7rem;
   border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--panel);z-index:6}
 .cabecera-panel h1{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;
@@ -68,16 +72,34 @@ summary .cuenta:empty{display:none}
 label{display:flex;font-size:.7rem;color:var(--tenue);margin:.6rem 0 .24rem;
   justify-content:space-between;align-items:baseline;gap:.5rem}
 label b{color:var(--ambar);font-family:var(--mono);font-weight:500;
-  font-variant-numeric:tabular-nums}
+  font-variant-numeric:tabular-nums;background:var(--ambar-t);border-radius:999px;
+  padding:.02rem .38rem;font-size:.66rem;flex:none}
+/* "off" no es un valor: se apaga visualmente para que el ojo salte a los que si
+   estan puestos. */
+label b.apagado{color:var(--apagado);background:transparent;padding:0}
 input,select{width:100%;background:var(--tinta);color:var(--hueso);
   border:1px solid var(--borde);border-radius:var(--r);padding:.42rem .5rem;
   font-family:var(--mono);font-size:.78rem;font-variant-numeric:tabular-nums;
   transition:border-color .12s,background .12s}
 input:hover,select:hover{border-color:var(--borde2)}
 input:focus,select:focus{outline:none;border-color:var(--ambar);background:#0A0E14}
-input[type=range]{padding:0;border:none;background:transparent;accent-color:var(--ambar);
-  height:20px;cursor:pointer}
-input[type=range]:hover{background:transparent}
+/* Los deslizadores por defecto son enormes y con el `accent-color` cada
+   navegador dibuja otra cosa. Se dibujan a mano: riel de 4 px y perilla de 13,
+   para que no se coman el espacio ni choquen con la etiqueta de arriba. */
+input[type=range]{-webkit-appearance:none;appearance:none;padding:0;border:none;
+  background:transparent;height:16px;cursor:pointer;margin:.15rem 0 .1rem}
+input[type=range]:hover,input[type=range]:focus{background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:var(--panel3);border:1px solid var(--borde)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:13px;height:13px;border-radius:50%;background:var(--ambar);margin-top:-5.5px;
+  border:2px solid var(--panel);box-shadow:0 0 0 1px var(--ambar);
+  transition:transform .1s}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.15)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;
+  background:var(--panel3);border:1px solid var(--borde)}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;
+  background:var(--ambar);border:2px solid var(--panel);box-shadow:0 0 0 1px var(--ambar)}
 .par{display:flex;gap:.5rem}.par>div{flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
 .chip{font-family:var(--mono);font-size:.68rem;padding:.26rem .5rem;border-radius:var(--r);
@@ -86,6 +108,13 @@ input[type=range]:hover{background:transparent}
 .chip:hover{color:var(--hueso);border-color:var(--borde2)}
 .chip.on{border-color:var(--ambar);color:var(--ambar);background:var(--ambar-t)}
 .nota{color:var(--apagado);font-size:.71rem;line-height:1.6;margin:.7rem 0 0}
+/* Subtitulos dentro de una seccion: 20 filtros seguidos son una lista infinita
+   donde no se encuentra nada. Agrupados, se barren de un vistazo. */
+.subt{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--apagado);margin:1.1rem 0 .1rem;
+  padding-top:.55rem;border-top:1px solid var(--borde);display:flex;
+  align-items:center;gap:.4rem}
+.subt:first-child{margin-top:.3rem;padding-top:0;border-top:none}
 .nota code{color:var(--ambar);font-family:var(--mono);font-size:.95em}
 button{font-family:var(--mono);font-size:.69rem;letter-spacing:.07em;text-transform:uppercase;
   background:var(--panel2);color:var(--hueso);border:1px solid var(--borde);
@@ -384,7 +413,7 @@ body.panorama .kpis{display:none}
 body.cajon #velo{display:block}
 @media (max-width:860px){
   body{--panel-w:0px}
-  aside{position:fixed;top:0;bottom:0;left:0;width:272px;
+  aside{position:fixed;top:0;bottom:0;left:0;width:var(--panel-ancho);
     transform:translateX(-100%);transition:transform .2s ease;box-shadow:var(--sombra)}
   body.cajon aside{transform:none}
   body.compacto aside{border-right:1px solid var(--borde)}
@@ -463,49 +492,73 @@ body.cajon #velo{display:block}
 
   <details open><summary>Filtros <span class="cuenta" id="cuentaFiltros"></span></summary>
   <div class="cuerpo">
-    <label>Volumen promedio 20d (acciones)</label>
+    <div class="subt">Liquidez</div>
+    <label>Volumen 20d (acciones)</label>
     <input type="number" id="fVol" value="300000" step="50000">
-    <label>Volumen promedio 20d (USD)</label>
+    <label>Volumen 20d (USD)</label>
     <input type="number" id="fDVol" value="5000000" step="1000000">
     <label>Volumen relativo mínimo <b id="lRelVol">off</b></label>
     <input type="range" id="fRelVol" min="0" max="10" step="0.1" value="0">
+    <div class="par">
+      <div><label>Precio mín. (USD)</label><input type="number" id="fPrecio" value="5" step="1"></div>
+      <div><label>Float máx. ($M) <b id="lFloat">off</b></label>
+        <input type="number" id="fFloat" value="0" step="100"></div>
+    </div>
+
+    <div class="subt">Movimiento</div>
     <label>ADR % mínimo <b id="lAdr">off</b></label>
     <input type="range" id="fAdr" min="0" max="15" step="0.1" value="0">
+    <label>ADX mínimo <b id="lAdx">off</b></label>
+    <input type="range" id="fAdx" min="0" max="60" value="0">
+    <label>RS rank mínimo <b id="lRs">off</b></label>
+    <input type="range" id="fRs" min="1" max="99" value="1">
     <div class="par">
       <div><label>RSI mín</label><input type="number" id="fRsiMin" value="0" min="0" max="100"></div>
       <div><label>RSI máx</label><input type="number" id="fRsiMax" value="100" min="0" max="100"></div>
     </div>
+
+    <div class="subt">Tendencia</div>
     <label>Precio sobre EMA20</label>
     <select id="fEma20"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
     <label>Precio sobre EMA50</label>
     <select id="fEma50"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
     <label>EMA20 sobre EMA50</label>
     <select id="fCruce"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+
+    <div class="subt">ASH</div>
     <label>ASH diario positivo</label>
     <select id="fAshD"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
     <label>ASH semanal positivo</label>
     <select id="fAshW"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
     <label>ASH diario creciendo</label>
     <select id="fAshCrece"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
-    <label>Cruce alcista de hace ≤ N ruedas <b id="lCruce">off</b></label>
+    <label>Cruce alcista ≤ N ruedas <b id="lCruce">off</b></label>
     <input type="range" id="fCruceMax" min="0" max="40" value="0">
-    <label>ADX mínimo <b id="lAdx">off</b></label>
-    <input type="range" id="fAdx" min="0" max="60" value="0">
-    <label>Precio mínimo (USD)</label><input type="number" id="fPrecio" value="5" step="1">
-    <label>Float máximo ($M) <b id="lFloat">off</b></label>
-    <input type="number" id="fFloat" value="0" step="100">
-    <label>RS rank mínimo <b id="lRs">off</b></label>
-    <input type="range" id="fRs" min="1" max="99" value="1">
+
+    <div class="subt">Soporte y resistencia</div>
     <label>Figura</label>
     <select id="fPatron"><option value="">—</option>
       <option>Canal alcista</option><option>Canal bajista</option>
       <option>Triángulo asc.</option><option>Triángulo desc.</option>
       <option>Cuña / triángulo</option><option>Rango</option>
       <option>Se abre</option></select>
-    <label>A menos de X% de la resistencia <b id="lResDist">off</b></label>
+    <label>A ≤ X% de la resistencia <b id="lResDist">off</b></label>
     <input type="range" id="fResDist" min="0" max="30" step="0.5" value="0">
-    <label>Toques mínimos de las líneas <b id="lToques">off</b></label>
+    <label>Toques mínimos <b id="lToques">off</b></label>
     <input type="range" id="fToques" min="0" max="8" value="0">
+
+    <div class="subt">AVWAP del último máximo</div>
+    <label>Dónde está el precio</label>
+    <select id="fAvwap"><option value="">—</option>
+      <option>Recuperado</option><option>Encima</option>
+      <option>Perdido</option><option>Debajo</option></select>
+    <label>A ≤ X% del AVWAP <b id="lAvDist">off</b></label>
+    <input type="range" id="fAvDist" min="0" max="20" step="0.5" value="0">
+    <p class="nota">El AVWAP arranca en el último máximo fractal: es el precio
+      promedio que pagó todo el que compró desde ahí. <b style="color:var(--tenue)">Recuperado</b>
+      = lo cruzó hacia arriba hace diez ruedas o menos.</p>
+
+    <div class="subt">Otros</div>
     <label class="check"><input type="checkbox" id="fSinAtraso">
       esconder los que tienen el precio atrasado</label>
     <button id="btnReset">Limpiar filtros</button>
@@ -949,6 +1002,86 @@ function tendencias(b,cfg){
           pendRes:pRes, pendSop:pSop};
 }
 
+
+/* ---------- AVWAP anclado al ultimo maximo fractal ----------
+   Es la linea naranja del grafico que mando el usuario, y es la metodologia de
+   Brian Shannon: en vez del VWAP del dia, un VWAP que arranca en un punto que
+   significa algo. Anclado al ultimo maximo, contesta una pregunta concreta:
+   "el precio promedio que pago todo el que compro desde ese maximo, cuanto es".
+   Si el precio esta por debajo, todos esos compradores estan perdiendo; cuando
+   lo recupera, dejan de estarlo, y eso cambia la oferta.
+
+   CUAL ES "EL ULTIMO MAXIMO FRACTAL". Un pivote de maximos cualquiera puede ser
+   un micro-pico sin importancia. El que sirve es el ultimo pivote que TODAVIA
+   NO FUE SUPERADO: ese es el techo con el que el precio esta peleando. Si el
+   papel viene haciendo maximos nuevos no queda ninguno sin superar, y entonces
+   se usa el ultimo pivote a secas.
+
+   El ancla se busca con la misma ventana y el mismo pivote que las lineas de
+   tendencia, para no multiplicar controles.
+
+   OJO CON EL VOLUMEN: los precios vienen ajustados por dividendos y el volumen
+   no. Sobre una ventana de tres meses la diferencia es despreciable, pero no
+   uses esto sobre varios años sin pensarlo. */
+
+function avwapDesde(b,ini){
+  const n=b.c.length, out=new Array(n).fill(NaN);
+  let pv=0, vv=0;
+  for(let i=Math.max(0,ini);i<n;i++){
+    const tp=(b.h[i]+b.l[i]+b.c[i])/3, v=+b.v[i]||0;
+    if(!isFinite(tp))continue;
+    pv+=tp*v; vv+=v;
+    out[i]=vv?pv/vv:tp;          // sin volumen, el precio tipico
+  }
+  return out;
+}
+
+function anclaMaximo(b,cfg){
+  const n=b.c.length;
+  const N=Math.min(n,(cfg&&cfg.tlBarras)||120);
+  const k=(cfg&&cfg.tlPivote)||5;
+  if(N<2*k+3)return -1;
+  const ini=n-N;
+  const h=b.h.slice(ini);
+  const pv=pivotes(h,k,true);
+  if(!pv.length)return -1;
+  // el ultimo pivote que todavia no fue superado por ninguna barra posterior
+  for(let j=pv.length-1;j>=0;j--){
+    const i=pv[j];
+    let superado=false;
+    for(let x=i+1;x<N;x++)if(h[x]>h[i]){superado=true;break;}
+    if(!superado)return ini+i;
+  }
+  return ini+pv[pv.length-1];    // viene haciendo maximos nuevos
+}
+
+/* Devuelve el AVWAP de hoy, la distancia del precio, cuantas ruedas hace que
+   se anclo y cuantas desde que el precio cruzo la linea. */
+function avwapAncladp(b,cfg){
+  const vacio={ancla:-1,valor:NaN,dist:NaN,barras:NaN,cruce:NaN,estado:''};
+  const i=anclaMaximo(b,cfg);
+  if(i<0)return vacio;
+  const n=b.c.length, v=avwapDesde(b,i), px=b.c[n-1];
+  const val=v[n-1];
+  if(!isFinite(val)||!isFinite(px)||val<=0)return vacio;
+
+  // ruedas desde que el precio cambio de lado respecto de la linea
+  let cruce=NaN, prev=NaN;
+  for(let x=i;x<n;x++){
+    if(!isFinite(v[x]))continue;
+    const s=Math.sign(b.c[x]-v[x]);
+    if(s===0)continue;
+    if(isFinite(prev)&&s!==prev)cruce=x;
+    prev=s;
+  }
+  const barrasCruce=isFinite(cruce)?n-1-cruce:NaN;
+  const dist=px/val-1;
+  let estado;
+  if(dist>=0)estado=(isFinite(barrasCruce)&&barrasCruce<=10)?'Recuperado':'Encima';
+  else estado=(isFinite(barrasCruce)&&barrasCruce<=10)?'Perdido':'Debajo';
+  return {ancla:i,valor:val,dist:dist,barras:n-1-i,cruce:barrasCruce,estado:estado};
+}
+
 /* ---------- parte de la fila que NO depende del ASH ----------
    Se cachea: mientras no toques ADR/RSI/ATR/ADX/EMAs, no se recalcula. */
 function calcularBase(s,cfg){
@@ -975,6 +1108,10 @@ function calcularBase(s,cfg){
   // y de sus dos parametros, asi que viajan en el mismo cache que el resto.
   const T=tendencias(b,cfg);
   f.patron=T.patron;
+  // AVWAP anclado al ultimo maximo fractal (la linea naranja)
+  const V=avwapAncladp(b,cfg);
+  f.avwap=V.valor; f.avwap_dist=V.dist; f.avwap_barras=V.barras;
+  f.avwap_cruce=V.cruce; f.avwap_estado=V.estado; f.avwap_ancla=V.ancla;
   f.tl_res_dist=T.distRes; f.tl_sop_dist=T.distSop;
   f.tl_res_pend=T.pendRes; f.tl_sop_pend=T.pendSop;
   f.tl_toques=Math.min(T.tocRes,T.tocSop);
@@ -1021,10 +1158,15 @@ function pasaFiltros(f,F){
     (F.patron===null||f.patron===F.patron)&&
     // "a menos de X% de la resistencia" incluye a los que ya la rompieron
     (F.resDist===null||(isFinite(f.tl_res_dist)&&f.tl_res_dist<=F.resDist/100))&&
-    (F.toques===null||(f.tl_toques>=F.toques));
+    (F.toques===null||(f.tl_toques>=F.toques))&&
+    // --- AVWAP anclado al ultimo maximo ---
+    (F.avEstado===null||f.avwap_estado===F.avEstado)&&
+    // "a menos de X% del AVWAP", de cualquiera de los dos lados: el patron es
+    // el precio VOLVIENDO a la linea, y puede llegar desde arriba o desde abajo
+    (F.avDist===null||(isFinite(f.avwap_dist)&&Math.abs(f.avwap_dist)<=F.avDist/100));
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
-  pivotes,regresion,envolvente,tendencias,
+  pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,pasaFiltros};
 </script>
 
@@ -1059,6 +1201,10 @@ const PRESETS={
  'Pegado a la resistencia':{fResDist:'3',fToques:'3',fAshD:'1',fDVol:'5000000'},
  'Triángulo ascendente':{fPatron:'Triángulo asc.',fToques:'3',fDVol:'5000000'},
  'Canal alcista con ASH':{fPatron:'Canal alcista',fAshD:'1',fAshW:'1',fDVol:'5000000'},
+ /* El patron del grafico que mando el usuario: el precio vuelve al AVWAP del
+    ultimo maximo y lo recupera, con el ASH acompañando. */
+ 'Recupera el AVWAP':{fAvwap:'Recuperado',fAshD:'1',fDVol:'5000000',fEma50:'1'},
+ 'Volviendo al AVWAP':{fAvDist:'2',fAshW:'1',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
@@ -1066,7 +1212,7 @@ const PRESETS={
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
  fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
- fPatron:'',fResDist:'0',fToques:'0'};
+ fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
 const NEUTRO_CHECK={fSinAtraso:false};
 
 /* ---------- formato ---------- */
@@ -1178,6 +1324,16 @@ const COLS=[
   {k:'tl_res_pend',t:'Pend. resist.', fmt:v=>isFinite(v)?(v*100).toFixed(1)+'%':'', color:1},
   {k:'tl_sop_pend',t:'Pend. soporte', fmt:v=>isFinite(v)?(v*100).toFixed(1)+'%':'', color:1},
   {k:'tl_toques',t:'Toques', fmt:v=>isFinite(v)&&v?v:'<span class="gris">·</span>'},
+  // --- AVWAP anclado ---
+  {k:'avwap_estado',t:'AVWAP', izq:1, def:1, corto:1,
+   fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
+     const c={'Recuperado':'up','Encima':'up','Perdido':'dn','Debajo':'dn'}[v]||'gris';
+     return `<span class="${c}" title="Ancla hace ${f.avwap_barras} ruedas`+
+       (isFinite(f.avwap_cruce)?` · cruzó hace ${f.avwap_cruce}`:'')+`">${esc(v)}</span>`;}},
+  {k:'avwap_dist',t:'vs AVWAP', def:1, fmt:pct, color:1},
+  {k:'avwap',  t:'AVWAP $', fmt:v=>num(v,2)},
+  {k:'avwap_barras',t:'Ancla hace', fmt:v=>isFinite(v)?v:''},
+  {k:'avwap_cruce',t:'Cruce AVWAP', fmt:v=>isFinite(v)?v:''},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -1252,7 +1408,8 @@ function filtros(){return{
   floatMax:val('#fFloat')||null, rsMin:val('#fRs')===1?null:val('#fRs'),
   sinAtraso:$('#fSinAtraso').checked?true:null,
   patron:$('#fPatron').value||null,
-  resDist:val('#fResDist')||null, toques:val('#fToques')||null};}
+  resDist:val('#fResDist')||null, toques:val('#fToques')||null,
+  avEstado:$('#fAvwap').value||null, avDist:val('#fAvDist')||null};}
 
 /* ---------- calculo ----------
    Dos capas de cache: la base (RSI, ADR, EMAs, volumen...) sobrevive mientras
@@ -1399,6 +1556,8 @@ const GRUPOS_COL=[
           'ash_d_pend','serie_d','serie_w']],
   ['Líneas de tendencia',['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
           'tl_sop_pend','tl_toques']],
+  ['AVWAP del último máximo',['avwap_estado','avwap_dist','avwap','avwap_barras',
+          'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
   ['Momentum y tendencia',['rsi','adr','atr_pct','adx','__emas','dist_max52',
           'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
@@ -1597,6 +1756,34 @@ function dibujar(cursor){
       p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();
     g.fillStyle=EMACOL[k%EMACOL.length];g.font='10px ui-monospace,monospace';
     g.textAlign='left';g.fillText('EMA '+e.n,x0+6+k*52,20);});
+
+  /* ---- AVWAP anclado al ultimo maximo ----
+     Se dibuja desde el ancla hasta hoy, con una marca en el ancla para que se
+     vea de donde arranca. Naranja, como en el grafico de referencia. */
+  if(mostrarTL){
+    const visA={d:D,o:O,h:H,l:L,c:C,v:cor(b.v)};
+    const A=avwapAncladp(visA,{tlBarras:Math.min(N,cfg.tlBarras),tlPivote:cfg.tlPivote});
+    if(A.ancla>=0){
+      const linea=avwapDesde(visA,A.ancla);
+      g.save();g.beginPath();g.rect(x0-2,7,x1-x0+4,h1+2);g.clip();
+      g.strokeStyle='#E08A3C';g.lineWidth=1.8;g.beginPath();
+      let prim=true;
+      for(let i=A.ancla;i<N;i++){
+        if(!isFinite(linea[i]))continue;
+        const x=x0+paso*(i+.5), y=escY(linea[i],mn,mx,8,h1);
+        prim?(g.moveTo(x,y),prim=false):g.lineTo(x,y);
+      }
+      g.stroke();
+      // la marca del ancla
+      const xa=x0+paso*(A.ancla+.5), ya=escY(H[A.ancla],mn,mx,8,h1);
+      g.fillStyle='#E08A3C';g.beginPath();
+      g.moveTo(xa,ya-4);g.lineTo(xa-4,ya-11);g.lineTo(xa+4,ya-11);g.closePath();g.fill();
+      g.restore();
+      g.fillStyle='#E08A3C';g.font='10px ui-monospace,monospace';g.textAlign='left';
+      g.fillText('AVWAP '+A.estado.toLowerCase()+'  ·  ancla hace '+A.barras+' ruedas',
+                 x0+6,34);
+    }
+  }
 
   /* ---- soporte y resistencia ----
      Se calculan sobre la ventana visible, no sobre las 400 barras: la linea
@@ -2127,15 +2314,19 @@ function copiarTickers(){
 let iniciado=false, SERVIDOR=false;
 
 function etiquetas(){
-  const p=(id,eti,fmt)=>{const v=+$(id).value;$(eti).textContent=v?(fmt?fmt(v):v):'off';};
+  const p=(id,eti,fmt)=>{const v=+$(id).value, el=$(eti);
+    el.textContent=v?(fmt?fmt(v):v):'off';
+    el.classList.toggle('apagado',!v);};
   p('#fRelVol','#lRelVol',v=>v.toFixed(1));
   p('#fAdr','#lAdr',v=>v.toFixed(1)+'%');
   p('#fCruceMax','#lCruce');
   p('#fAdx','#lAdx');
   p('#fResDist','#lResDist',v=>'≤ '+v.toFixed(1)+'%');
   p('#fToques','#lToques',v=>'≥ '+v);
+  p('#fAvDist','#lAvDist',v=>'≤ '+v.toFixed(1)+'%');
   p('#fFloat','#lFloat',v=>'$'+v+'M');
   const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
+  $('#lRs').classList.toggle('apagado',!(rs>1));
 }
 
 function montarChips(){

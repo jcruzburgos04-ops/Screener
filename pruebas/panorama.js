@@ -31,9 +31,9 @@ function abrir(payload,almacen){
         // mide 286 px y mezclarlos daba un falso positivo
         w.HTMLCanvasElement.prototype.getContext=function(){
           const mini=this.hasAttribute&&this.hasAttribute('data-mini');
-          return {setTransform:noop,clearRect:noop,beginPath:noop,moveTo:noop,
+          return {setTransform:noop,clearRect:noop,beginPath:noop,closePath:noop,fill:noop,roundRect:noop,moveTo:noop,
             lineTo:noop,stroke:noop,setLineDash:noop,save:noop,restore:noop,
-            clip:noop,rect:noop,roundRect:noop,fill:noop,measureText:()=>({width:8}),fillText:noop,
+            clip:noop,rect:noop,roundRect:noop,measureText:()=>({width:8}),fillText:noop,
             fillRect:(x,y,ww,hh)=>{if(mini)dibujos.push([x,y,ww,hh]);},
             set strokeStyle(v){},set fillStyle(v){},set lineWidth(v){},
             set font(v){},set textAlign(v){}};};

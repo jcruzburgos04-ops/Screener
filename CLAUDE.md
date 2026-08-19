@@ -475,6 +475,49 @@ humano: con series reales no hay contra qué comparar.
 > temporal, lo que rompía la página entera al arrancar. Es el mismo error que ya
 > había pasado con `esc`/`escY`. Se lee dentro de `iniciar()`.
 
+### AVWAP anclado al último máximo fractal
+
+Es la línea naranja del gráfico de referencia, y es la metodología de Brian
+Shannon: en vez del VWAP del día, un VWAP que **arranca en un punto que
+significa algo**. Anclado al último máximo contesta una pregunta concreta: *el
+precio promedio que pagó todo el que compró desde ese máximo, cuánto es*. Si el
+precio está por debajo, todos esos compradores están perdiendo; cuando lo
+recupera, dejan de estarlo, y eso cambia la oferta.
+
+**Cuál es «el último máximo fractal».** Un pivote de máximos cualquiera puede
+ser un micro-pico sin importancia. El que sirve es el **último pivote que
+todavía no fue superado**: ése es el techo con el que el precio está peleando.
+Si el papel viene haciendo máximos nuevos no queda ninguno sin superar y se usa
+el último pivote a secas. Si no hay ningún pivote (una recta perfecta hacia
+arriba) **no se inventa un ancla**: un papel sin techo reciente no tiene este
+patrón, y decirlo es más útil que dibujar una línea cualquiera.
+
+El ancla usa la misma ventana y el mismo pivote que las líneas de tendencia
+(`tlBarras`, `tlPivote`), para no multiplicar controles.
+
+Cuatro estados: `Recuperado` (arriba y cruzó hace ≤10 ruedas), `Encima`,
+`Perdido` (abajo y cruzó hace ≤10), `Debajo`. El filtro «a ≤ X% del AVWAP» toma
+**los dos lados**: el patrón es el precio *volviendo* a la línea, y puede llegar
+desde arriba o desde abajo.
+
+> **Ojo con el volumen:** los precios vienen ajustados por dividendos y el
+> volumen no. Sobre una ventana de tres meses la diferencia es despreciable,
+> pero no uses esto sobre varios años sin pensarlo.
+
+### El panel de filtros
+
+> **Bug ya corregido:** `aside .interior` medía **lo mismo** que el panel, así
+> que la barra de desplazamiento se montaba encima de los controles y los
+> sliders quedaban cortados contra el borde. Ahora el interior es
+> `calc(var(--panel-ancho) - var(--barra-sc))`, y las dos medidas salen de la
+> misma variable para que no se desincronicen. No se puede usar `width:100%`
+> porque al plegar el panel (`width:0`) se aplastaría todo el contenido.
+
+Los deslizadores están dibujados a mano (riel de 4 px, perilla de 13). Los que
+vienen por defecto son enormes y con `accent-color` cada navegador dibuja otra
+cosa. Los filtros van agrupados con subtítulos (`.subt`): veinte controles
+seguidos son una lista infinita donde no se encuentra nada.
+
 ### Gráfico
 
 Canvas propio, ~120 líneas. Velas + EMAs arriba, ASH abajo (bulls, bears,

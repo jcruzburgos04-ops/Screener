@@ -13,7 +13,7 @@ function nuevoAlmacen(){const m={};return{
 function stubCanvas(w){
   const noop=()=>{};
   w.HTMLCanvasElement.prototype.getContext=()=>({setTransform:noop,clearRect:noop,
-    beginPath:noop,moveTo:noop,lineTo:noop,stroke:noop,fillRect:noop,fillText:noop,
+    beginPath:noop,closePath:noop,fill:noop,roundRect:noop,moveTo:noop,lineTo:noop,stroke:noop,fillRect:noop,fillText:noop,
     setLineDash:noop,save:noop,restore:noop,clip:noop,rect:noop,measureText:()=>({width:10}),
     set strokeStyle(v){},set fillStyle(v){},set lineWidth(v){},set font(v){},set textAlign(v){}});
   w.Element.prototype.scrollIntoView=function(){};

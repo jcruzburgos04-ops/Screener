@@ -17,7 +17,7 @@ const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'h
   beforeParse(w){
     const noop=()=>{};
     w.HTMLCanvasElement.prototype.getContext=()=>({setTransform:noop,clearRect:noop,
-      beginPath:noop,moveTo:noop,lineTo:noop,stroke:noop,setLineDash:noop,save:noop,
+      beginPath:noop,closePath:noop,fill:noop,roundRect:noop,moveTo:noop,lineTo:noop,stroke:noop,setLineDash:noop,save:noop,
       restore:noop,clip:noop,rect:noop,measureText:()=>({width:8}),
       fillRect:(x,y,w2,h2)=>rects.push([x,y,w2,h2]),
       fillText:(t,x,y)=>textos.push([t,x,y]),

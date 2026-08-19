@@ -190,6 +190,69 @@ setTimeout(async()=>{
        $$('#tabla tbody tr').length>0&&errores.length===0,errores.join('|'));
   }
 
+  console.log('== filtros del AVWAP ==');
+  {
+    const total=$$('#tabla tbody tr').length;
+    const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+    const iEst=ths.indexOf('avwap_estado'), iDist=ths.indexOf('avwap_dist');
+    ok('las columnas del AVWAP estan por defecto',iEst>=0&&iDist>=0,ths.join(','));
+
+    $('#fAvwap').value='Recuperado';
+    $('#fAvwap').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    const n=$$('#tabla tbody tr').length;
+    ok('filtrar por estado achica',n<total,n+' de '+total);
+    ok('y todos dicen Recuperado',n===0||
+       $$('#tabla tbody tr').every(tr=>tr.children[iEst].textContent.trim()==='Recuperado'),
+       $$('#tabla tbody tr').slice(0,3).map(tr=>tr.children[iEst].textContent).join('|'));
+    $('#fAvwap').value='';
+    $('#fAvwap').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+
+    $('#fAvDist').value='2';
+    $('#fAvDist').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    const cerca=$$('#tabla tbody tr');
+    ok('"a menos de 2% del AVWAP" achica',cerca.length<total,cerca.length+' de '+total);
+    ok('y toma los dos lados de la linea',cerca.length===0||
+       cerca.every(tr=>Math.abs(parseFloat(tr.children[iDist].textContent))<=2.001),
+       cerca.slice(0,4).map(tr=>tr.children[iDist].textContent).join('|'));
+    ok('la etiqueta lo muestra',/2.0%/.test($('#lAvDist').textContent),
+       $('#lAvDist').textContent);
+    $('#fAvDist').value='0';
+    $('#fAvDist').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(400);
+    ok('al soltarlo vuelven todas',$$('#tabla tbody tr').length===total,
+       $$('#tabla tbody tr').length+' vs '+total);
+  }
+
+  console.log('== el panel de filtros no se pisa a si mismo ==');
+  {
+    // jsdom no resuelve calc(), pero si devuelve las variables: se verifica el
+    // invariante de verdad, que el interior mida el panel MENOS la barra de
+    // desplazamiento y que las dos salgan del mismo numero
+    const raiz=w.getComputedStyle(w.document.documentElement);
+    const ancho=parseFloat(raiz.getPropertyValue('--panel-ancho'));
+    const barra=parseFloat(raiz.getPropertyValue('--barra-sc'));
+    ok('el ancho del panel esta declarado',ancho>0,ancho);
+    ok('se reserva lugar para la barra de desplazamiento',barra>0&&barra<ancho,barra);
+    ok('el interior se calcula restandola',
+       /calc\(var\(--panel-ancho\) - var\(--barra-sc\)\)/.test(html),
+       'no encontre la regla');
+    ok('hay subtitulos que agrupan los filtros',$$('.subt').length>=5,$$('.subt').length);
+    const offs=$$('label b').filter(b=>b.textContent==='off');
+    ok('los "off" van atenuados',offs.length>0&&offs.every(b=>b.classList.contains('apagado')),
+       offs.length);
+    $('#fAdr').value='3';
+    $('#fAdr').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(300);
+    ok('y al ponerle un valor se enciende',!$('#lAdr').classList.contains('apagado'),
+       $('#lAdr').textContent);
+    $('#fAdr').value='0';
+    $('#fAdr').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(300);
+  }
+
   console.log('== CSV ==');
   let blob=null;
   w.URL.createObjectURL=b=>{blob=b;return 'blob:x';};
