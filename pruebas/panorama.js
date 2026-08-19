@@ -33,7 +33,7 @@ function abrir(payload,almacen){
           const mini=this.hasAttribute&&this.hasAttribute('data-mini');
           return {setTransform:noop,clearRect:noop,beginPath:noop,moveTo:noop,
             lineTo:noop,stroke:noop,setLineDash:noop,save:noop,restore:noop,
-            clip:noop,rect:noop,measureText:()=>({width:8}),fillText:noop,
+            clip:noop,rect:noop,roundRect:noop,fill:noop,measureText:()=>({width:8}),fillText:noop,
             fillRect:(x,y,ww,hh)=>{if(mini)dibujos.push([x,y,ww,hh]);},
             set strokeStyle(v){},set fillStyle(v){},set lineWidth(v){},
             set font(v){},set textAlign(v){}};};
@@ -126,6 +126,43 @@ function abrir(payload,almacen){
   ok('los mini graficos dibujaron velas',w.__dibujos.length>100,w.__dibujos.length);
   const fuera=w.__dibujos.filter(([x,y,ww,hh])=>!isFinite(x)||!isFinite(y)||y<-1||y+hh>85);
   ok('ninguna vela se sale de la tarjeta',fuera.length===0,JSON.stringify(fuera.slice(0,3)));
+
+  console.log('\n== la cabecera nueva ==');
+  ok('tiene el titulo grande',/Panorama/.test(d.querySelector('.pan-titulo').textContent));
+  ok('dice el estado del mercado',/NYSE/.test($('#mercados').textContent),
+     $('#mercados').textContent);
+  ok('el estado es uno de los cuatro',
+     /Abierto|Cerrado|Pre-market|After-hours/.test($('#mercados').textContent),
+     $('#mercados').textContent);
+  ok('dice cuando se actualizo',/actualizado/.test($('#envivo').textContent),
+     $('#envivo').textContent);
+  ok('cada tarjeta muestra el volumen',!!$$('.tarjeta')[0].querySelector('.tj-vol'),
+     $$('.tarjeta')[0].textContent);
+  ok('el volumen va en magnitud, no en crudo',
+     /US\$ \d+([.,]\d+)? ?(K|M|MM)?/.test($$('.tarjeta')[0].querySelector('.tj-vol').textContent),
+     $$('.tarjeta')[0].querySelector('.tj-vol').textContent);
+
+  console.log('\n== el buscador del panorama ==');
+  {
+    const antes=$$('.tarjeta').length;
+    $('#buscarPan').value='NVD';
+    $('#buscarPan').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(200);
+    const hallados=$$('.tarjeta').map(x=>x.dataset.t);
+    ok('busca en todo el universo, no solo en el panel',
+       hallados.some(t=>/^NVD/.test(t)),hallados.join(','));
+    ok('y achica la grilla',$$('.tarjeta').length<=60,$$('.tarjeta').length);
+    $('#buscarPan').value='zzzzz';
+    $('#buscarPan').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(200);
+    ok('sin resultados lo dice',/Nada coincide/.test($('#tarjetas').textContent),
+       $('#tarjetas').textContent.slice(0,50));
+    $('#buscarPan').value='';
+    $('#buscarPan').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(200);
+    ok('al vaciarlo vuelve el panel',$$('.tarjeta').length===antes,
+       $$('.tarjeta').length+' vs '+antes);
+  }
 
   console.log('\n== favoritos y seleccion desde la tarjeta ==');
   const tk=$$('.tarjeta')[0].dataset.t;

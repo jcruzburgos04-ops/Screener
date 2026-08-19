@@ -268,57 +268,113 @@ canvas{display:block;width:100%;cursor:crosshair}
    es un simbolo con su mini-grafico, la variacion, lo que marca el ASH y donde
    esta su fuerza relativa. Se usa para los indices y los sectores, que es lo
    que se mira ANTES de elegir un papel. */
-#panorama{display:none;flex:1;overflow:auto;padding:0 0 1rem}
+#panorama{display:none;flex:1;overflow:auto;padding:0 0 2rem}
 body.panorama #panorama{display:block}
 body.panorama .tabla-wrap{display:none}
 body.panorama .barra{display:none}
-.pan-cab{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.1rem;
-  border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--tinta);
-  z-index:5;flex-wrap:wrap}
-.pan-tabs{display:flex;gap:.3rem;flex-wrap:wrap}
-.amplitud{padding:.5rem 1.1rem .2rem}
-.amp-txt{font-family:var(--mono);font-size:.7rem;color:var(--tenue);
-  margin-bottom:.35rem;letter-spacing:.02em}
-.amp-txt b{color:var(--hueso);font-weight:500}
-.amp-barra{height:4px;border-radius:2px;overflow:hidden;display:flex;background:var(--panel2)}
-.amp-barra i{display:block;height:100%}
-#ampVerde{background:var(--alcista)}
-#ampRojo{background:var(--bajista)}
+/* En panorama los KPI no aplican: hablan de la tabla filtrada, que es otro
+   contexto. La barra de amplitud cumple ese papel acá. */
+body.panorama .kpis{display:none}
 
-.tarjetas{display:grid;gap:10px;padding:.75rem 1.1rem;
-  grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
-.tarjeta{background:var(--panel);border:1px solid var(--borde);border-radius:6px;
-  padding:.6rem .7rem .5rem;cursor:pointer;position:relative;
-  transition:border-color .12s,background .12s}
-.tarjeta:hover{border-color:var(--borde2);background:var(--panel2)}
-.tarjeta.sel{border-color:var(--ambar)}
-.tj-cab{display:flex;align-items:baseline;gap:.4rem}
-.tj-tk{font-family:var(--mono);font-weight:600;font-size:.86rem;letter-spacing:.02em}
-.tj-px{margin-left:auto;font-family:var(--mono);font-size:.84rem;
+/* El encabezado grande. En la tabla la jerarquia la hacen las columnas; acá no
+   hay columnas, asi que la hace la tipografia. */
+.pan-hero{padding:1.6rem 1.6rem .2rem}
+.pan-overline{font-family:var(--mono);font-size:.6rem;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--apagado)}
+.pan-titulo{font-size:2.3rem;font-weight:700;letter-spacing:-.02em;margin:.15rem 0 .2rem;
+  line-height:1;background:linear-gradient(180deg,var(--hueso),#A9B4C2);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.pan-sub{margin:0;color:var(--tenue);font-size:.8rem}
+
+.pan-cab{display:flex;align-items:center;gap:.7rem;padding:1rem 1.6rem .2rem;
+  flex-wrap:wrap}
+/* Los chips agrupados en una capsula: se leen como un control, no como cuatro
+   botones sueltos. */
+.grupo-chips{background:var(--panel);border:1px solid var(--borde);border-radius:999px;
+  padding:3px;gap:2px}
+.grupo-chips .chip{border:1px solid transparent;border-radius:999px;padding:.32rem .72rem;
+  font-size:.7rem;letter-spacing:.02em}
+.grupo-chips .chip:hover{background:var(--panel2);border-color:transparent;color:var(--hueso)}
+.grupo-chips .chip.on{background:var(--panel3);border-color:var(--borde2);
+  color:var(--hueso);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+
+.mercados{display:flex;gap:.4rem;flex-wrap:wrap}
+.mercado{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--mono);
+  font-size:.68rem;color:var(--tenue);background:var(--panel);border:1px solid var(--borde);
+  border-radius:999px;padding:.3rem .68rem;white-space:nowrap}
+.mercado i{width:7px;height:7px;border-radius:50%;background:var(--apagado);
+  flex:none;font-style:normal}
+.mercado b{font-weight:500;color:var(--hueso)}
+.mercado span{font-size:.63rem;text-transform:uppercase;letter-spacing:.08em}
+.mercado.abierto i{background:var(--alcista);box-shadow:0 0 0 3px rgba(79,178,134,.18)}
+.mercado.abierto span{color:var(--alcista)}
+.mercado.pre i{background:var(--azul);box-shadow:0 0 0 3px rgba(91,155,213,.18)}
+.mercado.pre span{color:var(--azul)}
+.mercado.post i{background:var(--ambar);box-shadow:0 0 0 3px rgba(224,164,88,.18)}
+.mercado.post span{color:var(--ambar)}
+.envivo{font-family:var(--mono);font-size:.67rem;color:var(--tenue);white-space:nowrap;
+  display:inline-flex;align-items:center;gap:.4rem}
+.envivo::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--alcista);
+  box-shadow:0 0 0 3px rgba(79,178,134,.18)}
+
+.pan-buscar{display:flex;align-items:center;gap:.7rem;padding:.9rem 1.6rem .2rem;
+  flex-wrap:wrap}
+.pan-buscar input[type=search]{flex:1;min-width:200px;border-radius:999px;
+  padding:.6rem 1rem;font-size:.8rem;background:var(--panel);font-family:var(--sans)}
+.pan-buscar input[type=search]:focus{background:var(--panel)}
+
+.amplitud{padding:1rem 1.6rem .2rem}
+.amp-txt{font-family:var(--mono);font-size:.71rem;color:var(--tenue);
+  margin-bottom:.45rem;letter-spacing:.02em}
+.amp-txt b{color:var(--hueso);font-weight:500}
+.amp-barra{height:5px;border-radius:3px;overflow:hidden;display:flex;background:var(--panel2)}
+.amp-barra i{display:block;height:100%;transition:width .25s}
+#ampVerde{background:linear-gradient(90deg,#3E9A72,#4FB286)}
+#ampRojo{background:linear-gradient(90deg,#D45647,#B03B2E)}
+
+.tarjetas{display:grid;gap:14px;padding:1.1rem 1.6rem;
+  grid-template-columns:repeat(auto-fill,minmax(252px,1fr))}
+.tarjeta{background:linear-gradient(180deg,var(--panel),#12181F);
+  border:1px solid var(--borde);border-radius:10px;padding:.8rem .85rem .6rem;
+  cursor:pointer;position:relative;
+  transition:border-color .14s,transform .14s,box-shadow .14s}
+.tarjeta:hover{border-color:var(--borde2);transform:translateY(-2px);
+  box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.tarjeta.sel{border-color:var(--ambar);box-shadow:0 0 0 1px rgba(224,164,88,.25)}
+.tj-cab{display:flex;align-items:baseline;gap:.45rem}
+.tj-tk{font-family:var(--mono);font-weight:600;font-size:.95rem;letter-spacing:.01em}
+.tj-px{margin-left:auto;font-family:var(--mono);font-size:.92rem;font-weight:500;
   font-variant-numeric:tabular-nums}
-.tj-sub{display:flex;align-items:baseline;gap:.4rem;margin-top:.1rem}
+.tj-sub{display:flex;align-items:baseline;gap:.45rem;margin-top:.15rem}
 .tj-n{font-size:.68rem;color:var(--apagado);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;flex:1;min-width:0}
-.tj-chg{font-family:var(--mono);font-size:.74rem;font-variant-numeric:tabular-nums}
-.tj-graf{margin:.45rem 0 .35rem;height:84px}
-.tj-graf canvas{height:84px}
+.tj-chg{font-family:var(--mono);font-size:.8rem;font-variant-numeric:tabular-nums;
+  font-weight:500}
+.tj-graf{margin:.6rem 0 .5rem;height:96px}
+.tj-graf canvas{height:96px}
 .tj-pie{display:flex;align-items:center;gap:.5rem;font-family:var(--mono);
   font-size:.66rem;color:var(--apagado);border-top:1px solid var(--borde);
-  padding-top:.35rem;flex-wrap:wrap}
-.tj-pie b{font-weight:500;font-variant-numeric:tabular-nums}
+  padding-top:.45rem;flex-wrap:wrap}
+.tj-pie b{font-weight:500;font-variant-numeric:tabular-nums;color:var(--tenue)}
 .tj-rs{margin-left:auto;color:var(--tenue)}
+.tj-vol{font-family:var(--mono);font-size:.63rem;color:var(--apagado);margin-top:.3rem}
 /* El precio de afuera de hora va marcado: es otro mercado, con otro volumen. */
-.tj-ext{font-family:var(--mono);font-size:.65rem;padding:.05rem .3rem;border-radius:2px;
+.tj-ext{font-family:var(--mono);font-size:.64rem;padding:.1rem .38rem;border-radius:999px;
   background:var(--panel3);color:var(--tenue);white-space:nowrap}
-.tj-ext.pre{color:var(--azul)}
-.tj-ext.post{color:var(--ambar)}
-.tj-fav{color:#39434F;cursor:pointer;user-select:none;font-size:.8rem}
+.tj-ext.pre{color:var(--azul);background:rgba(91,155,213,.12)}
+.tj-ext.post{color:var(--ambar);background:var(--ambar-t)}
+.tj-fav{color:#39434F;cursor:pointer;user-select:none;font-size:.85rem;
+  transition:color .12s}
+.tj-fav:hover{color:var(--tenue)}
 .tj-fav.on{color:var(--ambar)}
 @media (max-width:860px){
-  .tarjetas{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;
-    padding:.6rem .7rem}
-  .pan-cab,.amplitud{padding-left:.7rem;padding-right:.7rem}
-  .tj-graf,.tj-graf canvas{height:64px}
+  .tarjetas{grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px;
+    padding:.7rem .7rem}
+  .pan-cab,.amplitud,.pan-buscar,.pan-hero{padding-left:.9rem;padding-right:.9rem}
+  .pan-hero{padding-top:1rem}
+  .pan-titulo{font-size:1.7rem}
+  .tj-graf,.tj-graf canvas{height:70px}
+  .tj-tk{font-size:.85rem}.tj-px{font-size:.82rem}
 }
 
 /* --------------------------- pantallas angostas ---------------------------
@@ -605,11 +661,21 @@ body.cajon #velo{display:block}
     <span class="nota" id="estado"></span>
   </div>
   <div id="panorama">
+    <div class="pan-hero">
+      <div class="pan-overline">Screener ASH</div>
+      <h1 class="pan-titulo">Panorama</h1>
+      <p class="pan-sub">Índices, sectores y commodities · fuerza relativa y ASH de un vistazo</p>
+    </div>
     <div class="pan-cab">
-      <div class="pan-tabs" id="panTabs"></div>
+      <div class="mercados" id="mercados"></div>
+      <div class="pan-tabs grupo-chips" id="panTabs"></div>
       <span class="sep"></span>
-      <div class="tf">
-        <span class="chip on" data-orden="rs" title="Los mas fuertes primero">RS</span>
+      <span class="envivo" id="envivo"></span>
+    </div>
+    <div class="pan-buscar">
+      <input type="search" id="buscarPan" placeholder="Buscar activo…">
+      <div class="tf grupo-chips">
+        <span class="chip on" data-orden="rs" title="Los más fuertes primero">RS</span>
         <span class="chip" data-orden="sube" title="Mayores subas">▲ Subas</span>
         <span class="chip" data-orden="baja" title="Mayores bajas">▼ Bajas</span>
         <span class="chip" data-orden="ash" title="Fuerza del ASH">ASH</span>
@@ -1031,6 +1097,13 @@ const pct=v=>isFinite(v)?(v*100).toFixed(1)+'%':'';
 /* Con signo: en las tarjetas el "+" se lee antes que el color, y en una
    captura en blanco y negro es lo unico que queda. */
 const pctS=v=>isFinite(v)?(v>0?'+':'')+(v*100).toFixed(2)+'%':'';
+/* US$ 1.234 M en vez de 1.234.567.890: en una tarjeta el orden de magnitud es
+   lo unico que se lee. */
+const dolares=v=>{if(!isFinite(v))return '—';
+  if(v>=1e9)return 'US$ '+(v/1e9).toFixed(1)+' MM';
+  if(v>=1e6)return 'US$ '+Math.round(v/1e6)+' M';
+  if(v>=1e3)return 'US$ '+Math.round(v/1e3)+' K';
+  return 'US$ '+Math.round(v);};
 const miles=v=>isFinite(v)?Math.round(v).toLocaleString('es-AR'):'';
 const pct1=v=>isFinite(v)?(v*100).toFixed(0)+'%':'';
 /* Cuatro estados, en un numero para que la columna se pueda ordenar:
@@ -1623,47 +1696,110 @@ let panelSel=0, ordenPan='rs', vistaPanorama=false;
 
 function esNegativo(v){return isFinite(v)&&v<0;}
 
-/* Mini grafico de velas. Sin ejes ni grilla: en 84 px lo unico que se lee es
-   la forma, y una grilla ahi es ruido. La linea punteada es el cierre previo,
-   asi se ve de un vistazo si el dia esta en verde o en rojo. */
+/* Mini grafico de velas con la escala en PORCENTAJE contra el cierre previo.
+   Sin grilla: en 96 px una grilla es ruido. Lo que si hace falta son tres
+   numeros a la derecha —el techo del rango, el 0% y el piso—, porque sin eso
+   no se sabe si la forma es un movimiento de 0,3% o de 12%. */
 function miniGrafico(cv,s,barras){
   const n=Math.min(s.c.length,barras||60), ini=s.c.length-n;
   if(n<2)return;
   const O=s.o.slice(ini),H=s.h.slice(ini),L=s.l.slice(ini),C=s.c.slice(ini);
   const dpr=window.devicePixelRatio||1;
-  const W=cv.clientWidth||220, Hp=cv.clientHeight||84;
+  const W=cv.clientWidth||240, Hp=cv.clientHeight||96;
   cv.width=W*dpr;cv.height=Hp*dpr;
   const g=cv.getContext('2d');
   g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,Hp);
+
+  const GUT=38;                       // franja derecha para los porcentajes
+  const AG=Math.max(20,W-GUT);
   let mn=Infinity,mx=-Infinity;
   for(let i=0;i<n;i++){if(L[i]<mn)mn=L[i];if(H[i]>mx)mx=H[i];}
   if(!isFinite(mn)||!isFinite(mx)||mx===mn)return;
-  const m=(mx-mn)*.08;mn-=m;mx+=m;
-  const y=v=>Hp*(1-(v-mn)/(mx-mn));
-  const paso=W/n, ancho=Math.max(1,Math.min(6,paso*.62));
-  // referencia: el cierre de ayer
-  const ref=C[n-2];
-  if(isFinite(ref)){
-    g.strokeStyle='rgba(132,148,168,.35)';g.setLineDash([2,3]);g.lineWidth=1;
-    g.beginPath();g.moveTo(0,y(ref)+.5);g.lineTo(W,y(ref)+.5);g.stroke();
-    g.setLineDash([]);
+  const ref=C[n-2];                   // el cierre previo es el 0%
+  const m=(mx-mn)*.10;mn-=m;mx+=m;
+  const y=v=>4+(Hp-14)*(1-(v-mn)/(mx-mn));
+  const paso=AG/n, ancho=Math.max(1,Math.min(7,paso*.62));
+  const VERDE='#4FB286', ROJO='#D45647';
+
+  g.font='9px ui-monospace,SFMono-Regular,monospace';
+  g.textAlign='left';
+  const rot=v=>(v>0?'+':'')+(v*100).toFixed(1)+'%';
+
+  if(isFinite(ref)&&ref>0){
+    const y0=y(ref);
+    g.strokeStyle='rgba(132,148,168,.32)';g.setLineDash([2,3]);g.lineWidth=1;
+    g.beginPath();g.moveTo(0,y0+.5);g.lineTo(AG,y0+.5);g.stroke();g.setLineDash([]);
+    g.fillStyle='#5B6878';g.fillText('0%',AG+5,y0+3);
+    g.fillText(rot(mx/ref-1),AG+5,10);
+    g.fillText(rot(mn/ref-1),AG+5,Hp-3);
   }
+
   for(let i=0;i<n;i++){
     if(!isFinite(C[i]))continue;
     const x=paso*(i+.5), sube=C[i]>=O[i];
-    g.strokeStyle=g.fillStyle=sube?'#4FB286':'#D45647';
+    g.strokeStyle=g.fillStyle=sube?VERDE:ROJO;
     g.lineWidth=1;
     g.beginPath();g.moveTo(x,y(H[i]));g.lineTo(x,y(L[i]));g.stroke();
     const a=y(Math.max(O[i],C[i])), b=y(Math.min(O[i],C[i]));
     g.fillRect(x-ancho/2,a,ancho,Math.max(1,b-a));
   }
+
+  /* La etiqueta con la variacion del dia, pegada a la ultima vela: es el numero
+     que se busca primero y asi no hay que ir a leerlo al encabezado. */
+  if(isFinite(ref)&&ref>0){
+    const v=C[n-1]/ref-1, txt=rot(v), an=g.measureText(txt).width+8;
+    let yy=y(C[n-1])-7;
+    yy=Math.max(0,Math.min(Hp-14,yy));
+    const xx=Math.max(0,AG-an-1);
+    g.fillStyle=v>=0?'rgba(79,178,134,.16)':'rgba(212,86,71,.16)';
+    if(g.roundRect){g.beginPath();g.roundRect(xx,yy,an,13,3);g.fill();}
+    else g.fillRect(xx,yy,an,13);
+    g.fillStyle=v>=0?VERDE:ROJO;
+    g.fillText(txt,xx+4,yy+9);
+  }
+}
+
+/* Estado de los mercados, como en un tablero: un punto de color y una palabra.
+   Se calcula con la hora de Nueva York, no con la del navegador, porque el
+   usuario esta en Buenos Aires y el que abre y cierra es el otro. */
+function estadoMercados(){
+  const ahora=new Date();
+  // Nueva York en horario de verano = UTC-4; el desvio de una hora en invierno
+  // no cambia si esta abierto salvo en los bordes, y no vale traer una tabla
+  // de husos entera por eso.
+  const utc=ahora.getUTCHours()*60+ahora.getUTCMinutes();
+  const dia=ahora.getUTCDay();
+  const habil=dia>=1&&dia<=5;
+  let clase='',etiqueta='Cerrado';
+  if(habil){
+    if(utc>=13*60+30&&utc<20*60){clase='abierto';etiqueta='Abierto';}
+    else if(utc>=8*60&&utc<13*60+30){clase='pre';etiqueta='Pre-market';}
+    else if(utc>=20*60&&utc<24*60){clase='post';etiqueta='After-hours';}
+  }
+  return [{n:'NYSE / Nasdaq',clase,etiqueta}];
+}
+
+function pintarCabecera(){
+  $('#mercados').innerHTML=estadoMercados().map(m=>
+    `<span class="mercado ${m.clase}"><i></i><b>${esc(m.n)}</b> `+
+    `<span>${esc(m.etiqueta)}</span></span>`).join('');
+  const h=new Date();
+  $('#envivo').textContent=`actualizado ${hace(DATOS.fecha)} · `+
+    h.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})+' ARG';
 }
 
 function simbolosDelPanel(){
   const [,lista]=PANELES[panelSel];
   const porT=new Map(filas.map(f=>[f.t,f]));
+  const q=($('#buscarPan').value||'').trim().toUpperCase();
   let out;
-  if(lista===null)out=[...favoritos].map(t=>porT.get(t)).filter(Boolean);
+  /* Con algo escrito se busca en TODO el universo, no dentro del panel: si
+     escribis un ticker esperas encontrarlo, no que te digan que no esta en
+     "Sectores". */
+  if(q)out=filas.filter(f=>f.t.includes(q)||(f.local||'').includes(q)
+      ||(f.nombre||'').toUpperCase().includes(q)
+      ||(f.sector||'').toUpperCase().includes(q)).slice(0,60);
+  else if(lista===null)out=[...favoritos].map(t=>porT.get(t)).filter(Boolean);
   else out=lista.map(t=>porT.get(t)).filter(Boolean);
   const cmp={
     rs:(a,b)=>(b.rs_rank||0)-(a.rs_rank||0),
@@ -1696,12 +1832,16 @@ function renderPanorama(){
   $$('#panorama .tf .chip[data-orden]').forEach(c=>
     c.classList.toggle('on',c.dataset.orden===ordenPan));
 
+  pintarCabecera();
   const lista=simbolosDelPanel();
   pintarAmplitud(lista);
   if(!lista.length){
-    $('#tarjetas').innerHTML='<div class="vacio">'+(PANELES[panelSel][1]===null
-      ? 'Todavía no marcaste ningún favorito.<br>Tocá la estrella de cualquier fila.'
-      : 'Ninguno de estos símbolos está en los datos.')+'</div>';
+    const buscando=($('#buscarPan').value||'').trim();
+    $('#tarjetas').innerHTML='<div class="vacio">'+(buscando
+      ? 'Nada coincide con <b>'+esc(buscando)+'</b>.'
+      : (PANELES[panelSel][1]===null
+        ? 'Todavía no marcaste ningún favorito.<br>Tocá la estrella de cualquier fila.'
+        : 'Ninguno de estos símbolos está en los datos.'))+'</div>';
     return;
   }
   const porT=new Map(DATOS.simbolos.map(s=>[s.t,s]));
@@ -1727,6 +1867,7 @@ function renderPanorama(){
         (f.patron?`<span class="fig" title="Figura">${esc(f.patron)}</span>`:'')+
         `<span class="tj-rs" title="Fuerza relativa 1-99">RS <b>${
           isFinite(f.rs_rank)?Math.round(f.rs_rank):'—'}</b></span></div>`+
+      `<div class="tj-vol">Vol 20d ${dolares(f.dolar_vol20)}</div>`+
     `</div>`;}).join('');
   // los canvas se dibujan despues de que el navegador les dio ancho
   requestAnimationFrame(()=>$$('#tarjetas canvas[data-mini]').forEach(cv=>{
@@ -2460,6 +2601,7 @@ function iniciar(){
   $('#selRapido').onchange=()=>elegirPerfil($('#selRapido').value);
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
   $('#chipVista').onclick=()=>verPanorama(!vistaPanorama);
+  $('#buscarPan').addEventListener('input',()=>renderPanorama());
   $('#panTabs').onclick=e=>{const c=e.target.closest('.chip[data-panel]');if(!c)return;
     panelSel=+c.dataset.panel;renderPanorama();guardarSesion();};
   $('#panorama .tf').onclick=e=>{const c=e.target.closest('.chip[data-orden]');if(!c)return;

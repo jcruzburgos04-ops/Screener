@@ -268,11 +268,21 @@ Seis paneles: Índices · Sectores · Temáticos · Commodities · Mundo · Favo
 Yahoo: a un ETF de semiconductores lo clasifica como *Technology*, igual que a
 Apple.
 
-Cada tarjeta trae precio, variación con signo, mini-velas de 60 ruedas con la
-línea del cierre previo, **RS**, el estado del **ASH diario y semanal** (▲/▼),
-la figura si la hay, y la etiqueta `PRE`/`AH` cuando hay precio fuera de hora.
-Arriba, la barra de amplitud: cuántos suben, cuántos bajan, mayor suba y mayor
-baja del panel.
+Cada tarjeta trae precio, variación con signo, mini-velas de 60 ruedas, **RS**,
+el estado del **ASH diario y semanal** (▲/▼), la figura si la hay, el volumen en
+dólares y la etiqueta `PRE`/`AH` cuando hay precio fuera de hora.
+
+**El mini-gráfico está en porcentaje, no en precio.** La línea punteada es el
+cierre previo (el 0%) y a la derecha van tres números: el techo del rango, el 0%
+y el piso. Sin eso no se sabe si la forma que se ve es un movimiento de 0,3% o
+de 12%, que es la diferencia entre mirar y no mirar. La variación del día va en
+una etiqueta pegada a la última vela, que es el número que se busca primero.
+
+Arriba: encabezado con el título grande, el **estado del mercado** (Abierto /
+Pre-market / After-hours / Cerrado, calculado con la hora de Nueva York y no la
+del navegador), cuándo se actualizó, un buscador que —a diferencia del panel—
+busca en **todo el universo**, y la barra de amplitud con cuántos suben, cuántos
+bajan y las puntas.
 
 ### Pre-market y after-hours
 
