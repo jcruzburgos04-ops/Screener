@@ -20,10 +20,10 @@ function nuevoAlmacen(ini){const m={...(ini||{})};return{
   getItem:k=>k in m?m[k]:null,setItem:(k,v)=>{m[k]=String(v)},
   removeItem:k=>{delete m[k]},_m:m};}
 
-function abrir(almacen){
+function abrir(almacen,url,clipOk){
   return new Promise(res=>{
     const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,
-      url:'https://local/',
+      url:url||'https://local/',
       beforeParse(w){
         const noop=()=>{};
         w.HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get:()=>noop,set:()=>true});
@@ -32,6 +32,10 @@ function abrir(almacen){
         Object.defineProperty(w,'localStorage',{value:almacen,configurable:true});
         w.TextEncoder=require('util').TextEncoder;w.TextDecoder=require('util').TextDecoder;
         w.requestAnimationFrame=f=>setTimeout(f,0);
+        // el portapapeles: por defecto anda, y con clipOk===false falla, que es
+        // el unico caso en que la vista se escribe en la barra de direcciones
+        w.navigator.clipboard={writeText:async()=>{
+          if(clipOk===false)throw new Error('sin portapapeles');}};
         w.fetch=async u=>{
           const s=String(u);
           if(s.indexOf('api/')===0)throw new Error('sin servidor');
@@ -271,6 +275,58 @@ const filasOrd=w=>[...w.document.querySelectorAll('#ordenCols .fila-ord')]
     ok('y vuelve al reabrir',
        +w3.document.documentElement.style.getPropertyValue('--escala')===1.26,
        w3.document.documentElement.style.getPropertyValue('--escala'));
+  }
+
+  console.log('\n== "Copiar vista" no puede pisarte lo que guardes despues ==');
+  {
+    /* El bug de verdad: copiarVista() escribia el #v= en la barra del que
+       apretaba el boton, y ese hash se quedaba pegado. Como la URL le gana a la
+       sesion al arrancar, desde ahi cada recarga restauraba esa foto vieja y
+       parecia que el guardado de columnas fallaba. */
+    const alm=nuevoAlmacen();
+    const w=await abrir(alm);
+    const $=s=>w.document.querySelector(s), $$=s=>[...w.document.querySelectorAll(s)];
+    const cols=win=>[...win.document.querySelectorAll('#tabla thead th')]
+      .map(t=>t.dataset.k);
+
+    $('#btnVista').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(200);
+    ok('con el portapapeles andando, la barra queda limpia',
+       w.location.href.indexOf('#v=')<0, w.location.href);
+
+    // apago columnas a proposito, que es lo que se perdia
+    const apagar=['rsi','adr'];
+    for(const k of apagar){
+      const c=$$('#chipsCols .chip').find(x=>x.dataset.v===k);
+      if(c&&c.classList.contains('on'))c.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    }
+    await esperar(600);
+    ok('las apago de la tabla',apagar.every(k=>!cols(w).includes(k)),cols(w).join(','));
+    ok('y la sesion las guardo sin ellas',
+       apagar.every(k=>!JSON.parse(alm._m['screener_ash_sesion'])._cols.includes(k)));
+
+    const w2=await abrir(alm,w.location.href);
+    await esperar(400);
+    const volvieron=apagar.filter(k=>cols(w2).includes(k));
+    ok('al recargar siguen apagadas',volvieron.length===0,'volvieron '+volvieron.join(','));
+  }
+
+  console.log('\n== si el portapapeles falla, el enlace queda en la barra ==');
+  {
+    const alm=nuevoAlmacen();
+    const w=await abrir(alm,null,false);
+    w.document.querySelector('#btnVista').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    ok('ahi si se escribe, para poder copiarlo a mano',
+       w.location.href.indexOf('#v=')>0, w.location.href.slice(0,40));
+
+    // y al abrirlo, se usa UNA vez y se saca de la barra
+    const w2=await abrir(nuevoAlmacen(),w.location.href);
+    await esperar(400);
+    ok('al abrir ese enlace, la vista se aplica y el # se limpia',
+       w2.location.href.indexOf('#v=')<0, w2.location.href);
+    ok('y queda guardada como sesion propia',
+       !!w2.localStorage.getItem('screener_ash_sesion'));
   }
 
   console.log(fallas?'\nFALLAS: '+fallas:'\nCOLUMNAS Y LECTURA OK');

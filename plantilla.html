@@ -397,6 +397,10 @@ body.panorama .kpis{display:none}
    hundida (una de dos), un interruptor prendido se ve en ambar (va y viene) y
    un menu abierto apenas se aclara. Asi no hay dos cosas que parezcan "la
    opcion seleccionada" al mismo tiempo. */
+/* El aviso de columnas nuevas: se tiene que leer, pero no gritar. */
+.aviso-cols{margin:0 0 .6rem;padding:.5rem .6rem;border-radius:var(--r);
+  background:rgba(224,164,88,.09);border:1px solid rgba(224,164,88,.28)}
+.aviso-cols b{color:var(--ambar);font-weight:600}
 .grupo-chips.seg{background:var(--tinta)}
 .grupo-chips.seg .chip.on{background:var(--panel3);border-color:var(--borde2);
   color:var(--hueso);box-shadow:0 1px 2px rgba(0,0,0,.35)}
@@ -1507,13 +1511,18 @@ let colsOn=new Set(COLS_DEF);
    usuario apago a proposito quedan apagadas, porque esas si las conocia. */
 const COLS_AGREGADAS=['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
   'tl_sop_pend','tl_toques','atraso','ultima','nombre'];
+/* Que columnas se agregaron solas en esta apertura. Se muestra en el
+   desplegable: que aparezcan columnas nuevas sin explicacion se lee como "se
+   me borro la configuracion", que es justo lo contrario de lo que paso. */
+let colsNuevas=[];
 function fusionarColumnas(guardadas,conocidas){
   const on=new Set(guardadas);
   // las sesiones viejas no guardaban la lista: se asume que conocian todas
   // menos las que se agregaron despues
   const sabia=new Set(conocidas&&conocidas.length ? conocidas
     : COLS.map(c=>c.k).filter(k=>!COLS_AGREGADAS.includes(k)));
-  for(const c of COLS)if(c.def&&!sabia.has(c.k))on.add(c.k);
+  colsNuevas=[];
+  for(const c of COLS)if(c.def&&!sabia.has(c.k)){on.add(c.k);colsNuevas.push(c.t);}
   return on;
 }
 
@@ -1767,10 +1776,15 @@ function montarColumnas(){
   if(sueltas.length)html+='<div class="dgrupo">Otras</div><div class="chips">'+
     sueltas.map(c=>`<span class="chip ${colsOn.has(c.k)?'on':''}" data-v="${c.k}">${c.t}</span>`).join('')+'</div>';
   const cont=$('#chipsCols');
-  cont.innerHTML=html;
+  cont.innerHTML=(colsNuevas.length?'<p class="nota aviso-cols">Esta versión trae '+
+    colsNuevas.length+' columna'+(colsNuevas.length>1?'s':'')+' nueva'+
+    (colsNuevas.length>1?'s':'')+': <b>'+colsNuevas.map(esc).join('</b>, <b>')+
+    '</b>. Se prendieron solas para que no te las pierdas; apagalas acá si no '+
+    'las querés y no vuelven a aparecer.</p>':'')+html;
   cont.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;
     const k=c.dataset.v, prender=!c.classList.contains('on');
     prender?colsOn.add(k):colsOn.delete(k);
+    colsNuevas=[];   // ya lo leiste y estas eligiendo: el aviso no va mas
     // hay que rearmar TODO el desplegable, no solo la tabla: si no, la columna
     // apagada seguia figurando en la lista de orden de arriba
     montarColumnas();render();guardarSesion();};
@@ -2463,8 +2477,16 @@ function leerVistaDeURL(){
 
 function copiarVista(boton){
   const url=enlaceVista();
-  history.replaceState(null,'','#v='+url.split('#v=')[1]);
+  /* El #v= se escribe en TU barra solo si el portapapeles fallo, que es el
+     unico caso en que hace falta (para copiarlo a mano). Antes se escribia
+     siempre, y ese hash se quedaba pegado: cada recarga posterior restauraba
+     esa foto vieja en vez de lo que hubieras configurado despues, asi que las
+     columnas y los filtros "no se guardaban". Se guardaban; se pisaban.
+     El enlace copiado lleva el # igual y sigue funcionando en otra maquina. */
+  const plantar=()=>{try{history.replaceState(null,'','#v='+url.split('#v=')[1]);}
+    catch(e){}};
   const avisar=ok=>{const b=$(boton);if(!b)return;const t=b.textContent;
+    if(!ok)plantar();
     b.textContent=ok?'enlace copiado':'copiá la barra de arriba';
     setTimeout(()=>b.textContent=t,1800);};
   try{navigator.clipboard.writeText(url).then(()=>avisar(true),()=>avisar(false));}
@@ -3299,6 +3321,15 @@ function iniciar(){
     if(vista._ind)industriaSel=vista._ind;
     if(vista._sel)seleccion=vista._sel;
     if(vista._perfil)perfilPendiente=vista._perfil;
+    /* Y se SACA de la barra, que es lo que faltaba. "Copiar vista" escribe el
+       #v= en tu propia direccion (para poder copiarlo a mano si el portapapeles
+       falla), y ahi se quedaba pegado: desde esa recarga en adelante, la pagina
+       restauraba esa foto vieja en vez de lo que hubieras configurado despues.
+       Parecia que el guardado de columnas y filtros fallaba, y en realidad se
+       guardaba bien y se pisaba al abrir.
+       El enlace que copiaste no se toca: sigue llevando el # y sigue abriendo
+       esa vista en cualquier maquina. Lo que se limpia es tu barra. */
+    try{history.replaceState(null,'',location.href.split('#')[0]);}catch(e){}
   }else restaurarSesion();
   montarColumnas();ponerSoloFav(soloFav);
   $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;
@@ -3312,6 +3343,9 @@ function iniciar(){
   etiquetaGrupo();
   avisarAlmacen();engancharGuardadoFinal();
   montarChips();etiquetas();recalcular();
+  // La vista que llego por el enlace pasa a ser tu sesion. Sin esto, al sacar
+  // el # de la barra la proxima recarga no encontraria nada que restaurar.
+  if(vista)grabarSesion();
   // la vista va al final: renderPanorama() necesita `filas` ya calculadas
   if(leerLS('screener_ash_vista')==='p')verPanorama(true);
 }
