@@ -365,11 +365,31 @@ configuración · Datos.
 2. **URL con hash** (`#v=base64`) — el botón **Copiar vista** serializa todo el
    estado en la dirección. **Existe porque el usuario tuvo el caso de que el
    navegador le borraba los datos al cerrar.** Sobrevive a incógnito, a borrados
-   y a cambio de máquina. Al arrancar, **la URL tiene prioridad** sobre la sesión.
+   y a cambio de máquina. Al arrancar, **la URL tiene prioridad** sobre la sesión,
+   pero **se consume**: se aplica, se graba como sesión propia y el hash se
+   limpia con `replaceState`. El enlace copiado no se toca.
 3. **Respaldo `.json`** — exporta e importa perfiles + favoritos + sesión. Al
    importar se **fusiona**, no se pisa: restaurar no te borra lo que ya tenías.
 4. **Detección de almacenamiento bloqueado** — `hayAlmacen` prueba escribir; si
    falla, se usa un objeto en memoria y se avisa en el panel.
+
+> **Bug ya corregido, y es el que más confundió:** `copiarVista()` escribía el
+> `#v=` **en la barra del que apretaba el botón**, no sólo en el enlace copiado.
+> Ese hash quedaba pegado, y como la URL le gana a la sesión al arrancar, desde
+> esa apretada en adelante *cada recarga restauraba esa foto vieja*. El usuario
+> apagaba columnas, se guardaban bien en `localStorage`, y al volver estaban
+> prendidas otra vez: se leía como "falla el guardado" cuando en realidad se
+> guardaba y se pisaba.
+>
+> Dos mitades del arreglo, y hacen falta las dos:
+> 1. El `#v=` se planta en tu barra **sólo si el portapapeles falló** — el único
+>    caso donde sirve, para copiarlo a mano.
+> 2. Una vista que llega por URL se usa **una vez**: se aplica, se graba como
+>    sesión y se limpia el hash. Sin esto, el que abre un enlace compartido
+>    queda con el mismo problema.
+>
+> `pruebas/columnas.js` cubre las dos mitades, incluido el caso del portapapeles
+> roto. Si alguna vez volvés a escribir el hash siempre, esto reaparece.
 
 > **Trampa conocida:** `localStorage` no está disponible en orígenes opacos
 > (`file://` en algunos navegadores). Una vez esto rompió la página entera al
@@ -453,6 +473,12 @@ el texto entero queda en el `title`. Sin eso estiraban la tabla a lo ancho.
 > guardarla, y `fusionarColumnas()` agrega las de `def:1` que no estaban
 > entonces; lo que el usuario apagó a propósito queda apagado, porque eso sí lo
 > conocía. `COLS_AGREGADAS` cubre las sesiones viejas que no traen la lista.
+>
+> **Y ahora se avisa.** Que aparezcan columnas nuevas sin explicación se lee
+> como "se me borró la configuración", que es justo lo contrario de lo que pasó.
+> `fusionarColumnas()` deja en `colsNuevas` las que agregó y el desplegable
+> `Columnas ▾` lo dice arriba de todo; el aviso se va apenas tocás cualquier
+> columna. Sólo pasa en el deploy donde se agrega la columna, no en cada uno.
 
 **El orden lo elige el usuario** (`ordenCols`, una lista de claves). Se reordena
 de dos formas: **arrastrando el encabezado en la tabla misma**, o desde la lista
