@@ -226,6 +226,59 @@ setTimeout(async()=>{
        $$('#tabla tbody tr').length+' vs '+total);
   }
 
+  console.log('== las cuatro lecturas del cruce del ASH ==');
+  {
+    // El filtro viejo era uno solo: "cruzo hacia arriba hace menos de N". Los
+    // otros tres casos son los que pidio el usuario, en especial "bajista hace
+    // rato", que es donde se buscan los pisos.
+    const total=$$('#tabla tbody tr').length;
+    const ths=$$('#tabla thead th').map(x=>x.dataset.k);
+    const iBar=ths.indexOf('ash_d_cruce'), iAsh=ths.indexOf('ash_d');
+    ok('las columnas del cruce estan a la vista',iBar>=0&&iAsh>=0,ths.join(','));
+
+    const poner=async(dir,n)=>{
+      $('#fCruceDir').value=dir;
+      $('#fCruceDir').dispatchEvent(new w.Event('input',{bubbles:true}));
+      $('#fCruceMax').value=String(n);
+      $('#fCruceMax').dispatchEvent(new w.Event('input',{bubbles:true}));
+      await esperar(400);
+      return $$('#tabla tbody tr');};
+    const barras=tr=>parseFloat(tr.children[iBar].textContent);
+    const ash=tr=>parseFloat(tr.children[iAsh].textContent);
+
+    let fs=await poner('1',8);
+    ok('alcista hace poco: achica',fs.length<total,fs.length+' de '+total);
+    ok('todos con el ASH arriba y pocas barras',
+       fs.length===0||fs.every(tr=>ash(tr)>0&&barras(tr)<=8),
+       fs.slice(0,4).map(tr=>ash(tr)+'/'+barras(tr)).join('|'));
+    ok('la etiqueta dice el sentido',/≤ 8 ruedas/.test($('#lCruce').textContent),
+       $('#lCruce').textContent);
+
+    fs=await poner('1+',8);
+    ok('alcista hace rato: todos con muchas barras',
+       fs.length===0||fs.every(tr=>ash(tr)>0&&barras(tr)>=8),
+       fs.slice(0,4).map(tr=>ash(tr)+'/'+barras(tr)).join('|'));
+    ok('y la etiqueta se da vuelta',/≥ 8 ruedas/.test($('#lCruce').textContent),
+       $('#lCruce').textContent);
+
+    fs=await poner('0',8);
+    ok('bajista hace poco: todos con el ASH abajo',
+       fs.length===0||fs.every(tr=>ash(tr)<0&&barras(tr)<=8),
+       fs.slice(0,4).map(tr=>ash(tr)+'/'+barras(tr)).join('|'));
+
+    fs=await poner('0+',8);
+    ok('bajista hace rato: abajo y hace tiempo',
+       fs.length===0||fs.every(tr=>ash(tr)<0&&barras(tr)>=8),
+       fs.slice(0,4).map(tr=>ash(tr)+'/'+barras(tr)).join('|'));
+    ok('los cuatro casos juntos no dejan pasar a nadie dos veces',
+       (await poner('1',8)).length+(await poner('0',8)).length<=total);
+
+    fs=await poner('1',0);
+    ok('en cero se apaga y vuelven todas',fs.length===total,fs.length+' vs '+total);
+    ok('y la etiqueta vuelve a off',$('#lCruce').textContent==='off',
+       $('#lCruce').textContent);
+  }
+
   console.log('== el panel de filtros no se pisa a si mismo ==');
   {
     // jsdom no resuelve calc(), pero si devuelve las variables: se verifica el

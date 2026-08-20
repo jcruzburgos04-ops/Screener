@@ -209,6 +209,69 @@ function abrir(payload,almacen){
        spy.querySelector('.tj-ext').getAttribute('title'));
   }
 
+  console.log('\n== nunca dos cosas elegidas a la vez ==');
+  {
+    const w4=await abrir(null,SIN_YAHOO);
+    const d4=w4.document, q=s=>d4.querySelector(s);
+    const enc=()=>[...d4.querySelectorAll('#segVista .chip.on')].map(c=>c.id);
+    ok('la vista es un interruptor de dos posiciones',
+       q('#chipTabla')&&q('#chipVista')&&
+       q('#chipTabla').closest('.grupo-chips')===q('#chipVista').closest('.grupo-chips'));
+    ok('arranca con Tabla encendida y sola',enc().join(',')==='chipTabla',enc().join(','));
+    // el caso de la foto: favoritos prendido Y panorama prendido a la vez
+    q('#chipFav').dispatchEvent(new w4.MouseEvent('click',{bubbles:true}));
+    q('#chipVista').dispatchEvent(new w4.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    ok('con favoritos prendido, la vista sigue teniendo una sola encendida',
+       enc().join(',')==='chipVista',enc().join(','));
+    ok('favoritos vive en otra capsula, no compite con la vista',
+       q('#chipFav').closest('.grupo-chips')!==q('#chipVista').closest('.grupo-chips'));
+    ok('y se distingue porque su capsula es de interruptores',
+       q('#chipFav').closest('.grupo-chips').classList.contains('inter'));
+    ok('los menus tampoco se mezclan con la vista',
+       q('#btnCols').closest('.grupo-chips').classList.contains('menus'));
+  }
+
+  console.log('\n== elegir un filtro sale solo de Panorama ==');
+  {
+    const w5=await abrir(null,{...SIN_YAHOO,screener_ash_vista:'p'});
+    await esperar(300);
+    const d5=w5.document, q=s=>d5.querySelector(s);
+    ok('arranca en Panorama',d5.body.classList.contains('panorama'));
+    // "sin filtros" del desplegable de arriba
+    q('#selRapido').value='0';
+    q('#selRapido').dispatchEvent(new w5.Event('change'));
+    await esperar(300);
+    ok('"Sin filtros" te devuelve a la tabla',!d5.body.classList.contains('panorama'));
+    ok('y la tabla tiene filas',d5.querySelectorAll('#tabla tbody tr').length>0);
+
+    // un preset cualquiera, tambien estando en Panorama
+    q('#chipVista').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    const preset=[...q('#selRapido').options].find(o=>o.value.indexOf('p:')===0);
+    q('#selRapido').value=preset.value;
+    q('#selRapido').dispatchEvent(new w5.Event('change'));
+    await esperar(400);
+    ok('un preset tambien sale de Panorama',!d5.body.classList.contains('panorama'),
+       preset.value);
+
+    // y mover una perilla de filtro a mano
+    q('#chipVista').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    q('#fDVol').value='10000000';
+    q('#fDVol').dispatchEvent(new w5.Event('input',{bubbles:true}));
+    await esperar(300);
+    ok('mover un filtro del panel tambien sale',!d5.body.classList.contains('panorama'));
+
+    // las perillas del ASH NO: esas cambian las tarjetas, no hay por que salir
+    q('#chipVista').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    q('#ashLen').value='12';
+    q('#ashLen').dispatchEvent(new w5.Event('input',{bubbles:true}));
+    await esperar(500);
+    ok('cambiar el ASH te deja donde estabas',d5.body.classList.contains('panorama'));
+  }
+
   console.log('\n== sin favoritos, el panel lo dice ==');
   {
     const w3=await abrir(null,{...SIN_YAHOO,screener_ash_vista:'p'});

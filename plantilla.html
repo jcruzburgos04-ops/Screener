@@ -98,6 +98,10 @@ input:focus,select:focus{outline:none;border-color:var(--ambar);background:#0A0E
 input[type=range]{-webkit-appearance:none;appearance:none;padding:0;border:none;
   background:transparent;height:16px;cursor:pointer;margin:.15rem 0 .1rem}
 input[type=range]:hover,input[type=range]:focus{background:transparent}
+/* El cruce del ASH es un control de dos piezas —el sentido y el numero de
+   ruedas—: sin este respiro el deslizador queda pegado al desplegable y se
+   leen como dos filtros distintos. */
+select + input[type=range]{margin-top:.42rem}
 input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
   background:var(--panel3);border:1px solid var(--borde)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
@@ -389,6 +393,17 @@ body.panorama .kpis{display:none}
 .grupo-chips .chip:hover{background:var(--panel2);border-color:transparent;color:var(--hueso)}
 .grupo-chips .chip.on{background:var(--panel3);border-color:var(--borde2);
   color:var(--hueso);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+/* Tres lenguajes distintos para tres cosas distintas: la vista elegida se ve
+   hundida (una de dos), un interruptor prendido se ve en ambar (va y viene) y
+   un menu abierto apenas se aclara. Asi no hay dos cosas que parezcan "la
+   opcion seleccionada" al mismo tiempo. */
+.grupo-chips.seg{background:var(--tinta)}
+.grupo-chips.seg .chip.on{background:var(--panel3);border-color:var(--borde2);
+  color:var(--hueso);box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.grupo-chips.inter .chip.on{background:rgba(224,164,88,.13);
+  border-color:rgba(224,164,88,.38);color:var(--ambar);box-shadow:none}
+.grupo-chips.menus .chip.on{background:var(--panel2);border-color:var(--borde2);
+  color:var(--hueso);box-shadow:none}
 
 .mercados{display:flex;gap:.4rem;flex-wrap:wrap}
 .mercado{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--mono);
@@ -595,7 +610,13 @@ body.cajon #velo{display:block}
     <select id="fAshW"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
     <label>ASH diario creciendo</label>
     <select id="fAshCrece"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
-    <label>Cruce alcista ≤ N ruedas <b id="lCruce">off</b></label>
+    <label>Cruce del ASH <b id="lCruce">off</b></label>
+    <select id="fCruceDir">
+      <option value="1">Alcista, hace poco</option>
+      <option value="1+">Alcista, hace rato</option>
+      <option value="0">Bajista, hace poco</option>
+      <option value="0+">Bajista, hace rato</option>
+    </select>
     <input type="range" id="fCruceMax" min="0" max="40" value="0">
 
     <div class="subt">Soporte y resistencia</div>
@@ -738,10 +759,20 @@ body.cajon #velo{display:block}
     <span class="pastilla" id="frescura" title="Antigüedad de los precios publicados"></span>
     <span class="firma" id="firma"></span>
     <select id="selRapido" title="Filtros guardados"></select>
-    <div class="tf grupo-chips">
+    <!-- Tres capsulas y no una sola. La primera es una eleccion entre dos
+         vistas y siempre tiene exactamente una encendida; la segunda son
+         interruptores que van y vienen; la tercera abre menus. Estando todos
+         en la misma capsula, "Panorama" y "★ favoritos" prendidos a la vez se
+         leian como dos opciones elegidas del mismo control, que no existe. -->
+    <div class="tf grupo-chips seg" id="segVista">
+      <span class="chip on" id="chipTabla" title="La tabla del screener · tecla P">Tabla</span>
       <span class="chip" id="chipVista" title="Tarjetas de índices y sectores · tecla P">Panorama</span>
+    </div>
+    <div class="tf grupo-chips inter">
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
+    </div>
+    <div class="tf grupo-chips menus">
       <span class="chip" id="btnInd" title="Ranking de sectores">Sectores ▾</span>
       <span class="chip" id="btnCols" title="Elegir qué columnas ver">Columnas <b id="cuentaCols"></b> ▾</span>
     </div>
@@ -1225,6 +1256,20 @@ function calcularAsh(s,sem,cfgAsh){
   return f;
 }
 
+/* El cruce del ASH, en cuatro lecturas. Antes habia una sola —"cruzo hacia
+   arriba hace menos de N ruedas"— y no habia forma de pedir lo contrario: los
+   que llevan rato en rojo, que es justo donde se buscan los pisos. El signo lo
+   da ash_d y la antiguedad ash_d_cruce; el "+" en la direccion da vuelta la
+   comparacion, de "hace menos de N" a "hace mas de N".
+   N en cero sigue queriendo decir "sin filtro", como en todas las perillas. */
+function pasaCruce(f,F){
+  if(F.cruceMax===null)return true;
+  if(!isFinite(f.ash_d_cruce))return false;
+  const dir=String(F.cruceDir||'1');
+  if(dir[0]==='1'?!(f.ash_d>0):!(f.ash_d<0))return false;
+  return dir.slice(-1)==='+'?f.ash_d_cruce>=F.cruceMax:f.ash_d_cruce<=F.cruceMax;
+}
+
 function pasaFiltros(f,F){
   const ge=(v,x)=>x===null||(isFinite(v)&&v>=x), le=(v,x)=>x===null||(isFinite(v)&&v<=x);
   const bo=(v,x)=>x===null||(!!v)===x;
@@ -1232,7 +1277,7 @@ function pasaFiltros(f,F){
     ge(f.adr,F.adr)&&ge(f.rsi,F.rsiMin)&&le(f.rsi,F.rsiMax)&&
     bo(f.sobre_ema20,F.ema20)&&bo(f.sobre_ema50,F.ema50)&&bo(f.ema20_sobre_50,F.cruce)&&
     bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
-    (F.cruceMax===null||(f.ash_d>0&&isFinite(f.ash_d_cruce)&&f.ash_d_cruce<=F.cruceMax))&&
+    pasaCruce(f,F)&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
     // Esconder los atrasados evita mirar variaciones que no son de hoy.
     (!F.sinAtraso||!f.atraso)&&(F.adxMin===null||ge(f.adx,F.adxMin))&&
@@ -1249,7 +1294,8 @@ function pasaFiltros(f,F){
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
-  ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,pasaFiltros};
+  ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
+  pasaCruce,pasaFiltros};
 </script>
 
 <!-- Datos: los inyecta generar_html.py -->
@@ -1287,15 +1333,21 @@ const PRESETS={
     ultimo maximo y lo recupera, con el ASH acompañando. */
  'Recupera el AVWAP':{fAvwap:'Recuperado',fAshD:'1',fDVol:'5000000',fEma50:'1'},
  'Volviendo al AVWAP':{fAvDist:'2',fAshW:'1',fDVol:'5000000'},
+ /* Los que llevan rato en rojo: no es una entrada, es la lista de donde
+    puede salir un piso cuando el ASH de vuelta. */
+ 'Bajista hace rato':{fCruceDir:'0+',fCruceMax:'15',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
- fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',
+ fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
  fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
 const NEUTRO_CHECK={fSinAtraso:false};
+/* Que control es un filtro y cual no sale de la misma lista, para no tener
+   dos definiciones que se desincronicen. */
+const ES_FILTRO=new Set([...Object.keys(NEUTRO),...Object.keys(NEUTRO_CHECK)]);
 
 /* ---------- formato ---------- */
 /* Los nombres, sectores e industrias vienen de Yahoo y se insertan como HTML.
@@ -1485,7 +1537,11 @@ function filtros(){return{
   rsiMax:val('#fRsiMax')===100?null:val('#fRsiMax'),
   ema20:tri('#fEma20'), ema50:tri('#fEma50'), cruce:tri('#fCruce'),
   ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
-  cruceMax:val('#fCruceMax')||null, adxMin:val('#fAdx')||null,
+  cruceMax:val('#fCruceMax')||null,
+  // La direccion sola no es un filtro: sin N no filtra nada, y si viajara
+  // siempre con valor la cuenta de "filtros puestos" nunca bajaria a cero.
+  cruceDir:val('#fCruceMax')?$('#fCruceDir').value:null,
+  adxMin:val('#fAdx')||null,
   precio:val('#fPrecio')||null,
   floatMax:val('#fFloat')||null, rsMin:val('#fRs')===1?null:val('#fRs'),
   sinAtraso:$('#fSinAtraso').checked?true:null,
@@ -2229,7 +2285,9 @@ function renderPanorama(){
 function verPanorama(mostrar){
   vistaPanorama=mostrar;
   document.body.classList.toggle('panorama',mostrar);
+  // Las dos, siempre al reves una de la otra: es un interruptor de dos posiciones.
   $('#chipVista').classList.toggle('on',mostrar);
+  $('#chipTabla').classList.toggle('on',!mostrar);
   escribirLS('screener_ash_vista',mostrar?'p':'t');
   if(mostrar)renderPanorama(); else render();
 }
@@ -2300,8 +2358,14 @@ function ponerValores(obj,desdeCero){
     else el.value=v;});
 }
 
+/* Elegir filtros estando en Panorama no mostraba nada: el resultado se ve en
+   la tabla, asi que habia que apretar Panorama de nuevo para verlo. Cualquier
+   eleccion de filtros vuelve sola a la tabla. */
+function salirDePanorama(){if(vistaPanorama)verPanorama(false);}
+
 function elegirPerfil(valor){
   if(!valor)return;
+  salirDePanorama();
   if(valor==='0'){limpiarFiltros();return;}
   $('#selPerfil').value=valor;$('#selRapido').value=valor;
   const [tipo,nombre]=[valor.slice(0,1),valor.slice(2)];
@@ -2482,6 +2546,7 @@ function verGrafico(mostrar){
 /* Un solo lugar decide que es "sin filtros": el boton, el preset vacio del
    desplegable y los presets que arrancan de cero usan todos esta lista. */
 function limpiarFiltros(){
+  salirDePanorama();
   ponerValores({},true);
   $('#buscar').value='';$('#selRapido').value='0';$('#selPerfil').value='0';
   marcarPerfil();industriaSel=null;ponerSoloFav(false);
@@ -2509,7 +2574,7 @@ function etiquetas(){
     el.classList.toggle('apagado',!v);};
   p('#fRelVol','#lRelVol',v=>v.toFixed(1));
   p('#fAdr','#lAdr',v=>v.toFixed(1)+'%');
-  p('#fCruceMax','#lCruce');
+  etiquetaCruce();
   p('#fAdx','#lAdx');
   p('#fResDist','#lResDist',v=>'≤ '+v.toFixed(1)+'%');
   p('#fToques','#lToques',v=>'≥ '+v);
@@ -2517,6 +2582,14 @@ function etiquetas(){
   p('#fFloat','#lFloat',v=>'$'+v+'M');
   const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
   $('#lRs').classList.toggle('apagado',!(rs>1));
+}
+
+/* "12" a secas no distingue "cruzo hace menos de 12 ruedas" de "hace mas de
+   12", que ahora son dos filtros distintos. La etiqueta lo dice entero. */
+function etiquetaCruce(){
+  const n=+$('#fCruceMax').value, dir=$('#fCruceDir').value, el=$('#lCruce');
+  el.classList.toggle('apagado',!n);
+  el.textContent=n?((dir.slice(-1)==='+'?'≥ ':'≤ ')+n+' ruedas'):'off';
 }
 
 function montarChips(){
@@ -2970,6 +3043,10 @@ function iniciar(){
     const evento=el.type==='checkbox'?'change':'input';
     el.addEventListener(evento,()=>{
       etiquetas();
+      /* Mover un filtro estando en Panorama tampoco mostraba nada. Las perillas
+         del ASH no cuentan: esas si cambian las tarjetas (el verde de cada
+         sector sale del ASH), asi que no tienen por que sacarte de ahi. */
+      if(ES_FILTRO.has(el.id))salirDePanorama();
       if(recalcIds.includes(el.id))pendientePesado=true;
       clearTimeout(timer);
       timer=setTimeout(()=>{
@@ -2981,7 +3058,8 @@ function iniciar(){
   $('#selPerfil').onchange=()=>elegirPerfil($('#selPerfil').value);
   $('#selRapido').onchange=()=>{elegirPerfil($('#selRapido').value);marcarPerfil();};
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
-  $('#chipVista').onclick=()=>verPanorama(!vistaPanorama);
+  $('#chipVista').onclick=()=>verPanorama(true);
+  $('#chipTabla').onclick=()=>verPanorama(false);
   $('#buscarPan').addEventListener('input',()=>renderPanorama());
   $('#panTabs').onclick=e=>{const c=e.target.closest('.chip[data-panel]');if(!c)return;
     panelSel=+c.dataset.panel;renderPanorama();guardarSesion();};

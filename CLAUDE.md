@@ -311,13 +311,28 @@ sola operación suelta mueve el precio 4%.
 `intradia.yml` corre 8:00-23:30 UTC para cubrir las tres sesiones.
 
 ### Barra superior
-Pastilla de **frescura** · `★ favoritos` · `Gráfico` · `Industrias ▾` ·
-`Columnas N ▾` · desplegable de filtros guardados.
+Pastilla de **frescura** · desplegable de filtros guardados · tres cápsulas de
+chips · nada más.
 
 La pastilla es lo primero que se mira y por eso está antes que todo lo demás:
 **verde** = se actualizó hace menos de 75 minutos, **ámbar** = es el cierre de la
 última rueda (lo correcto con el mercado cerrado), **rojo** = el archivo quedó
 viejo de verdad, dos ruedas o más.
+
+**Los chips van en tres cápsulas, no en una, y cada una tiene su propio
+"encendido".** Es la corrección de un error de lectura real: con los cinco chips
+juntos y el mismo resaltado, `Panorama` y `★ favoritos` prendidos a la vez se
+veían como dos opciones elegidas del mismo control, que no existe.
+
+| Cápsula | Qué es | Cómo se ve el `.on` |
+|---|---|---|
+| `.seg` — `Tabla` / `Panorama` | una elección entre dos, **siempre hay exactamente una encendida** | hundida, con sombra |
+| `.inter` — `★ favoritos`, `Gráfico` | interruptores que van y vienen | ámbar |
+| `.menus` — `Sectores ▾`, `Columnas ▾` | abren un desplegable | apenas aclarada |
+
+`verPanorama()` prende una y apaga la otra en la misma línea; no hay forma de
+que las dos queden encendidas. `pruebas/panorama.js` lo verifica prendiendo
+favoritos **y** Panorama a la vez, que es el caso de la captura del usuario.
 
 ### Pantallas angostas
 
@@ -374,9 +389,47 @@ la lista estaba duplicada dentro del botón y se olvidaba de los controles nuevo
 
 ### Presets de filtros
 
-Cinco vienen armados en la constante `PRESETS`: Tendencia limpia, Cruce fresco de
-ASH, Pullback en tendencia, Se mueve y es líquido, Fuerza relativa top. La primera
-opción del desplegable es `— sin filtros —` (valor `'0'`), que limpia todo.
+Vienen armados en la constante `PRESETS`: Tendencia limpia, Cruce fresco de ASH,
+Pullback en tendencia, Se mueve y es líquido, Fuerza relativa top, Pegado a la
+resistencia, Triángulo ascendente, Canal alcista con ASH, Recupera el AVWAP,
+Volviendo al AVWAP y Bajista hace rato. La primera opción del desplegable es
+`Sin filtros` (valor `'0'`), que limpia todo.
+
+**Elegir cualquier cosa del desplegable sale solo de Panorama.** Antes, estando
+en las tarjetas, apretabas `Sin filtros` y no pasaba nada visible: el resultado
+se ve en la tabla y había que apretar `Tabla` a mano para verlo. Ahora
+`elegirPerfil()` y `limpiarFiltros()` llaman a `salirDePanorama()`, y **mover
+cualquier perilla del panel de filtros hace lo mismo** — el listener compara
+contra `ES_FILTRO`, que sale de `NEUTRO` + `NEUTRO_CHECK` para no tener dos
+definiciones de "qué es un filtro". Las perillas del **ASH** no salen de
+Panorama a propósito: ésas sí cambian las tarjetas, porque el verde de cada
+sector se calcula con el ASH.
+
+### El filtro del cruce: cuatro lecturas
+
+`fCruceDir` × `fCruceMax` reemplazan al viejo "cruce alcista ≤ N ruedas", que
+era **una sola** de las cuatro combinaciones posibles y no dejaba pedir lo
+contrario: los papeles que llevan rato en rojo, que es donde se buscan los pisos.
+
+```
+'1'   alcista, hace poco   ash_d > 0  y  ash_d_cruce <= N
+'1+'  alcista, hace rato   ash_d > 0  y  ash_d_cruce >= N
+'0'   bajista, hace poco   ash_d < 0  y  ash_d_cruce <= N
+'0+'  bajista, hace rato   ash_d < 0  y  ash_d_cruce >= N
+```
+
+Vive en `pasaCruce()`, dentro del motor y exportada para las pruebas. Dos
+detalles que no son obvios:
+
+- **`N = 0` sigue queriendo decir "sin filtro"**, como todas las perillas. Por
+  eso `fCruceDir` arranca en `'1'` y los perfiles viejos, que sólo guardaban
+  `fCruceMax`, siguen leyéndose igual que antes.
+- **La dirección viaja en `null` cuando `N` es cero.** Si viajara siempre con
+  valor, la cuenta de "filtros puestos" nunca bajaría a cero y la pastilla nunca
+  diría `sin filtros`. Ya rompió una prueba de la interfaz.
+
+La etiqueta dice la lectura entera (`≤ 8 ruedas` / `≥ 8 ruedas`): el número solo
+no distingue los dos sentidos.
 
 ### Columnas
 
