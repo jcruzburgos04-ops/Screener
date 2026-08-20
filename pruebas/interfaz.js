@@ -113,6 +113,33 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
        td.getAttribute('title'));
   }
 
+  console.log('\n== la barra de arriba ==');
+  {
+    const sel=$('#selRapido');
+    ok('el desplegable de perfiles arranca en "Sin filtros"',
+       sel.options[0].textContent==='Sin filtros',sel.options[0].textContent);
+    ok('y no se enciende si no hay perfil puesto',!sel.classList.contains('puesto'),
+       sel.className);
+    sel.value=[...sel.options].find(o=>o.value.startsWith('p:')).value;
+    sel.dispatchEvent(new w.Event('change'));
+    await new Promise(r=>setTimeout(r,400));
+    ok('con un preset puesto se enciende',sel.classList.contains('puesto'),sel.className);
+    ok('el resumen lo dice en una pastilla',
+       !!$('#resumenFiltro').querySelector('.mini-pill'),
+       $('#resumenFiltro').innerHTML.slice(0,80));
+    sel.value='0';sel.dispatchEvent(new w.Event('change'));
+    await new Promise(r=>setTimeout(r,400));
+    ok('al limpiarlo se apaga',!sel.classList.contains('puesto'),sel.className);
+    ok('y la pastilla dice "sin filtros"',
+       /sin filtros/.test($('#resumenFiltro').textContent),
+       $('#resumenFiltro').textContent);
+    ok('la firma usa separadores y no puntos sueltos',
+       $('#firma').querySelectorAll('.sep-v').length>=2,
+       $('#firma').innerHTML.slice(0,120));
+    ok('los chips de arriba estan agrupados',
+       $('#chipVista').closest('.grupo-chips')!==null);
+  }
+
   console.log('\n== ordenar por todas las columnas ==');
   let malas=[];
   for(const th of $$('#tabla thead th')){

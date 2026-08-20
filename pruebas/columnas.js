@@ -114,6 +114,83 @@ const filasOrd=w=>[...w.document.querySelectorAll('#ordenCols .fila-ord')]
     ok('y la tabla la muestra ahi',cols(w)[2]===ultima,cols(w).slice(0,4).join(','));
   }
 
+  console.log('\n== arrastrar el encabezado de la tabla ==');
+  {
+    const ths=()=>[...d.querySelectorAll('#tabla thead th')];
+    ok('las dos fijas no se arrastran',
+       !ths()[0].hasAttribute('draggable')&&!ths()[1].hasAttribute('draggable'),
+       ths()[0].outerHTML.slice(0,60));
+    ok('y llevan la marca de fijas',
+       ths()[0].classList.contains('fijo')&&ths()[1].classList.contains('fijo'));
+    ok('el resto si se arrastra',ths()[3].getAttribute('draggable')==='true',
+       ths()[3].outerHTML.slice(0,70));
+
+    const antes=cols(w).slice();
+    const origen=ths()[2], destino=ths()[5];
+    const kOrigen=origen.dataset.k, kDestino=destino.dataset.k;
+    origen.dispatchEvent(new w.Event('dragstart',{bubbles:true}));
+    await esperar(30);
+    ok('la columna arrastrada se marca',origen.classList.contains('arrastrando'));
+    destino.dispatchEvent(new w.Event('dragover',{bubbles:true,cancelable:true}));
+    await esperar(30);
+    ok('el destino se resalta',
+       [...d.querySelectorAll('#tabla thead th')].some(x=>x.classList.contains('destino')));
+    destino.dispatchEvent(new w.Event('drop',{bubbles:true,cancelable:true}));
+    await esperar(250);
+    const ahora=cols(w);
+    ok('la columna se movio',ahora.indexOf(kOrigen)>antes.indexOf(kOrigen),
+       `${kOrigen}: ${antes.indexOf(kOrigen)} -> ${ahora.indexOf(kOrigen)}`);
+    ok('quedo donde estaba el destino',ahora.indexOf(kOrigen)<=antes.indexOf(kDestino),
+       `${ahora.indexOf(kOrigen)} vs ${antes.indexOf(kDestino)}`);
+    ok('no se perdio ninguna columna',ahora.length===antes.length,
+       ahora.length+' vs '+antes.length);
+    ok('las dos fijas siguen primeras',ahora[0]==='fav'&&ahora[1]==='t');
+    ok('no quedan marcas de arrastre',
+       ![...d.querySelectorAll('#tabla thead th')].some(x=>
+         x.classList.contains('destino')||x.classList.contains('arrastrando')));
+    ok('la lista del desplegable acompaña',filasOrd(w).indexOf(kOrigen)>=0);
+    ok('avisa que movio la columna',/columna movida/.test($('#estado').textContent),
+       $('#estado').textContent);
+  }
+
+  console.log('\n== soltar el arrastre no ordena la tabla ==');
+  {
+    const ths=[...d.querySelectorAll('#tabla thead th')];
+    const ordenAntes=w.eval('JSON.stringify(orden)');
+    ths[3].dispatchEvent(new w.Event('dragstart',{bubbles:true}));
+    ths[6].dispatchEvent(new w.Event('dragover',{bubbles:true,cancelable:true}));
+    ths[6].dispatchEvent(new w.Event('drop',{bubbles:true,cancelable:true}));
+    // el clic llega despues del drop, como en un navegador de verdad
+    ths[6].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    ok('el orden de la tabla no cambio',w.eval('JSON.stringify(orden)')===ordenAntes,
+       w.eval('JSON.stringify(orden)')+' vs '+ordenAntes);
+  }
+
+  console.log('\n== hacer clic sin arrastrar sigue ordenando ==');
+  {
+    await esperar(400);      // pasada la ventana de gracia del arrastre
+    const th=[...d.querySelectorAll('#tabla thead th')][4];
+    const k=th.dataset.k;
+    th.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    ok('ordena por esa columna',w.eval('orden.col')===k,w.eval('orden.col')+' vs '+k);
+  }
+
+  console.log('\n== un arrastre cancelado no traba el ordenamiento ==');
+  {
+    const ths=[...d.querySelectorAll('#tabla thead th')];
+    // arrastre que empieza y nunca termina: ni drop ni dragend
+    ths[3].dispatchEvent(new w.Event('dragstart',{bubbles:true}));
+    await esperar(400);
+    const th=[...d.querySelectorAll('#tabla thead th')][6];
+    const k=th.dataset.k;
+    th.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await esperar(250);
+    ok('despues de un arrastre colgado, el clic vuelve a ordenar',
+       w.eval('orden.col')===k,w.eval('orden.col')+' vs '+k);
+  }
+
   console.log('\n== el orden sobrevive a recargar ==');
   {
     const esperado=filasOrd(w).slice();

@@ -401,7 +401,20 @@ el texto entero queda en el `title`. Sin eso estiraban la tabla a lo ancho.
 > entonces; lo que el usuario apagó a propósito queda apagado, porque eso sí lo
 > conocía. `COLS_AGREGADAS` cubre las sesiones viejas que no traen la lista.
 
-**El orden lo elige el usuario** (`ordenCols`, una lista de claves). Lo que no
+**El orden lo elige el usuario** (`ordenCols`, una lista de claves). Se reordena
+de dos formas: **arrastrando el encabezado en la tabla misma**, o desde la lista
+del desplegable `Columnas ▾`.
+
+> **Trampa del encabezado:** un `th` hace dos cosas — al hacer clic ordena, al
+> arrastrar mueve la columna. Para que soltar el arrastre no dispare también el
+> ordenamiento se usa una **marca de tiempo** (`ultimoArrastre`) y **no una
+> bandera**: con una bandera, si el navegador no manda el `dragend` (pasa al
+> cancelar con Escape o al soltar afuera) quedaba trabada en `true` y el
+> encabezado no ordenaba nunca más. Una marca de tiempo se cura sola.
+
+Las columnas de EMAs se expanden en la tabla (`vs_ema20`, `vs_ema50`) pero en el
+orden viajan como una sola entrada (`__emas`); `claveReal()` hace la traducción.
+ Lo que no
 esté en la lista se agrega al final en el orden de `COLS`, así una columna nueva
 aparece igual sin tener que tocar nada. Se reordena arrastrando o con las
 flechas ↑↓ del desplegable `Columnas ▾` — **las flechas no son un adorno**: el

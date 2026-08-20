@@ -147,8 +147,34 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .marca .firma{font-family:var(--mono);font-size:.71rem;color:var(--tenue);
   letter-spacing:.03em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
-.marca .firma em{color:var(--ambar);font-style:normal}
-.marca select{width:auto;max-width:180px;font-size:.71rem;padding:.3rem .4rem}
+.marca .firma em{color:var(--ambar);font-style:normal;letter-spacing:.04em}
+/* Un separador fino en vez de puntos: con seis datos seguidos, los "·" se
+   confunden con el texto y no se distingue donde termina cada cosa. */
+.sep-v{display:inline-block;width:1px;height:9px;background:var(--borde2);
+  margin:0 .55rem;vertical-align:baseline}
+.mini-pill{border-radius:999px;padding:.06rem .4rem;font-size:.66rem;
+  white-space:nowrap}
+.mini-pill.ambar{color:var(--ambar);background:var(--ambar-t)}
+.mini-pill.roja{color:var(--bajista);background:var(--bajista-t)}
+.mini-pill.gris2{color:var(--apagado);background:var(--panel2)}
+/* El desplegable de perfiles era lo que mas desentonaba: borde duro, flecha
+   nativa y un ancho que bailaba con el largo del nombre. Ahora tiene la misma
+   cara que los chips de al lado: capsula, flecha propia y ancho fijo con
+   puntos suspensivos. */
+.marca select{-webkit-appearance:none;appearance:none;width:190px;flex:none;
+  font-family:var(--mono);font-size:.7rem;padding:.34rem 1.5rem .34rem .7rem;
+  border-radius:999px;background:var(--panel);border:1px solid var(--borde);
+  color:var(--tenue);text-overflow:ellipsis;
+  background-image:linear-gradient(45deg,transparent 50%,var(--apagado) 50%),
+                   linear-gradient(135deg,var(--apagado) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 51%,calc(100% - 9px) 51%;
+  background-size:4px 4px,4px 4px;background-repeat:no-repeat}
+.marca select:hover{border-color:var(--borde2);color:var(--hueso)}
+.marca select:focus{outline:none;border-color:var(--borde2);
+  box-shadow:0 0 0 2px rgba(224,164,88,.18)}
+/* con un perfil puesto, se enciende como un chip activo */
+.marca select.puesto{color:var(--ambar);border-color:rgba(224,164,88,.4);
+  background-color:var(--ambar-t)}
 
 /* La frescura es el dato mas importante de la pagina: si esto no esta al dia,
    todo lo demas da igual. Por eso vive arriba de todo y cambia de color solo. */
@@ -164,10 +190,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .kpis{display:flex;gap:1px;background:var(--borde);border-bottom:1px solid var(--borde);
   flex:none;overflow-x:auto;scrollbar-width:none}
 .kpis::-webkit-scrollbar{display:none}
-.kpi{flex:1;background:var(--tinta);padding:.45rem .85rem;min-width:108px}
-.kpi span{display:block;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+.kpi{flex:1;background:var(--tinta);padding:.5rem .9rem;min-width:108px;
+  display:flex;flex-direction:column;justify-content:center}
+.kpi span{display:block;font-size:.57rem;letter-spacing:.1em;text-transform:uppercase;
   color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  margin-bottom:.1rem}
+  margin-bottom:.12rem}
 .kpi b{font-family:var(--mono);font-size:calc(1.28rem * var(--escala));font-weight:500;
   font-variant-numeric:tabular-nums;line-height:1.1}
 #kpiAtraso{cursor:pointer;transition:background .12s}
@@ -240,6 +267,12 @@ thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-w
   cursor:pointer;
   white-space:nowrap;z-index:3;user-select:none;transition:color .12s}
 thead th:hover{color:var(--hueso);background:var(--panel2)}
+thead th:not(.fijo){cursor:grab}
+thead th.arrastrando{opacity:.45}
+/* Donde va a caer la columna: una barra ambar en el borde izquierdo del
+   encabezado de destino. */
+thead th.destino{box-shadow:inset 3px 0 0 var(--ambar),0 1px 0 var(--borde2);
+  background:var(--ambar-t);color:var(--hueso)}
 thead th.izq{text-align:left}
 thead th.act{color:var(--ambar)}
 tbody td{padding:calc(.28rem * var(--aire)) .5rem;text-align:right;
@@ -705,7 +738,7 @@ body.cajon #velo{display:block}
     <span class="pastilla" id="frescura" title="Antigüedad de los precios publicados"></span>
     <span class="firma" id="firma"></span>
     <select id="selRapido" title="Filtros guardados"></select>
-    <div class="tf">
+    <div class="tf grupo-chips">
       <span class="chip" id="chipVista" title="Tarjetas de índices y sectores · tecla P">Panorama</span>
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
@@ -1567,21 +1600,25 @@ function aplicar(ms){
   // contra la fecha de la mayoria: un papel de Asia adelantado no puede
   // tapar que todo Nueva York quedo en el cierre de anteayer
   const ruedas=ruedasHasta(fechaMayoritaria());
-  $('#firma').innerHTML=`<em>${esc(c.ash.modo)} · ${c.ash.length}/${c.ash.smooth} · ${esc(c.ash.ma_type)}</em>`+
-    ` · ${DATOS.simbolos.length} símbolos · último cierre ${fechaCorta(DATOS.ultimo_cierre)}`+
+  $('#firma').innerHTML=`<em>${esc(c.ash.modo)} ${c.ash.length}/${c.ash.smooth} ${esc(c.ash.ma_type)}</em>`+
+    `<i class="sep-v"></i>${DATOS.simbolos.length} símbolos`+
+    `<i class="sep-v"></i>cierre ${fechaCorta(DATOS.ultimo_cierre)}`+
     // Que TODO el archivo este viejo (el cron fallo, la pestaña quedo abierta
     // desde el jueves) es otro problema distinto de que un papel venga atrasado.
     (ruedas>=2?` <span style="color:var(--bajista)" title="Ni siquiera el más `+
       `nuevo llega a la rueda de hoy. Si estás en el sitio publicado, recargá; `+
       `si el cron falló, el sitio anterior queda en pie a propósito.">`+
       `⚠ ${ruedas} ruedas de atraso</span>`:'')+
-    (tardeTodos?` · <span class="amb" title="Su última barra es anterior al cierre de su mercado">`+
+    (tardeTodos?`<i class="sep-v"></i><span class="mini-pill ambar" `+
+      `title="Su última barra es anterior al cierre de su mercado">`+
       `⚠ ${tardeTodos} atrasado${tardeTodos>1?'s':''}</span>`:'')+
     '';
   const act=Object.entries(F).filter(([,v])=>v!==null).length;
   $('#cuentaFiltros').textContent=act?act:'';
-  $('#resumenFiltro').textContent=(industriaSel?industriaSel+' · ':'')+
-    (act?`${act} filtro${act>1?'s':''} activo${act>1?'s':''}`:'sin filtros');
+  $('#resumenFiltro').innerHTML=
+    (industriaSel?`<span class="mini-pill ambar">${esc(industriaSel)}</span> `:'')+
+    (act?`<span class="mini-pill ambar">${act} filtro${act>1?'s':''}</span>`
+        :`<span class="mini-pill gris2">sin filtros</span>`);
   $('#btnInd').classList.toggle('on',!!industriaSel);
   $('#cuentaGrupos').textContent=gruposOn.size?gruposOn.size:'';
   render();
@@ -1775,9 +1812,14 @@ function render(){
   marcarAtajoColumnas();
   if(vistaPanorama){renderPanorama();return;}
   const usar=columnas();
-  $('#tabla thead').innerHTML='<tr>'+usar.map(c=>
-    `<th class="${c.izq?'izq':''} ${orden.col===c.k?'act':''}" data-k="${c.k}" title="${c.t}">${
-      c.t}${orden.col===c.k?(orden.asc?' ↑':' ↓'):''}</th>`).join('')+'</tr>';
+  /* Los encabezados se arrastran para reordenar. Los dos primeros no: son los
+     que quedan fijos al desplazar a lo ancho y el CSS los ancla por posicion. */
+  $('#tabla thead').innerHTML='<tr>'+usar.map(c=>{
+    const fijo=!!c.nosel;
+    return `<th class="${c.izq?'izq':''} ${orden.col===c.k?'act':''}${fijo?' fijo':''}"`+
+      ` data-k="${esc(c.k)}"${fijo?'':' draggable="true"'}`+
+      ` title="${esc(c.t)}${fijo?'':' · arrastrá para moverla'}">${
+      esc(c.t)}${orden.col===c.k?(orden.asc?' ↑':' ↓'):''}</th>`;}).join('')+'</tr>';
   if(!visibles.length){
     $('#tabla tbody').innerHTML=`<tr><td colspan="${usar.length}" class="vacio">`+
       'Ningún símbolo pasa estos filtros.<br>'+
@@ -2221,10 +2263,15 @@ function avisarAlmacen(){
     'sólo mientras la pestaña esté abierta: usá <b>Copiar el enlace de esta '+
     'vista</b> o bajate un respaldo antes de cerrar.';
 }
+function marcarPerfil(){
+  const v=$('#selRapido').value;
+  $('#selRapido').classList.toggle('puesto',!!v&&v!=='0');
+}
+
 function pintarPerfiles(){
   const mios=leerPerfiles();
-  const html='<option value="0">— sin filtros —</option>'+
-    '<optgroup label="listos para usar">'+
+  const html='<option value="0">Sin filtros</option>'+
+    '<optgroup label="Listos para usar">'+
       Object.keys(PRESETS).map(k=>`<option value="p:${k}">${k}</option>`).join('')+
     '</optgroup>'+
     (Object.keys(mios).length?'<optgroup label="los tuyos">'+
@@ -2233,6 +2280,7 @@ function pintarPerfiles(){
   $('#selPerfil').innerHTML=html;
   $('#selRapido').innerHTML=html;
   $('#cuentaPerfiles').textContent=Object.keys(mios).length||'';
+  marcarPerfil();
 }
 
 /* Los controles que NO forman parte de una vista: el nombre a guardar y todo
@@ -2436,7 +2484,7 @@ function verGrafico(mostrar){
 function limpiarFiltros(){
   ponerValores({},true);
   $('#buscar').value='';$('#selRapido').value='0';$('#selPerfil').value='0';
-  industriaSel=null;ponerSoloFav(false);
+  marcarPerfil();industriaSel=null;ponerSoloFav(false);
   etiquetas();aplicar();guardarSesion();
 }
 
@@ -2931,7 +2979,7 @@ function iniciar(){
 
   $('#buscar').addEventListener('input',()=>{aplicar();guardarSesion();});
   $('#selPerfil').onchange=()=>elegirPerfil($('#selPerfil').value);
-  $('#selRapido').onchange=()=>elegirPerfil($('#selRapido').value);
+  $('#selRapido').onchange=()=>{elegirPerfil($('#selRapido').value);marcarPerfil();};
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
   $('#chipVista').onclick=()=>verPanorama(!vistaPanorama);
   $('#buscarPan').addEventListener('input',()=>renderPanorama());
@@ -2957,10 +3005,62 @@ function iniciar(){
     if(!n)return;
     const p=leerPerfiles();p[n.trim()]=estadoActual();escribirLS(CLAVE,JSON.stringify(p));
     pintarPerfiles();$('#selRapido').value='m:'+n.trim();};
+  /* Un encabezado hace dos cosas: al hacer clic ordena, al arrastrar mueve la
+     columna. Hay que evitar que soltar el arrastre dispare tambien el
+     ordenamiento.
+
+     Se usa una MARCA DE TIEMPO y no una bandera: con una bandera, si el
+     navegador no manda el `dragend` (pasa al cancelar con Escape, o si se
+     suelta afuera), quedaba trabada en true y el encabezado no ordenaba nunca
+     mas. Una marca de tiempo se cura sola. */
+  let ultimoArrastre=0, colArrastrada=null;
+  const claveReal=k=>{
+    // las columnas de EMAs se expanden (vs_ema20, vs_ema50) pero en el orden
+    // viajan como una sola entrada: __emas
+    if(COLS.some(c=>c.k===k))return k;
+    return /^vs_ema/.test(k)?'__emas':null;};
+
   $('#tabla thead').addEventListener('click',e=>{const th=e.target.closest('th');
     if(!th||!th.dataset.k)return;
+    if(Date.now()-ultimoArrastre<300)return;   // fue el final de un arrastre
     if(orden.col===th.dataset.k)orden.asc=!orden.asc;else{orden.col=th.dataset.k;orden.asc=false;}
     aplicar();guardarSesion();});
+
+  $('#tabla thead').addEventListener('dragstart',e=>{
+    const th=e.target.closest('th');
+    if(!th||th.classList.contains('fijo')){e.preventDefault();return;}
+    colArrastrada=claveReal(th.dataset.k);
+    if(!colArrastrada){e.preventDefault();return;}
+    ultimoArrastre=Date.now();th.classList.add('arrastrando');
+    if(e.dataTransfer){e.dataTransfer.effectAllowed='move';
+      try{e.dataTransfer.setData('text/plain',colArrastrada);}catch(_){}}});
+
+  $('#tabla thead').addEventListener('dragover',e=>{
+    if(!colArrastrada)return;
+    e.preventDefault();
+    const th=e.target.closest('th');
+    $$('#tabla thead th').forEach(x=>x.classList.remove('destino'));
+    if(th&&!th.classList.contains('fijo')&&claveReal(th.dataset.k)!==colArrastrada)
+      th.classList.add('destino');});
+
+  $('#tabla thead').addEventListener('drop',e=>{
+    e.preventDefault();
+    const th=e.target.closest('th');
+    const destino=th?claveReal(th.dataset.k):null;
+    $$('#tabla thead th').forEach(x=>x.classList.remove('destino','arrastrando'));
+    ultimoArrastre=Date.now();
+    if(destino&&colArrastrada&&destino!==colArrastrada&&
+       reordenar(colArrastrada,destino)){
+      montarColumnas();render();guardarSesion();
+      ultimoArrastre=Date.now();
+      $('#estado').textContent='columna movida';
+      setTimeout(()=>{if($('#estado').textContent==='columna movida')
+        $('#estado').textContent='';},1800);}
+    colArrastrada=null;});
+
+  $('#tabla thead').addEventListener('dragend',()=>{
+    colArrastrada=null;
+    $$('#tabla thead th').forEach(x=>x.classList.remove('destino','arrastrando'));});
   $('#tabla tbody').addEventListener('click',e=>{
     const est=e.target.closest('.estrella');
     if(est){marcarFavorito(est.dataset.fav);e.stopPropagation();return;}
@@ -3129,6 +3229,7 @@ function iniciar(){
   // el desplegable tiene que mostrar el perfil con el que estabas, no "— sin filtros —"
   if(perfilPendiente){$('#selRapido').value=perfilPendiente;
     $('#selPerfil').value=perfilPendiente;}
+  marcarPerfil();
   ponerVista(+leerLS('screener_ash_escala')||1,+leerLS('screener_ash_aire')||1);
   etiquetaGrupo();
   avisarAlmacen();engancharGuardadoFinal();
