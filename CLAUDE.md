@@ -401,6 +401,36 @@ el texto entero queda en el `title`. Sin eso estiraban la tabla a lo ancho.
 > entonces; lo que el usuario apagó a propósito queda apagado, porque eso sí lo
 > conocía. `COLS_AGREGADAS` cubre las sesiones viejas que no traen la lista.
 
+**El orden lo elige el usuario** (`ordenCols`, una lista de claves). Lo que no
+esté en la lista se agrega al final en el orden de `COLS`, así una columna nueva
+aparece igual sin tener que tocar nada. Se reordena arrastrando o con las
+flechas ↑↓ del desplegable `Columnas ▾` — **las flechas no son un adorno**: el
+arrastre no anda con el dedo en el teléfono ni con el teclado.
+
+**★ y Ticker no se mueven.** Son las dos que quedan fijas al desplazar a lo
+ancho y el CSS las ancla por posición (`nth-child(1)` y `(2)`); si se pudieran
+correr, la tabla se rompe.
+
+> **Bug ya corregido:** al apagar una columna se llamaba sólo a `render()`, así
+> que la columna apagada seguía figurando en la lista de orden. Hay que rearmar
+> el desplegable entero (`montarColumnas()`).
+
+**El CSV baja lo que se ve, en el orden en que se ve.** Antes salían las ~60
+claves internas en orden alfabético y después había que reordenar el archivo a
+mano.
+
+### Tamaño de letra y alto de fila
+
+Dos variables en `:root` que multiplican todo: `--escala` (tipografía de la
+tabla y de los KPI) y `--aire` (padding y `line-height` de las filas). Se manejan
+desde *Datos → Cómo se ve* y se guardan aparte de la sesión, porque son de la
+pantalla y no del filtro. La misma tabla se mira en un monitor de 27" y en un
+portátil de 13".
+
+**Nada de fuentes de internet**: el screener tiene que abrir sin conexión. La
+pila arranca en `ui-monospace` / `ui-sans-serif`, que en cada sistema cae en la
+mejor cara que tenga (SF Mono en Mac, Cascadia en Windows 11).
+
 `COLS` define las columnas; las que tienen `def:1` son el set por defecto.
 `nosel:1` marca las que no se pueden apagar (★ y Ticker). El desplegable las
 agrupa según `GRUPOS_COL`. La selección viaja en la sesión, en la URL y dentro de

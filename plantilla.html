@@ -24,8 +24,16 @@
   --alcista:#4FB286; --bajista:#D45647; --ambar:#E0A458; --azul:#5B9BD5;
   --alcista-t:rgba(79,178,134,.14); --bajista-t:rgba(212,86,71,.14);
   --ambar-t:rgba(224,164,88,.13);
-  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  /* Sin fuentes de internet: el screener tiene que abrir sin conexion. Se
+     ordena la pila para que caiga en la mejor cara que tenga cada sistema.
+     ui-monospace da SF Mono en Mac y Cascadia en Windows 11. */
+  --mono:ui-monospace,'SF Mono','Cascadia Mono','JetBrains Mono','IBM Plex Mono',
+    Menlo,Consolas,'DejaVu Sans Mono',monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,
+    'Helvetica Neue','Noto Sans',sans-serif;
+  /* Dos perillas que multiplican todo: el tamaño de letra de la tabla y el
+     aire entre filas. Se manejan desde el panel. */
+  --escala:1; --aire:1;
   --panel-ancho:282px; --barra-sc:14px; --panel-w:var(--panel-ancho); --r:3px;
   --sombra:0 10px 34px rgba(0,0,0,.5);
 }
@@ -37,7 +45,8 @@
 :focus-visible{outline:2px solid var(--ambar);outline-offset:1px}
 body{margin:0;background:var(--tinta);color:var(--hueso);font-family:var(--sans);
   font-size:13px;display:flex;height:100vh;height:100dvh;overflow:hidden;
-  -webkit-font-smoothing:antialiased}
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility}
 body.compacto{--panel-w:0px}
 
 /* ---------------------------- panel de configuracion ---------------------- */
@@ -159,7 +168,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .kpi span{display:block;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
   color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   margin-bottom:.1rem}
-.kpi b{font-family:var(--mono);font-size:1.28rem;font-weight:500;
+.kpi b{font-family:var(--mono);font-size:calc(1.28rem * var(--escala));font-weight:500;
   font-variant-numeric:tabular-nums;line-height:1.1}
 #kpiAtraso{cursor:pointer;transition:background .12s}
 #kpiAtraso:hover{background:var(--panel2)}
@@ -186,6 +195,19 @@ body.sin-grafico .detalle{display:none}
 .dgrupo{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;
   text-transform:uppercase;color:var(--apagado);margin:.8rem 0 .35rem}
 #btnCols b{color:var(--ambar);font-weight:600}
+#ordenCols{display:flex;flex-direction:column;gap:2px;max-height:216px;overflow:auto}
+.fila-ord{display:flex;align-items:center;gap:.45rem;background:var(--panel2);
+  border:1px solid transparent;border-radius:4px;padding:.24rem .3rem;cursor:grab;
+  font-family:var(--mono);font-size:.72rem}
+.fila-ord:hover{border-color:var(--borde2)}
+.fila-ord.arrastrando{opacity:.4}
+.fila-ord.encima{border-color:var(--ambar);background:var(--ambar-t)}
+.fila-ord .asa{color:var(--apagado);letter-spacing:-2px}
+.fila-ord .ord-n{color:var(--apagado);font-size:.63rem;min-width:1.5em;text-align:right}
+.fila-ord .ord-t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ord-b{width:23px;height:21px;padding:0;margin:0;flex:none;font-size:.7rem;
+  background:var(--tinta);border-radius:3px;line-height:1}
+.ord-b:disabled{opacity:.22;cursor:default;border-color:var(--borde);color:var(--tenue)}
 .tind{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.74rem;
   font-variant-numeric:tabular-nums}
 .tind td{padding:.32rem .35rem;border-bottom:1px solid rgba(38,48,62,.6);cursor:pointer}
@@ -210,16 +232,19 @@ body.sin-grafico .detalle{display:none}
 
 /* ----------------------------------- tabla -------------------------------- */
 table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mono);
-  font-size:.775rem;font-variant-numeric:tabular-nums}
+  font-size:calc(.775rem * var(--escala));font-variant-numeric:tabular-nums;
+  font-feature-settings:'tnum' 1,'zero' 1;letter-spacing:0}
 thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-weight:500;
-  font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;text-align:right;
-  padding:.45rem .5rem;border-bottom:1px solid var(--borde2);cursor:pointer;
+  font-size:calc(.6rem * var(--escala));letter-spacing:.07em;text-transform:uppercase;
+  text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--borde2);
+  cursor:pointer;
   white-space:nowrap;z-index:3;user-select:none;transition:color .12s}
 thead th:hover{color:var(--hueso);background:var(--panel2)}
 thead th.izq{text-align:left}
 thead th.act{color:var(--ambar)}
-tbody td{padding:.28rem .5rem;text-align:right;border-bottom:1px solid rgba(37,48,62,.5);
-  white-space:nowrap}
+tbody td{padding:calc(.28rem * var(--aire)) .5rem;text-align:right;
+  border-bottom:1px solid rgba(37,48,62,.5);white-space:nowrap;
+  line-height:calc(1.35 * var(--aire))}
 tbody td.izq{text-align:left}
 /* Sector, industria y nombre son largos y estiraban la tabla a lo ancho: se
    cortan con puntos suspensivos y el texto entero queda en el title. */
@@ -235,8 +260,13 @@ th:nth-child(1),td:nth-child(1),th:nth-child(2),td:nth-child(2){
   position:sticky;background:var(--tinta);z-index:2}
 th:nth-child(1),td:nth-child(1){left:0;width:30px;min-width:30px;padding-left:.55rem;
   padding-right:0}
-th:nth-child(2),td:nth-child(2){left:30px;box-shadow:1px 0 0 var(--borde)}
+th:nth-child(2),td:nth-child(2){left:30px}
 thead th:nth-child(1),thead th:nth-child(2){z-index:4;background:var(--panel)}
+/* Una sombra bajo el encabezado y a la derecha de las columnas fijas: sin eso
+   no se nota que estan flotando por encima del resto. */
+thead th{box-shadow:0 1px 0 var(--borde2)}
+th:nth-child(2),td:nth-child(2){box-shadow:6px 0 8px -6px rgba(0,0,0,.55),
+  1px 0 0 var(--borde)}
 tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2){background:var(--panel2)}
 tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2){background:var(--panel3)}
 .up{color:var(--alcista)}.dn{color:var(--bajista)}.gris{color:var(--apagado)}
@@ -640,6 +670,22 @@ body.cajon #velo{display:block}
       día se le pide a Yahoo acá arriba. Si Yahoo no contesta, arrancá con
       <code>python servidor.py</code>: baja los precios por fuera del navegador
       y no depende de que Yahoo permita CORS.</p>
+    <div class="subt">Cómo se ve</div>
+    <label>Tamaño de letra</label>
+    <div class="chips" id="chipsLetra">
+      <span class="chip" data-escala="0.88">Chica</span>
+      <span class="chip on" data-escala="1">Normal</span>
+      <span class="chip" data-escala="1.12">Grande</span>
+      <span class="chip" data-escala="1.26">Muy grande</span>
+    </div>
+    <label>Alto de las filas</label>
+    <div class="chips" id="chipsAire">
+      <span class="chip" data-aire="0.8">Apretado</span>
+      <span class="chip on" data-aire="1">Normal</span>
+      <span class="chip" data-aire="1.35">Cómodo</span>
+    </div>
+
+    <div class="subt">Datos</div>
     <button id="btnCsv">Bajar la tabla en CSV</button>
     <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
       <code>[</code> oculta el panel · <code>G</code> oculta el gráfico<br>
@@ -689,6 +735,9 @@ body.cajon #velo{display:block}
       <span class="chip" id="colEsencial">Las de siempre</span>
       <span class="chip" id="colTodo">Todas</span>
     </div>
+    <div class="dgrupo">Orden · arrastrá o usá las flechas</div>
+    <div id="ordenCols"></div>
+    <div class="dgrupo" style="margin-top:1rem">Qué columnas mostrar</div>
     <div id="chipsCols"></div>
     <p class="nota">La selección se guarda sola y viaja dentro de los filtros
       guardados.<br><b style="color:var(--tenue)">RS industria</b>: dónde está su
@@ -1539,10 +1588,57 @@ function aplicar(ms){
 }
 
 /* ---------- tabla ---------- */
+/* El orden que eligio el usuario. Guarda solo las claves; lo que no este en la
+   lista se agrega al final en el orden de COLS, asi una columna nueva aparece
+   igual sin tener que tocar nada.
+
+   La estrella y el ticker NO se mueven: son las dos que quedan fijas al
+   desplazar a lo ancho, y el CSS las ancla por posicion (nth-child 1 y 2). Si
+   se pudieran correr, la tabla se rompe. */
+let ordenCols=[];
+
+function clavesOrdenadas(){
+  const fijas=COLS.filter(c=>c.nosel).map(c=>c.k);
+  const movibles=COLS.filter(c=>!c.nosel).map(c=>c.k);
+  const vistas=new Set(fijas);
+  const out=[];
+  for(const k of ordenCols)
+    if(movibles.includes(k)&&!vistas.has(k)){out.push(k);vistas.add(k);}
+  for(const k of movibles)if(!vistas.has(k))out.push(k);
+  return fijas.concat(out);
+}
+
+/* Mueve una columna un lugar. Se mueve dentro de las ENCENDIDAS: si al bajar
+   saltara por encima de las apagadas, la flecha parecería no hacer nada. */
+function moverColumna(k,paso){
+  const todas=clavesOrdenadas().filter(x=>{
+    const c=COLS.find(y=>y.k===x);return c&&!c.nosel;});
+  const encendidas=todas.filter(x=>colsOn.has(x));
+  const i=encendidas.indexOf(k), j=i+paso;
+  if(i<0||j<0||j>=encendidas.length)return false;
+  const destino=todas.indexOf(encendidas[j]);
+  const origen=todas.indexOf(k);
+  todas.splice(destino,0,todas.splice(origen,1)[0]);
+  ordenCols=todas;
+  return true;
+}
+
+function reordenar(k,antesDe){
+  const todas=clavesOrdenadas().filter(x=>{
+    const c=COLS.find(y=>y.k===x);return c&&!c.nosel;});
+  const i=todas.indexOf(k), j=todas.indexOf(antesDe);
+  if(i<0||j<0||i===j)return false;
+  todas.splice(j,0,todas.splice(i,1)[0]);
+  ordenCols=todas;
+  return true;
+}
+
 function columnas(){
   const emaCols=config().emas.map(e=>({k:'vs_ema'+e,t:'vs EMA'+e,fmt:pct,color:1}));
+  const porK=new Map(COLS.map(c=>[c.k,c]));
   const out=[];
-  for(const c of COLS){
+  for(const k of clavesOrdenadas()){
+    const c=porK.get(k);if(!c)continue;
     if(c.k==='__emas'){if(colsOn.has('__emas'))out.push(...emaCols);continue;}
     if(c.nosel||colsOn.has(c.k))out.push(c);
   }
@@ -1566,6 +1662,7 @@ const GRUPOS_COL=[
 
 function montarColumnas(){
   const titulo={};COLS.forEach(c=>titulo[c.k]=c.t);
+  montarOrden(titulo);
   const usados=new Set();
   let html='';
   for(const [nombre,claves] of GRUPOS_COL){
@@ -1579,10 +1676,33 @@ function montarColumnas(){
   const cont=$('#chipsCols');
   cont.innerHTML=html;
   cont.onclick=e=>{const c=e.target.closest('.chip');if(!c)return;
-    c.classList.toggle('on');
-    c.classList.contains('on')?colsOn.add(c.dataset.v):colsOn.delete(c.dataset.v);
-    render();guardarSesion();};
+    const k=c.dataset.v, prender=!c.classList.contains('on');
+    prender?colsOn.add(k):colsOn.delete(k);
+    // hay que rearmar TODO el desplegable, no solo la tabla: si no, la columna
+    // apagada seguia figurando en la lista de orden de arriba
+    montarColumnas();render();guardarSesion();};
   $('#cuentaCols').textContent=colsOn.size;
+}
+
+/* La lista de arriba del desplegable: las columnas encendidas, en el orden en
+   que salen, con flechas para moverlas y arrastre para el que prefiera eso.
+   Las flechas no son un adorno: el arrastre no anda con el dedo en el telefono
+   ni con el teclado. */
+function montarOrden(titulo){
+  const cont=$('#ordenCols');if(!cont)return;
+  const lista=clavesOrdenadas().filter(k=>{
+    const c=COLS.find(x=>x.k===k);
+    return c&&!c.nosel&&colsOn.has(k);});
+  if(!lista.length){cont.innerHTML='<p class="nota">No hay ninguna columna '+
+    'encendida además de ★ y Ticker.</p>';return;}
+  cont.innerHTML=lista.map((k,i)=>
+    `<div class="fila-ord" draggable="true" data-k="${esc(k)}">`+
+      `<span class="asa" aria-hidden="true">⠿</span>`+
+      `<span class="ord-n">${i+1}</span>`+
+      `<span class="ord-t">${esc(titulo[k]||k)}</span>`+
+      `<button class="ord-b" data-mover="-1" title="Subir"${i===0?' disabled':''}>↑</button>`+
+      `<button class="ord-b" data-mover="1" title="Bajar"${i===lista.length-1?' disabled':''}>↓</button>`+
+    `</div>`).join('');
 }
 
 function montarIndustrias(){
@@ -1645,7 +1765,10 @@ function verPanelCols(abrir){
 }
 
 function ponerColumnas(lista){
-  colsOn=new Set(lista);montarColumnas();render();guardarSesion();
+  // volver al set por defecto tambien devuelve el orden por defecto: si no,
+  // "las de siempre" dejaba las de siempre pero desordenadas
+  colsOn=new Set(lista);ordenCols=[];
+  montarColumnas();render();guardarSesion();
 }
 
 function render(){
@@ -2143,7 +2266,7 @@ function estadoActual(){const o={};
     o[el.id]=el.type==='checkbox'?el.checked:el.value;});
   o._emas=emasOn.slice();o._grupos=[...gruposOn];
   o._orden={...orden};o._cols=[...colsOn];o._fav=soloFav;o._sel=seleccion;
-  o._colsVistas=COLS.map(c=>c.k);
+  o._colsVistas=COLS.map(c=>c.k);o._ordenCols=ordenCols.slice();
   /* Estos tres se olvidaban al recargar y era lo que mas molestaba: volvias y
      la busqueda, la industria elegida y el perfil del desplegable estaban en
      blanco aunque los filtros si volvieran. */
@@ -2157,6 +2280,7 @@ function aplicarEstado(o){
   if(o._grupos)gruposOn=new Set(o._grupos);
   if(o._orden&&o._orden.col)orden={...o._orden};
   if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
+    if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
   if(o._indCampo)campoGrupo=o._indCampo;
@@ -2188,6 +2312,7 @@ function restaurarSesion(){
     if(o._grupos)gruposOn=new Set(o._grupos);
     if(o._orden&&o._orden.col)orden={...o._orden};
     if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
+    if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
     if(o._indCampo)campoGrupo=o._indCampo;
@@ -2282,6 +2407,23 @@ function marcarAtajoColumnas(){
   $('#colEsencial').classList.toggle('on',
     colsOn.size===COLS_DEF.length&&COLS_DEF.every(k=>colsOn.has(k)));
   $('#cuentaCols').textContent=colsOn.size;}
+
+/* Las dos perillas de lectura. No son un capricho: la misma tabla se mira en un
+   monitor de 27" y en un portatil de 13", y el que la usa no tiene veinte años. */
+function ponerVista(escala,aire){
+  if(escala){vistaEscala=escala;
+    document.documentElement.style.setProperty('--escala',escala);
+    escribirLS('screener_ash_escala',String(escala));}
+  if(aire){vistaAire=aire;
+    document.documentElement.style.setProperty('--aire',aire);
+    escribirLS('screener_ash_aire',String(aire));}
+  $$('#chipsLetra .chip').forEach(c=>
+    c.classList.toggle('on',+c.dataset.escala===+vistaEscala));
+  $$('#chipsAire .chip').forEach(c=>
+    c.classList.toggle('on',+c.dataset.aire===+vistaAire));
+  if(seleccion)setTimeout(dibujar,50);
+}
+let vistaEscala=1, vistaAire=1;
 
 function verGrafico(mostrar){
   document.body.classList.toggle('sin-grafico',!mostrar);
@@ -2827,6 +2969,31 @@ function iniciar(){
   $$('.tf .chip[data-tf]').forEach(c=>c.onclick=()=>{
     $$('.tf .chip[data-tf]').forEach(x=>x.classList.remove('on'));
     c.classList.add('on');tfDetalle=c.dataset.tf;dibujar();});
+  $('#ordenCols').onclick=e=>{
+    const b=e.target.closest('.ord-b');if(!b)return;
+    const fila=b.closest('.fila-ord');
+    if(moverColumna(fila.dataset.k,+b.dataset.mover)){
+      montarColumnas();render();guardarSesion();}};
+  let arrastrada=null;
+  $('#ordenCols').addEventListener('dragstart',e=>{
+    const f=e.target.closest('.fila-ord');if(!f)return;
+    arrastrada=f.dataset.k;f.classList.add('arrastrando');
+    if(e.dataTransfer){e.dataTransfer.effectAllowed='move';
+      try{e.dataTransfer.setData('text/plain',arrastrada);}catch(_){}}});
+  $('#ordenCols').addEventListener('dragover',e=>{
+    e.preventDefault();
+    const f=e.target.closest('.fila-ord');if(!f||f.dataset.k===arrastrada)return;
+    $$('#ordenCols .fila-ord').forEach(x=>x.classList.remove('encima'));
+    f.classList.add('encima');});
+  $('#ordenCols').addEventListener('drop',e=>{
+    e.preventDefault();
+    const f=e.target.closest('.fila-ord');
+    if(f&&arrastrada&&f.dataset.k!==arrastrada&&reordenar(arrastrada,f.dataset.k)){
+      montarColumnas();render();guardarSesion();}
+    arrastrada=null;});
+  $('#ordenCols').addEventListener('dragend',()=>{
+    arrastrada=null;
+    $$('#ordenCols .fila-ord').forEach(x=>x.classList.remove('arrastrando','encima'));});
   $('#colEsencial').onclick=()=>ponerColumnas(COLS_DEF);
   $('#colTodo').onclick=()=>ponerColumnas(COLS.filter(c=>!c.nosel).map(c=>c.k));
   $('#btnCols').onclick=e=>{e.stopPropagation();verPanelInd(false);
@@ -2847,12 +3014,23 @@ function iniciar(){
     const todos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))];
     gruposOn=gruposOn.size?new Set():new Set(todos);montarChips();aplicar();};
   $('#btnReset').onclick=limpiarFiltros;
+  $('#chipsLetra').onclick=e=>{const c=e.target.closest('.chip');
+    if(c)ponerVista(+c.dataset.escala,0);};
+  $('#chipsAire').onclick=e=>{const c=e.target.closest('.chip');
+    if(c)ponerVista(0,+c.dataset.aire);};
   $('#btnCsv').onclick=()=>{
     if(!visibles.length)return;
-    const cols=Object.keys(visibles[0]).filter(k=>!k.startsWith('serie_'));
-    const csv=[cols.join(',')].concat(visibles.map(f=>cols.map(k=>{
-      const v=f[k];return typeof v==='number'?(isFinite(v)?v:''):`"${v==null?'':v}"`;
-    }).join(','))).join('\n');
+    /* Lo que se baja es LO QUE SE VE, en el orden en que se ve. Antes salian
+       las 60 claves internas en orden alfabetico y despues habia que reordenar
+       el archivo a mano. */
+    const usar=columnas().filter(c=>c.k!=='fav'&&!String(c.k).startsWith('serie_'));
+    const celda=v=>{
+      if(v==null)return '';
+      if(typeof v==='number')return isFinite(v)?v:'';
+      if(typeof v==='boolean')return v?'SI':'NO';
+      return '"'+String(v).replace(/"/g,'""')+'"';};
+    const csv=[usar.map(c=>c.t).join(',')].concat(
+      visibles.map(f=>usar.map(c=>celda(f[c.k])).join(','))).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     a.download='screener.csv';a.click();};
@@ -2936,6 +3114,7 @@ function iniciar(){
     if(vista._grupos)gruposOn=new Set(vista._grupos);
     if(vista._orden&&vista._orden.col)orden={...vista._orden};
     if(vista._cols&&vista._cols.length)colsOn=fusionarColumnas(vista._cols,vista._colsVistas);
+    if(Array.isArray(vista._ordenCols))ordenCols=vista._ordenCols.slice();
     if(typeof vista._fav==='boolean')soloFav=vista._fav;
     if(typeof vista._buscar==='string')$('#buscar').value=vista._buscar;
     if(vista._indCampo)campoGrupo=vista._indCampo;
@@ -2950,6 +3129,7 @@ function iniciar(){
   // el desplegable tiene que mostrar el perfil con el que estabas, no "— sin filtros —"
   if(perfilPendiente){$('#selRapido').value=perfilPendiente;
     $('#selPerfil').value=perfilPendiente;}
+  ponerVista(+leerLS('screener_ash_escala')||1,+leerLS('screener_ash_aire')||1);
   etiquetaGrupo();
   avisarAlmacen();engancharGuardadoFinal();
   montarChips();etiquetas();recalcular();

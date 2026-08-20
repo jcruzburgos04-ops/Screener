@@ -60,6 +60,8 @@ echo; echo "== pantalla angosta y pastilla de frescura =="
 node movil.js
 echo; echo "== vista panorama (indices y sectores) =="
 node panorama.js
+echo; echo "== orden de columnas, letra y densidad =="
+node columnas.js
 echo; echo "== Python: pre-market y after-hours =="
 python3 extendido.py
 echo; echo "== Python: actualizacion rapida (intradia) =="
