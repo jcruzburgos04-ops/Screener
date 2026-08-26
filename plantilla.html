@@ -34,6 +34,20 @@
   /* Dos perillas que multiplican todo: el tamaño de letra de la tabla y el
      aire entre filas. Se manejan desde el panel. */
   --escala:1; --aire:1;
+  /* ESCALA TIPOGRAFICA. Antes habia .6, .63, .66, .68, .69, .7, .71, .73, .78...
+     casi todas a un pelo de la de al lado, que es lo que hace que una interfaz
+     se vea hecha a mano. Seis pasos y nada mas: cada uno se distingue del
+     anterior, asi que la jerarquia se lee sin pensarla. */
+  --t0:.62rem;   /* etiquetas de encabezado, unidades */
+  --t1:.68rem;   /* chips, botones, notas */
+  --t2:.73rem;   /* texto de la interfaz */
+  --t3:.78rem;   /* los numeros de la tabla: es lo que mas se mira */
+  --t4:.86rem;   /* titulos de seccion */
+  --t5:1rem;     /* KPIs */
+  /* ESPACIADO. Mismo problema: multiplos de 4 px y se termina la discusion. */
+  --e1:.25rem; --e2:.5rem; --e3:.75rem; --e4:1rem; --e5:1.5rem;
+  /* Un solo radio, y uno mas grande para lo que flota. */
+  --r2:8px;
   --panel-ancho:282px; --barra-sc:14px; --panel-w:var(--panel-ancho); --r:3px;
   --sombra:0 10px 34px rgba(0,0,0,.5);
 }
@@ -61,10 +75,10 @@ body.compacto aside{border-right:none}
 aside .interior{width:calc(var(--panel-ancho) - var(--barra-sc))}
 .cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.75rem .85rem .7rem;
   border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--panel);z-index:6}
-.cabecera-panel h1{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;
+.cabecera-panel h1{font-family:var(--mono);font-size:var(--t1);letter-spacing:.2em;
   font-weight:600;text-transform:uppercase;margin:0;flex:1;color:var(--hueso)}
 details{border-bottom:1px solid var(--borde)}
-summary{font-family:var(--mono);font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;
+summary{font-family:var(--mono);font-size:var(--t1);letter-spacing:.13em;text-transform:uppercase;
   color:var(--tenue);padding:.52rem .85rem;cursor:pointer;user-select:none;list-style:none;
   display:flex;align-items:center;transition:color .12s,background .12s}
 summary:hover{color:var(--hueso);background:rgba(255,255,255,.02)}
@@ -73,22 +87,22 @@ summary::before{content:'+';margin-right:.55rem;color:var(--ambar);width:.6em;
   font-weight:600}
 details[open]>summary::before{content:'−'}
 details[open]>summary{color:var(--hueso)}
-summary .cuenta{margin-left:auto;color:var(--ambar);font-size:.65rem;letter-spacing:.05em;
+summary .cuenta{margin-left:auto;color:var(--ambar);font-size:var(--t1);letter-spacing:.05em;
   background:var(--ambar-t);border-radius:999px;padding:.05rem .42rem;min-width:1.3em;
   text-align:center}
 summary .cuenta:empty{display:none}
 .cuerpo{padding:.1rem .85rem 1rem}
-label{display:flex;font-size:.7rem;color:var(--tenue);margin:.6rem 0 .24rem;
+label{display:flex;font-size:var(--t1);color:var(--tenue);margin:.6rem 0 .24rem;
   justify-content:space-between;align-items:baseline;gap:.5rem}
 label b{color:var(--ambar);font-family:var(--mono);font-weight:500;
   font-variant-numeric:tabular-nums;background:var(--ambar-t);border-radius:999px;
-  padding:.02rem .38rem;font-size:.66rem;flex:none}
+  padding:.02rem .38rem;font-size:var(--t1);flex:none}
 /* "off" no es un valor: se apaga visualmente para que el ojo salte a los que si
    estan puestos. */
 label b.apagado{color:var(--apagado);background:transparent;padding:0}
 input,select{width:100%;background:var(--tinta);color:var(--hueso);
   border:1px solid var(--borde);border-radius:var(--r);padding:.42rem .5rem;
-  font-family:var(--mono);font-size:.78rem;font-variant-numeric:tabular-nums;
+  font-family:var(--mono);font-size:var(--t3);font-variant-numeric:tabular-nums;
   transition:border-color .12s,background .12s}
 input:hover,select:hover{border-color:var(--borde2)}
 input:focus,select:focus{outline:none;border-color:var(--ambar);background:#0A0E14}
@@ -115,28 +129,28 @@ input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;
   background:var(--ambar);border:2px solid var(--panel);box-shadow:0 0 0 1px var(--ambar)}
 .par{display:flex;gap:.5rem}.par>div{flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
-.chip{font-family:var(--mono);font-size:.68rem;padding:.26rem .5rem;border-radius:var(--r);
+.chip{font-family:var(--mono);font-size:var(--t1);padding:.26rem .5rem;border-radius:var(--r);
   border:1px solid var(--borde);color:var(--apagado);cursor:pointer;user-select:none;
   transition:border-color .12s,color .12s,background .12s;white-space:nowrap}
 .chip:hover{color:var(--hueso);border-color:var(--borde2)}
 .chip.on{border-color:var(--ambar);color:var(--ambar);background:var(--ambar-t)}
-.nota{color:var(--apagado);font-size:.71rem;line-height:1.6;margin:.7rem 0 0}
+.nota{color:var(--apagado);font-size:var(--t2);line-height:1.6;margin:.7rem 0 0}
 /* Subtitulos dentro de una seccion: 20 filtros seguidos son una lista infinita
    donde no se encuentra nada. Agrupados, se barren de un vistazo. */
-.subt{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;
+.subt{font-family:var(--mono);font-size:var(--t0);letter-spacing:.16em;
   text-transform:uppercase;color:var(--apagado);margin:1.1rem 0 .1rem;
   padding-top:.55rem;border-top:1px solid var(--borde);display:flex;
   align-items:center;gap:.4rem}
 .subt:first-child{margin-top:.3rem;padding-top:0;border-top:none}
 .nota code{color:var(--ambar);font-family:var(--mono);font-size:.95em}
-button{font-family:var(--mono);font-size:.69rem;letter-spacing:.07em;text-transform:uppercase;
+button{font-family:var(--mono);font-size:var(--t1);letter-spacing:.07em;text-transform:uppercase;
   background:var(--panel2);color:var(--hueso);border:1px solid var(--borde);
   border-radius:var(--r);padding:.48rem .7rem;cursor:pointer;width:100%;margin-top:.6rem;
   transition:border-color .12s,color .12s,background .12s}
 button:hover{border-color:var(--ambar);color:var(--ambar);background:var(--panel3)}
 button:active{transform:translateY(1px)}
 .icono{width:27px;height:27px;padding:0;margin:0;display:grid;place-items:center;
-  font-size:.9rem;letter-spacing:0;flex:none}
+  font-size:var(--t4);letter-spacing:0;flex:none}
 /* Tener la flecha de abrir y la de cerrar al mismo tiempo no tenia sentido:
    cada una aparece solo cuando hace algo. */
 body:not(.compacto) #btnAbrir{display:none}
@@ -146,9 +160,9 @@ body.cajon #btnAbrir{display:none}
 main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative}
 .marca{display:flex;align-items:center;gap:.7rem;padding:.7rem 1.1rem;
   border-bottom:1px solid var(--borde);background:var(--panel);flex:none}
-.marca .titulo{font-family:var(--mono);font-size:.73rem;letter-spacing:.19em;
+.marca .titulo{font-family:var(--mono);font-size:var(--t2);letter-spacing:.19em;
   text-transform:uppercase;font-weight:600;white-space:nowrap}
-.marca .firma{font-family:var(--mono);font-size:.71rem;color:var(--tenue);
+.marca .firma{font-family:var(--mono);font-size:var(--t2);color:var(--tenue);
   letter-spacing:.03em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
 .marca .firma em{color:var(--ambar);font-style:normal;letter-spacing:.04em}
@@ -161,7 +175,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
    en ambar: tienen que verse sin robarle atencion al numero. */
 .aprox{font-style:normal;color:var(--ambar);font-size:.68em;margin-left:.15em;
   vertical-align:super;cursor:help}
-.recargar{font-size:.9rem;line-height:1;padding:.2rem .34rem;border-radius:999px;
+.recargar{font-size:var(--t4);line-height:1;padding:.2rem .34rem;border-radius:999px;
   color:var(--tenue);flex:none}
 .recargar:hover{color:var(--ambar);border-color:transparent;background:var(--panel3)}
 .recargar[disabled]{opacity:.55;cursor:default}
@@ -169,7 +183,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 @keyframes giro{to{transform:rotate(360deg)}}
 .sep-v{display:inline-block;width:1px;height:9px;background:var(--borde2);
   margin:0 .55rem;vertical-align:baseline}
-.mini-pill{border-radius:999px;padding:.06rem .4rem;font-size:.66rem;
+.mini-pill{border-radius:999px;padding:.06rem .4rem;font-size:var(--t1);
   white-space:nowrap}
 .mini-pill.ambar{color:var(--ambar);background:var(--ambar-t)}
 .mini-pill.roja{color:var(--bajista);background:var(--bajista-t)}
@@ -179,7 +193,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
    cara que los chips de al lado: capsula, flecha propia y ancho fijo con
    puntos suspensivos. */
 .marca select{-webkit-appearance:none;appearance:none;width:190px;flex:none;
-  font-family:var(--mono);font-size:.7rem;padding:.34rem 1.5rem .34rem .7rem;
+  font-family:var(--mono);font-size:var(--t1);padding:.34rem 1.5rem .34rem .7rem;
   border-radius:999px;background:var(--panel);border:1px solid var(--borde);
   color:var(--tenue);text-overflow:ellipsis;
   background-image:linear-gradient(45deg,transparent 50%,var(--apagado) 50%),
@@ -195,7 +209,7 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 
 /* La frescura es el dato mas importante de la pagina: si esto no esta al dia,
    todo lo demas da igual. Por eso vive arriba de todo y cambia de color solo. */
-.pastilla{font-family:var(--mono);font-size:.67rem;letter-spacing:.05em;
+.pastilla{font-family:var(--mono);font-size:var(--t1);letter-spacing:.05em;
   padding:.24rem .55rem;border-radius:999px;white-space:nowrap;cursor:default;
   border:1px solid transparent;display:inline-flex;align-items:center;gap:.35rem}
 .pastilla::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;
@@ -209,11 +223,16 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .kpis::-webkit-scrollbar{display:none}
 .kpi{flex:1;background:var(--tinta);padding:.5rem .9rem;min-width:108px;
   display:flex;flex-direction:column;justify-content:center}
-.kpi span{display:block;font-size:.57rem;letter-spacing:.1em;text-transform:uppercase;
+.kpi span{display:block;font-size:var(--t0);letter-spacing:.1em;text-transform:uppercase;
   color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   margin-bottom:.12rem}
 .kpi b{font-family:var(--mono);font-size:calc(1.28rem * var(--escala));font-weight:500;
-  font-variant-numeric:tabular-nums;line-height:1.1}
+  font-variant-numeric:tabular-nums;line-height:1.1;
+  /* los digitos no tienen que "saltar" al recalcular: ancho fijo por caracter */
+  font-feature-settings:'tnum' 1,'zero' 1}
+#kpiReg.hay b{color:var(--alcista)}
+/* Una barra fina arriba del KPI que esta filtrando: el color solo no alcanza */
+#kpiAtraso.filtrando{box-shadow:inset 0 2px 0 var(--ambar)}
 #kpiAtraso{cursor:pointer;transition:background .12s}
 #kpiAtraso:hover{background:var(--panel2)}
 #kpiAtraso.hay b{color:var(--ambar)}
@@ -234,25 +253,25 @@ body.sin-grafico .detalle{display:none}
 .desplegable.abierto{display:block}
 .dcab{display:flex;align-items:center;gap:.4rem;padding-bottom:.6rem;
   border-bottom:1px solid var(--borde);margin-bottom:.6rem;flex-wrap:wrap}
-.dcab b{flex:1;font-family:var(--mono);font-size:.69rem;letter-spacing:.13em;
+.dcab b{flex:1;font-family:var(--mono);font-size:var(--t1);letter-spacing:.13em;
   text-transform:uppercase;color:var(--tenue);font-weight:500}
-.dgrupo{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;
+.dgrupo{font-family:var(--mono);font-size:var(--t0);letter-spacing:.12em;
   text-transform:uppercase;color:var(--apagado);margin:.8rem 0 .35rem}
 #btnCols b{color:var(--ambar);font-weight:600}
 #ordenCols{display:flex;flex-direction:column;gap:2px;max-height:216px;overflow:auto}
 .fila-ord{display:flex;align-items:center;gap:.45rem;background:var(--panel2);
   border:1px solid transparent;border-radius:4px;padding:.24rem .3rem;cursor:grab;
-  font-family:var(--mono);font-size:.72rem}
+  font-family:var(--mono);font-size:var(--t2)}
 .fila-ord:hover{border-color:var(--borde2)}
 .fila-ord.arrastrando{opacity:.4}
 .fila-ord.encima{border-color:var(--ambar);background:var(--ambar-t)}
 .fila-ord .asa{color:var(--apagado);letter-spacing:-2px}
-.fila-ord .ord-n{color:var(--apagado);font-size:.63rem;min-width:1.5em;text-align:right}
+.fila-ord .ord-n{color:var(--apagado);font-size:var(--t0);min-width:1.5em;text-align:right}
 .fila-ord .ord-t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ord-b{width:23px;height:21px;padding:0;margin:0;flex:none;font-size:.7rem;
+.ord-b{width:23px;height:21px;padding:0;margin:0;flex:none;font-size:var(--t1);
   background:var(--tinta);border-radius:3px;line-height:1}
 .ord-b:disabled{opacity:.22;cursor:default;border-color:var(--borde);color:var(--tenue)}
-.tind{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.74rem;
+.tind{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:var(--t2);
   font-variant-numeric:tabular-nums}
 .tind td{padding:.32rem .35rem;border-bottom:1px solid rgba(38,48,62,.6);cursor:pointer}
 .tind tr:hover td{background:var(--panel2)}
@@ -262,27 +281,30 @@ body.sin-grafico .detalle{display:none}
   vertical-align:middle;border-radius:2px;position:relative;overflow:hidden}
 .tind .verde i{position:absolute;left:0;top:0;height:100%;background:var(--alcista)}
 
-.estrella{cursor:pointer;color:#39434F;font-size:.95rem;line-height:1;user-select:none;
+.estrella{cursor:pointer;color:#39434F;font-size:var(--t4);line-height:1;user-select:none;
   transition:color .12s}
 .estrella:hover{color:var(--tenue)}
 .estrella.on{color:var(--ambar)}
-.enlace{color:var(--tenue);text-decoration:none;font-family:var(--mono);font-size:.71rem;
+.enlace{color:var(--tenue);text-decoration:none;font-family:var(--mono);font-size:var(--t2);
   border:1px solid var(--borde);border-radius:var(--r);padding:.26rem .5rem;white-space:nowrap}
 .enlace:hover{border-color:var(--ambar);color:var(--ambar)}
-.mini{font-family:var(--mono);font-size:.67rem;letter-spacing:.06em;text-transform:uppercase;
+.mini{font-family:var(--mono);font-size:var(--t1);letter-spacing:.06em;text-transform:uppercase;
   background:none;border:1px solid var(--borde);color:var(--tenue);border-radius:var(--r);
   padding:.3rem .55rem;width:auto;margin:0;cursor:pointer;white-space:nowrap}
 .mini:hover{border-color:var(--ambar);color:var(--ambar);background:var(--panel2)}
 
 /* ----------------------------------- tabla -------------------------------- */
 table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mono);
-  font-size:calc(.775rem * var(--escala));font-variant-numeric:tabular-nums;
+  font-size:calc(var(--t3) * var(--escala));font-variant-numeric:tabular-nums;
   font-feature-settings:'tnum' 1,'zero' 1;letter-spacing:0}
 thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-weight:500;
-  font-size:calc(.6rem * var(--escala));letter-spacing:.07em;text-transform:uppercase;
-  text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--borde2);
+  font-size:calc(var(--t0) * var(--escala));letter-spacing:.08em;text-transform:uppercase;
+  text-align:right;padding:.5rem .5rem .45rem;border-bottom:1px solid var(--borde2);
   cursor:pointer;
   white-space:nowrap;z-index:3;user-select:none;transition:color .12s}
+/* La columna por la que se esta ordenando: ademas del color, una barra arriba.
+   El color solo no alcanza -- y no tiene que alcanzar. */
+thead th.act{box-shadow:inset 0 2px 0 var(--ambar),0 1px 0 var(--borde2)}
 thead th:hover{color:var(--hueso);background:var(--panel2)}
 thead th:not(.fijo){cursor:grab}
 thead th.arrastrando{opacity:.45}
@@ -293,15 +315,21 @@ thead th.destino{box-shadow:inset 3px 0 0 var(--ambar),0 1px 0 var(--borde2);
 thead th.izq{text-align:left}
 thead th.act{color:var(--ambar)}
 tbody td{padding:calc(.28rem * var(--aire)) .5rem;text-align:right;
-  border-bottom:1px solid rgba(37,48,62,.5);white-space:nowrap;
-  line-height:calc(1.35 * var(--aire))}
+  white-space:nowrap;line-height:calc(1.35 * var(--aire))}
+/* RAYADO EN VEZ DE UNA LINEA POR FILA.
+   Con 465 filas y veinte columnas, una linea bajo cada fila son 465 lineas
+   horizontales compitiendo con los numeros. El rayado alterno hace el mismo
+   trabajo —no perder el renglon al recorrer a lo ancho— sin dibujar nada. */
+tbody tr:nth-child(even) td{background:rgba(255,255,255,.017)}
+/* Una linea cada cinco filas: el ojo se agarra de ahi para contar sin marear. */
+tbody tr:nth-child(5n) td{box-shadow:inset 0 -1px 0 rgba(37,48,62,.55)}
 tbody td.izq{text-align:left}
 /* Sector, industria y nombre son largos y estiraban la tabla a lo ancho: se
    cortan con puntos suspensivos y el texto entero queda en el title. */
 td.corto{max-width:140px;overflow:hidden;text-overflow:ellipsis}
 tbody tr{cursor:pointer}
-tbody tr:hover td{background:var(--panel2)}
-tbody tr.sel td{background:var(--panel3)}
+tbody tr:hover td,tbody tr:nth-child(even):hover td{background:var(--panel2)}
+tbody tr.sel td,tbody tr.sel:nth-child(even) td{background:var(--panel3)}
 tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
 /* Se fijan DOS columnas, no una: con solo la estrella fija, al desplazar a la
    derecha se perdia de vista el ticker y no se sabia de que fila era cada
@@ -317,13 +345,21 @@ thead th:nth-child(1),thead th:nth-child(2){z-index:4;background:var(--panel)}
 thead th{box-shadow:0 1px 0 var(--borde2)}
 th:nth-child(2),td:nth-child(2){box-shadow:6px 0 8px -6px rgba(0,0,0,.55),
   1px 0 0 var(--borde)}
-tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2){background:var(--panel2)}
-tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2){background:var(--panel3)}
+/* Las dos fijas van sobre el fondo, no transparentes, o al desplazar se ve el
+   contenido pasando por debajo. Por eso repiten el rayado y los estados. */
+tbody tr:nth-child(even) td:nth-child(1),
+tbody tr:nth-child(even) td:nth-child(2){background:#10151D}
+tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2),
+tbody tr:nth-child(even):hover td:nth-child(1),
+tbody tr:nth-child(even):hover td:nth-child(2){background:var(--panel2)}
+tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2),
+tbody tr.sel:nth-child(even) td:nth-child(1),
+tbody tr.sel:nth-child(even) td:nth-child(2){background:var(--panel3)}
 .up{color:var(--alcista)}.dn{color:var(--bajista)}.gris{color:var(--apagado)}
 .amb{color:var(--ambar)}
 .fig{color:var(--azul)}
 .tk{font-weight:600;letter-spacing:.02em}
-.mon{font-size:.63rem;color:var(--apagado);letter-spacing:.06em}
+.mon{font-size:var(--t0);color:var(--apagado);letter-spacing:.06em}
 /* Un precio atrasado no es un error de calculo: es un dato que Yahoo no
    actualizo. Se marca sin gritar, pero se marca. */
 .atraso{color:var(--ambar);margin-left:.35rem;cursor:help}
@@ -333,39 +369,43 @@ tbody tr.sel td:nth-child(1),tbody tr.sel td:nth-child(2){background:var(--panel
 .fuerza i{position:absolute;top:0;height:100%}
 .fuerza::after{content:'';position:absolute;left:27px;top:0;width:1px;height:100%;
   background:#3A4756}
-.vacio{padding:3.5rem 1.1rem;color:var(--tenue);text-align:center;line-height:1.8}
+.vacio{padding:3rem 1.1rem;color:var(--tenue);text-align:center;line-height:1.7}
 .vacio b{color:var(--ambar)}
+.v-tit{margin:0 0 var(--e3);color:var(--hueso);font-size:var(--t4)}
+.v-lista{list-style:none;margin:0 auto var(--e4);padding:0;display:inline-block;
+  text-align:left;font-family:var(--mono);font-size:var(--t1);line-height:1.9}
+.v-lista li::before{content:'·';color:var(--apagado);margin-right:.5rem}
 
 /* --------------------------------- detalle -------------------------------- */
 .detalle{border-top:1px solid var(--borde2);background:var(--panel);flex:none;position:relative}
 .detalle .cab{display:flex;align-items:center;gap:.8rem;padding:.5rem 1.1rem;flex-wrap:wrap}
-.detalle h2{font-family:var(--mono);font-size:.9rem;margin:0;letter-spacing:.04em;
+.detalle h2{font-family:var(--mono);font-size:var(--t4);margin:0;letter-spacing:.04em;
   white-space:nowrap}
-.detalle .meta{color:var(--tenue);font-size:.72rem;flex:1;overflow:hidden;
+.detalle .meta{color:var(--tenue);font-size:var(--t2);flex:1;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .tf{display:flex;gap:.3rem;flex:none}
 canvas{display:block;width:100%;cursor:crosshair}
 #globo{position:absolute;pointer-events:none;background:#080C11;
   border:1px solid var(--borde2);border-radius:4px;padding:.45rem .6rem;
-  font-family:var(--mono);font-size:.7rem;line-height:1.6;white-space:pre;opacity:0;
+  font-family:var(--mono);font-size:var(--t1);line-height:1.6;white-space:pre;opacity:0;
   transition:opacity .1s;z-index:9;box-shadow:var(--sombra);font-variant-numeric:tabular-nums}
 
 /* ------------------------------- avisos ----------------------------------- */
 #avisoCarga{display:none;background:linear-gradient(180deg,#182430,#141D27);
   border-bottom:1px solid var(--borde2);color:var(--hueso);font-family:var(--mono);
-  font-size:.75rem;padding:.5rem 1.1rem;flex:none}
+  font-size:var(--t2);padding:.5rem 1.1rem;flex:none}
 #avisoCarga .barra-prog{height:3px;background:#26303E;border-radius:2px;margin-top:.45rem;
   overflow:hidden}
 #avisoCarga .barra-prog i{display:block;height:100%;background:var(--ambar);width:0;
   transition:width .3s}
-.check{display:flex;align-items:center;gap:.45rem;color:var(--tenue);font-size:.71rem;
+.check{display:flex;align-items:center;gap:.45rem;color:var(--tenue);font-size:var(--t2);
   margin:.6rem 0 0;cursor:pointer;justify-content:flex-start}
 .check input{width:auto;margin:0;accent-color:var(--ambar);flex:none}
 /* El aviso solo aparece cuando de verdad importa: que los datos esten viejos.
    Que el navegador no pueda hablar con Yahoo es normal y no merece una banda
    roja, porque el sitio se actualiza solo cada media hora. */
 #avisoYahoo{display:none;background:#331613;border-bottom:1px solid var(--bajista);
-  color:#F2CDC7;font-family:var(--mono);font-size:.75rem;padding:.55rem 1.1rem;
+  color:#F2CDC7;font-family:var(--mono);font-size:var(--t2);padding:.55rem 1.1rem;
   letter-spacing:.02em;line-height:1.65;flex:none}
 #avisoYahoo b{color:var(--bajista);letter-spacing:.11em}
 #avisoYahoo code{color:var(--ambar)}
@@ -388,12 +428,12 @@ body.panorama .kpis{display:none}
 /* El encabezado grande. En la tabla la jerarquia la hacen las columnas; acá no
    hay columnas, asi que la hace la tipografia. */
 .pan-hero{padding:1.6rem 1.6rem .2rem}
-.pan-overline{font-family:var(--mono);font-size:.6rem;letter-spacing:.28em;
+.pan-overline{font-family:var(--mono);font-size:var(--t0);letter-spacing:.28em;
   text-transform:uppercase;color:var(--apagado)}
 .pan-titulo{font-size:2.3rem;font-weight:700;letter-spacing:-.02em;margin:.15rem 0 .2rem;
   line-height:1;background:linear-gradient(180deg,var(--hueso),#A9B4C2);
   -webkit-background-clip:text;background-clip:text;color:transparent}
-.pan-sub{margin:0;color:var(--tenue);font-size:.8rem}
+.pan-sub{margin:0;color:var(--tenue);font-size:var(--t3)}
 
 .pan-cab{display:flex;align-items:center;gap:.7rem;padding:1rem 1.6rem .2rem;
   flex-wrap:wrap}
@@ -402,7 +442,7 @@ body.panorama .kpis{display:none}
 .grupo-chips{background:var(--panel);border:1px solid var(--borde);border-radius:999px;
   padding:3px;gap:2px}
 .grupo-chips .chip{border:1px solid transparent;border-radius:999px;padding:.32rem .72rem;
-  font-size:.7rem;letter-spacing:.02em}
+  font-size:var(--t1);letter-spacing:.02em}
 .grupo-chips .chip:hover{background:var(--panel2);border-color:transparent;color:var(--hueso)}
 .grupo-chips .chip.on{background:var(--panel3);border-color:var(--borde2);
   color:var(--hueso);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
@@ -424,19 +464,19 @@ body.panorama .kpis{display:none}
 
 .mercados{display:flex;gap:.4rem;flex-wrap:wrap}
 .mercado{display:inline-flex;align-items:center;gap:.4rem;font-family:var(--mono);
-  font-size:.68rem;color:var(--tenue);background:var(--panel);border:1px solid var(--borde);
+  font-size:var(--t1);color:var(--tenue);background:var(--panel);border:1px solid var(--borde);
   border-radius:999px;padding:.3rem .68rem;white-space:nowrap}
 .mercado i{width:7px;height:7px;border-radius:50%;background:var(--apagado);
   flex:none;font-style:normal}
 .mercado b{font-weight:500;color:var(--hueso)}
-.mercado span{font-size:.63rem;text-transform:uppercase;letter-spacing:.08em}
+.mercado span{font-size:var(--t0);text-transform:uppercase;letter-spacing:.08em}
 .mercado.abierto i{background:var(--alcista);box-shadow:0 0 0 3px rgba(79,178,134,.18)}
 .mercado.abierto span{color:var(--alcista)}
 .mercado.pre i{background:var(--azul);box-shadow:0 0 0 3px rgba(91,155,213,.18)}
 .mercado.pre span{color:var(--azul)}
 .mercado.post i{background:var(--ambar);box-shadow:0 0 0 3px rgba(224,164,88,.18)}
 .mercado.post span{color:var(--ambar)}
-.envivo{font-family:var(--mono);font-size:.67rem;color:var(--tenue);white-space:nowrap;
+.envivo{font-family:var(--mono);font-size:var(--t1);color:var(--tenue);white-space:nowrap;
   display:inline-flex;align-items:center;gap:.4rem}
 .envivo::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--alcista);
   box-shadow:0 0 0 3px rgba(79,178,134,.18)}
@@ -444,11 +484,11 @@ body.panorama .kpis{display:none}
 .pan-buscar{display:flex;align-items:center;gap:.7rem;padding:.9rem 1.6rem .2rem;
   flex-wrap:wrap}
 .pan-buscar input[type=search]{flex:1;min-width:200px;border-radius:999px;
-  padding:.6rem 1rem;font-size:.8rem;background:var(--panel);font-family:var(--sans)}
+  padding:.6rem 1rem;font-size:var(--t3);background:var(--panel);font-family:var(--sans)}
 .pan-buscar input[type=search]:focus{background:var(--panel)}
 
 .amplitud{padding:1rem 1.6rem .2rem}
-.amp-txt{font-family:var(--mono);font-size:.71rem;color:var(--tenue);
+.amp-txt{font-family:var(--mono);font-size:var(--t2);color:var(--tenue);
   margin-bottom:.45rem;letter-spacing:.02em}
 .amp-txt b{color:var(--hueso);font-weight:500}
 .amp-barra{height:5px;border-radius:3px;overflow:hidden;display:flex;background:var(--panel2)}
@@ -466,28 +506,28 @@ body.panorama .kpis{display:none}
   box-shadow:0 8px 22px rgba(0,0,0,.35)}
 .tarjeta.sel{border-color:var(--ambar);box-shadow:0 0 0 1px rgba(224,164,88,.25)}
 .tj-cab{display:flex;align-items:baseline;gap:.45rem}
-.tj-tk{font-family:var(--mono);font-weight:600;font-size:.95rem;letter-spacing:.01em}
-.tj-px{margin-left:auto;font-family:var(--mono);font-size:.92rem;font-weight:500;
+.tj-tk{font-family:var(--mono);font-weight:600;font-size:var(--t4);letter-spacing:.01em}
+.tj-px{margin-left:auto;font-family:var(--mono);font-size:var(--t4);font-weight:500;
   font-variant-numeric:tabular-nums}
 .tj-sub{display:flex;align-items:baseline;gap:.45rem;margin-top:.15rem}
-.tj-n{font-size:.68rem;color:var(--apagado);overflow:hidden;text-overflow:ellipsis;
+.tj-n{font-size:var(--t1);color:var(--apagado);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;flex:1;min-width:0}
-.tj-chg{font-family:var(--mono);font-size:.8rem;font-variant-numeric:tabular-nums;
+.tj-chg{font-family:var(--mono);font-size:var(--t3);font-variant-numeric:tabular-nums;
   font-weight:500}
 .tj-graf{margin:.6rem 0 .5rem;height:96px}
 .tj-graf canvas{height:96px}
 .tj-pie{display:flex;align-items:center;gap:.5rem;font-family:var(--mono);
-  font-size:.66rem;color:var(--apagado);border-top:1px solid var(--borde);
+  font-size:var(--t1);color:var(--apagado);border-top:1px solid var(--borde);
   padding-top:.45rem;flex-wrap:wrap}
 .tj-pie b{font-weight:500;font-variant-numeric:tabular-nums;color:var(--tenue)}
 .tj-rs{margin-left:auto;color:var(--tenue)}
-.tj-vol{font-family:var(--mono);font-size:.63rem;color:var(--apagado);margin-top:.3rem}
+.tj-vol{font-family:var(--mono);font-size:var(--t0);color:var(--apagado);margin-top:.3rem}
 /* El precio de afuera de hora va marcado: es otro mercado, con otro volumen. */
-.tj-ext{font-family:var(--mono);font-size:.64rem;padding:.1rem .38rem;border-radius:999px;
+.tj-ext{font-family:var(--mono);font-size:var(--t0);padding:.1rem .38rem;border-radius:999px;
   background:var(--panel3);color:var(--tenue);white-space:nowrap}
 .tj-ext.pre{color:var(--azul);background:rgba(91,155,213,.12)}
 .tj-ext.post{color:var(--ambar);background:var(--ambar-t)}
-.tj-fav{color:#39434F;cursor:pointer;user-select:none;font-size:.85rem;
+.tj-fav{color:#39434F;cursor:pointer;user-select:none;font-size:var(--t4);
   transition:color .12s}
 .tj-fav:hover{color:var(--tenue)}
 .tj-fav.on{color:var(--ambar)}
@@ -498,7 +538,7 @@ body.panorama .kpis{display:none}
   .pan-hero{padding-top:1rem}
   .pan-titulo{font-size:1.7rem}
   .tj-graf,.tj-graf canvas{height:70px}
-  .tj-tk{font-size:.85rem}.tj-px{font-size:.82rem}
+  .tj-tk{font-size:var(--t4)}.tj-px{font-size:var(--t4)}
 }
 
 /* --------------------------- pantallas angostas ---------------------------
@@ -514,7 +554,7 @@ body.cajon #velo{display:block}
   body.compacto aside{border-right:1px solid var(--borde)}
   .marca{gap:.5rem;padding:.6rem .7rem}
   .marca .titulo{display:none}
-  .marca .firma{font-size:.66rem}
+  .marca .firma{font-size:var(--t1)}
   .marca select{max-width:110px}
   .kpi{padding:.5rem .8rem;min-width:104px}
   .kpi b{font-size:1.1rem}
@@ -529,7 +569,7 @@ body.cajon #velo{display:block}
 }
 @media (max-width:520px){
   .marca .firma{display:none}
-  table{font-size:.73rem}
+  table{font-size:var(--t2)}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none !important}
@@ -884,6 +924,7 @@ body.cajon #velo{display:block}
   <div class="kpis">
     <div class="kpi"><span>En el universo</span><b id="kUni">—</b></div>
     <div class="kpi"><span>Pasan el filtro</span><b id="kFil">—</b></div>
+    <div class="kpi" id="kpiReg" title="Los dos conjuntos Paragon alcistas: A+ B+"><span>Régimen A+ B+</span><b id="kR">—</b></div>
     <div class="kpi"><span>ASH diario +</span><b id="kD">—</b></div>
     <div class="kpi"><span>ASH semanal +</span><b id="kW">—</b></div>
     <div class="kpi"><span>Los dos +</span><b id="kDW">—</b></div>
@@ -1558,6 +1599,19 @@ const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
 const NEUTRO_CHECK={fSinAtraso:false,fRvLlena:false,fConHistorial:false};
 /* Que control es un filtro y cual no sale de la misma lista, para no tener
    dos definiciones que se desincronicen. */
+const NOMBRE_FILTRO={
+  vol20:'Volumen mínimo', dvol20:'Volumen en dólares', relVol:'Volumen relativo',
+  adr:'ADR mínimo', rsiMin:'RSI mínimo', rsiMax:'RSI máximo',
+  regimen:'Régimen', posB:'Precio vs nube B', posA:'Precio vs nube A',
+  cruceB:'Cruce de la nube B', anchoB:'Ancho de la nube B',
+  distB:'Distancia a la nube B', rvwapMin:'vs rVWAP 365d',
+  rvLlena:'Ventana del rVWAP llena', conHistorial:'Con historial suficiente',
+  ashD:'ASH diario', ashW:'ASH semanal', ashCrece:'ASH creciendo',
+  cruceMax:'Cruce del ASH', adxMin:'ADX mínimo', precio:'Precio mínimo',
+  floatMax:'Float máximo', rsMin:'RS de la industria', sinAtraso:'Sin atraso',
+  patron:'Figura', resDist:'Distancia a la resistencia', toques:'Toques mínimos',
+  avEstado:'AVWAP', avDist:'Distancia al AVWAP'};
+
 const ES_FILTRO=new Set([...Object.keys(NEUTRO),...Object.keys(NEUTRO_CHECK)]);
 
 /* ---------- formato ---------- */
@@ -1907,6 +1961,9 @@ function aplicar(ms){
   $('#kW').textContent=visibles.filter(f=>f.ash_w>0).length;
   $('#kDW').textContent=visibles.filter(f=>f.ash_d>0&&f.ash_w>0).length;
   $('#kX').textContent=visibles.filter(f=>f.ash_d>0&&f.ash_d_cruce<=5).length;
+  const reg=visibles.filter(f=>f.regimen_ord===3).length;
+  $('#kR').textContent=reg;
+  $('#kpiReg').classList.toggle('hay',reg>0);
   const tarde=visibles.filter(f=>f.atraso>0).length;
   $('#kA').textContent=tarde;
   $('#kpiAtraso').classList.toggle('hay',tarde>0);
@@ -2146,9 +2203,29 @@ function render(){
       ` title="${esc(c.t)}${fijo?'':' · arrastrá para moverla'}">${
       esc(c.t)}${orden.col===c.k?(orden.asc?' ↑':' ↓'):''}</th>`;}).join('')+'</tr>';
   if(!visibles.length){
+    /* Un "no hay resultados" que no dice cual filtro sobra obliga a ir
+       control por control. Se listan los que estan puestos, con el mas
+       restrictivo primero: el que deja pasar menos papeles del universo. */
+    /* Para preguntar "¿cuantos pasarian SOLO con este filtro?" hace falta un
+       objeto con todo apagado y una sola clave puesta. Se arma aca y no en el
+       tope del script porque filtros() lee el DOM. */
+    const F=filtros(), NADA={}, culpables=[];
+    for(const k of Object.keys(F))NADA[k]=null;
+    for(const [k,v] of Object.entries(F)){
+      if(v===null||v===undefined)continue;
+      const nom=NOMBRE_FILTRO[k]; if(!nom)continue;
+      const pasan=filas.filter(f=>pasaFiltros(f,{...NADA,[k]:v})).length;
+      // un filtro que deja pasar a todos no es culpable de nada: seria ruido
+      if(pasan<filas.length)culpables.push({nom,pasan});}
+    culpables.sort((a,b)=>a.pasan-b.pasan);
+    const lista=culpables.slice(0,3).map(c=>
+      `<li><b>${esc(c.nom)}</b> deja ${c.pasan} de ${filas.length}</li>`).join('');
     $('#tabla tbody').innerHTML=`<tr><td colspan="${usar.length}" class="vacio">`+
-      'Ningún símbolo pasa estos filtros.<br>'+
-      'Probá <b>Limpiar filtros</b> en el panel, o aflojá el volumen mínimo.</td></tr>';
+      '<p class="v-tit">Ningún papel pasa esta combinación.</p>'+
+      (lista?'<ul class="v-lista">'+lista+'</ul>':'')+
+      '<button class="mini" id="btnVaciar">Limpiar los filtros</button>'+
+      '</td></tr>';
+    const bv=$('#btnVaciar'); if(bv)bv.onclick=limpiarFiltros;
     return;}
   const html=new Array(visibles.length);
   for(let i=0;i<visibles.length;i++){
