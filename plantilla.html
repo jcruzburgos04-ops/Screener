@@ -369,6 +369,24 @@ tbody tr.sel:nth-child(even) td:nth-child(2){background:var(--panel3)}
 .fuerza i{position:absolute;top:0;height:100%}
 .fuerza::after{content:'';position:absolute;left:27px;top:0;width:1px;height:100%;
   background:#3A4756}
+/* --------------------------------- atajos --------------------------------- */
+#ayuda{display:none;position:fixed;inset:0;z-index:60;background:rgba(6,10,14,.62);
+  align-items:center;justify-content:center;padding:var(--e4)}
+#ayuda.abierto{display:flex}
+.ayuda-caja{background:var(--panel);border:1px solid var(--borde2);
+  border-radius:var(--r2);box-shadow:var(--sombra);max-width:420px;width:100%}
+.ayuda-cab{display:flex;align-items:center;justify-content:space-between;
+  padding:var(--e3) var(--e4);border-bottom:1px solid var(--borde);
+  font-family:var(--mono);font-size:var(--t1);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--tenue)}
+.ayuda-lista{margin:0;padding:var(--e3) var(--e4) var(--e4);
+  display:grid;grid-template-columns:auto 1fr;gap:var(--e2) var(--e3);
+  align-items:baseline}
+.ayuda-lista dt{text-align:right;white-space:nowrap}
+.ayuda-lista dd{margin:0;color:var(--tenue);font-size:var(--t2)}
+kbd{font-family:var(--mono);font-size:var(--t0);background:var(--panel3);
+  border:1px solid var(--borde2);border-bottom-width:2px;border-radius:var(--r);
+  padding:.12rem .35rem;color:var(--hueso);margin-left:.2rem}
 .vacio{padding:3rem 1.1rem;color:var(--tenue);text-align:center;line-height:1.7}
 .vacio b{color:var(--ambar)}
 .v-tit{margin:0 0 var(--e3);color:var(--hueso);font-size:var(--t4)}
@@ -854,10 +872,7 @@ body.cajon #velo{display:block}
     <div class="subt">Datos</div>
     <button id="btnCsv">Bajar la tabla en CSV</button>
     <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
-      <code>[</code> oculta el panel · <code>G</code> oculta el gráfico<br>
-      <code>Columnas ▾</code> arriba a la derecha elige qué ver<br>
-      <code>/</code> buscar · <code>Esc</code> limpiar la búsqueda<br>
-      <code>↑ ↓</code> mover la selección · <code>F</code> marcar favorito<br>
+      Tocá <code>?</code> en cualquier momento para verlos todos.<br>
       El KPI <code>⚠ Precio atrasado</code> esconde y muestra los desactualizados</p>
   </div></details>
 </div></aside>
@@ -920,6 +935,27 @@ body.cajon #velo{display:block}
       guardados.<br><b style="color:var(--tenue)">RS industria</b>: dónde está su
       industria contra las demás (1 a 99). <b style="color:var(--tenue)">Industria
       en verde</b>: qué parte de esa industria tiene el ASH diario positivo.</p>
+  </div>
+  <!-- Los atajos, con la tecla ? . Estaban al fondo de un panel plegable, o sea
+       que no los encontraba nadie. -->
+  <div id="ayuda" role="dialog" aria-label="Atajos de teclado">
+    <div class="ayuda-caja">
+      <div class="ayuda-cab"><b>Atajos de teclado</b>
+        <button class="icono" id="ayudaCerrar" title="Cerrar · Esc">✕</button></div>
+      <dl class="ayuda-lista">
+        <dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>mover la selección</dd>
+        <dt><kbd>PgUp</kbd><kbd>PgDn</kbd></dt><dd>saltar de a doce</dd>
+        <dt><kbd>Inicio</kbd><kbd>Fin</kbd></dt><dd>primera y última fila</dd>
+        <dt><kbd>/</kbd></dt><dd>buscar</dd>
+        <dt><kbd>Esc</kbd></dt><dd>cerrar, o limpiar la búsqueda</dd>
+        <dt><kbd>F</kbd></dt><dd>marcar favorito</dd>
+        <dt><kbd>G</kbd></dt><dd>mostrar u ocultar el gráfico</dd>
+        <dt><kbd>P</kbd></dt><dd>alternar Tabla y Panorama</dd>
+        <dt><kbd>R</kbd></dt><dd>traer los precios de nuevo</dd>
+        <dt><kbd>[</kbd></dt><dd>mostrar u ocultar el panel</dd>
+        <dt><kbd>?</kbd></dt><dd>esta ayuda</dd>
+      </dl>
+    </div>
   </div>
   <div class="kpis">
     <div class="kpi"><span>En el universo</span><b id="kUni">—</b></div>
@@ -2250,6 +2286,10 @@ function seleccionar(t,traer){
   dibujar();
 }
 
+function verAtajos(mostrar){
+  const el=$('#ayuda');if(!el)return;
+  el.classList.toggle('abierto',mostrar===undefined?!el.classList.contains('abierto'):!!mostrar);}
+
 function moverSeleccion(paso){
   const i=visibles.findIndex(f=>f.t===seleccion);
   const j=Math.max(0,Math.min(visibles.length-1,(i<0?0:i)+paso));
@@ -3496,6 +3536,8 @@ function iniciar(){
     $('#chipTL').classList.toggle('on',mostrarTL);
     escribirLS('screener_ash_tl',mostrarTL?'1':'0');dibujar();};
   $('#btnRefrescar').onclick=refrescarPrecios;
+  $('#ayudaCerrar').onclick=()=>verAtajos(false);
+  $('#ayuda').onclick=e=>{if(e.target.id==='ayuda')verAtajos(false);};
   $('#btnCopiar').onclick=copiarTickers;
   $('#btnGuardarRapido').onclick=()=>{
     const n=prompt('Nombre para estos filtros:');
@@ -3683,12 +3725,22 @@ function iniciar(){
     if(e.key==='['&&!escribiendo){panel(!panelAbierto());e.preventDefault();}
     else if(e.key==='/'&&!escribiendo){$('#buscar').focus();e.preventDefault();}
     else if(e.key==='Escape'){
+      if($('#ayuda').classList.contains('abierto')){verAtajos(false);return;}
       if($('#panelCols').classList.contains('abierto')){verPanelCols(false);return;}
       if($('#panelInd').classList.contains('abierto')){verPanelInd(false);return;}
       if(industriaSel){industriaSel=null;aplicar();return;}
       $('#buscar').value='';$('#buscar').blur();aplicar();}
     else if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!escribiendo){
       moverSeleccion(e.key==='ArrowDown'?1:-1);e.preventDefault();}
+    // con 465 filas, ir de a una con la flecha no alcanza
+    else if((e.key==='PageDown'||e.key==='PageUp')&&!escribiendo){
+      moverSeleccion(e.key==='PageDown'?12:-12);e.preventDefault();}
+    else if(e.key==='Home'&&!escribiendo&&visibles.length){
+      seleccionar(visibles[0].t,true);e.preventDefault();}
+    else if(e.key==='End'&&!escribiendo&&visibles.length){
+      seleccionar(visibles[visibles.length-1].t,true);e.preventDefault();}
+    else if((e.key==='?'||(e.key==='/'&&e.shiftKey))&&!escribiendo){
+      verAtajos();e.preventDefault();}
     else if((e.key==='p'||e.key==='P')&&!escribiendo){verPanorama(!vistaPanorama);}
     else if((e.key==='r'||e.key==='R')&&!escribiendo){refrescarPrecios();}
     else if((e.key==='g'||e.key==='G')&&!escribiendo){
