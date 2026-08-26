@@ -2045,6 +2045,26 @@ function aplicar(ms){
    se pudieran correr, la tabla se rompe. */
 let ordenCols=[];
 
+/* LAS COLUMNAS SON TUYAS, NO DEL FILTRO.
+   Antes viajaban adentro de cada perfil guardado, asi que elegir un filtro del
+   desplegable te reemplazaba la seleccion de columnas por la que tenia ese
+   perfil el dia que lo guardaste. Pasar de "sin filtros" a cualquier filtro se
+   llevaba puesta toda la configuracion, y no habia forma de tener una tabla
+   estable: cada filtro te mostraba columnas distintas.
+   Ahora viven en su propia clave y no las toca nadie mas: ni los perfiles, ni
+   los presets, ni "sin filtros", ni la vista que llega por URL. Se ven como vos
+   las elegiste, sea cual sea la tabla que estes mirando. */
+const CLAVE_COLS='screener_ash_columnas';
+function guardarColumnas(){
+  try{escribirLS(CLAVE_COLS,JSON.stringify(
+    {cols:[...colsOn],orden:ordenCols.slice(),vistas:COLS.map(c=>c.k)}));}catch(e){}}
+function restaurarColumnas(){
+  try{const o=JSON.parse(leerLS(CLAVE_COLS));
+    if(!o||!Array.isArray(o.cols)||!o.cols.length)return false;
+    colsOn=fusionarColumnas(o.cols,o.vistas);
+    if(Array.isArray(o.orden))ordenCols=o.orden.slice();
+    return true;}catch(e){return false;}}
+
 function clavesOrdenadas(){
   const fijas=COLS.filter(c=>c.nosel).map(c=>c.k);
   const movibles=COLS.filter(c=>!c.nosel).map(c=>c.k);
@@ -2135,7 +2155,7 @@ function montarColumnas(){
     colsNuevas=[];   // ya lo leiste y estas eligiendo: el aviso no va mas
     // hay que rearmar TODO el desplegable, no solo la tabla: si no, la columna
     // apagada seguia figurando en la lista de orden de arriba
-    montarColumnas();render();guardarSesion();};
+    montarColumnas();render();guardarColumnas();guardarSesion();};
   $('#cuentaCols').textContent=colsOn.size;
 }
 
@@ -2223,7 +2243,7 @@ function ponerColumnas(lista){
   // volver al set por defecto tambien devuelve el orden por defecto: si no,
   // "las de siempre" dejaba las de siempre pero desordenadas
   colsOn=new Set(lista);ordenCols=[];
-  montarColumnas();render();guardarSesion();
+  montarColumnas();render();guardarColumnas();guardarSesion();
 }
 
 function render(){
@@ -2804,8 +2824,7 @@ function aplicarEstado(o){
   ponerValores(o,true);
   if(o._grupos)gruposOn=new Set(o._grupos);
   if(o._orden&&o._orden.col)orden={...o._orden};
-  if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
-    if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
+  // las columnas NO se tocan: son tuyas y globales, no del perfil
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
   if(o._indCampo)campoGrupo=o._indCampo;
@@ -2843,10 +2862,10 @@ function engancharGuardadoFinal(){
   /* Y si la otra pestaña guardo algo, esta se entera y se pone al dia en vez de
      seguir con una foto vieja lista para pisarla. */
   window.addEventListener('storage',e=>{
-    if(e.key===SESION&&!sucio&&e.newValue){try{
+    if(e.key===CLAVE_COLS&&e.newValue){try{
       const o=JSON.parse(e.newValue);
-      if(Array.isArray(o._cols)&&o._cols.length)colsOn=new Set(o._cols);
-      if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
+      if(Array.isArray(o.cols)&&o.cols.length)colsOn=new Set(o.cols);
+      if(Array.isArray(o.orden))ordenCols=o.orden.slice();
       montarColumnas();render();
     }catch(_){}}});
 }
@@ -2855,8 +2874,7 @@ function restaurarSesion(){
     ponerValores(o,false);
     if(o._grupos)gruposOn=new Set(o._grupos);
     if(o._orden&&o._orden.col)orden={...o._orden};
-    if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
-    if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
+    // las columnas van por su propia clave, no por la sesion
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
     if(o._indCampo)campoGrupo=o._indCampo;
@@ -3588,7 +3606,7 @@ function iniciar(){
     ultimoArrastre=Date.now();
     if(destino&&colArrastrada&&destino!==colArrastrada&&
        reordenar(colArrastrada,destino)){
-      montarColumnas();render();guardarSesion();
+      montarColumnas();render();guardarColumnas();guardarSesion();
       ultimoArrastre=Date.now();
       $('#estado').textContent='columna movida';
       setTimeout(()=>{if($('#estado').textContent==='columna movida')
@@ -3610,7 +3628,7 @@ function iniciar(){
     const b=e.target.closest('.ord-b');if(!b)return;
     const fila=b.closest('.fila-ord');
     if(moverColumna(fila.dataset.k,+b.dataset.mover)){
-      montarColumnas();render();guardarSesion();}};
+      montarColumnas();render();guardarColumnas();guardarSesion();}};
   let arrastrada=null;
   $('#ordenCols').addEventListener('dragstart',e=>{
     const f=e.target.closest('.fila-ord');if(!f)return;
@@ -3626,7 +3644,7 @@ function iniciar(){
     e.preventDefault();
     const f=e.target.closest('.fila-ord');
     if(f&&arrastrada&&f.dataset.k!==arrastrada&&reordenar(arrastrada,f.dataset.k)){
-      montarColumnas();render();guardarSesion();}
+      montarColumnas();render();guardarColumnas();guardarSesion();}
     arrastrada=null;});
   $('#ordenCols').addEventListener('dragend',()=>{
     arrastrada=null;
@@ -3760,8 +3778,7 @@ function iniciar(){
   if(vista){ponerValores(vista,true);
     if(vista._grupos)gruposOn=new Set(vista._grupos);
     if(vista._orden&&vista._orden.col)orden={...vista._orden};
-    if(vista._cols&&vista._cols.length)colsOn=fusionarColumnas(vista._cols,vista._colsVistas);
-    if(Array.isArray(vista._ordenCols))ordenCols=vista._ordenCols.slice();
+    // ni siquiera un enlace de "Copiar vista" te cambia las columnas: son tuyas
     if(typeof vista._fav==='boolean')soloFav=vista._fav;
     if(typeof vista._buscar==='string')$('#buscar').value=vista._buscar;
     if(vista._indCampo)campoGrupo=vista._indCampo;
@@ -3778,6 +3795,10 @@ function iniciar(){
        esa vista en cualquier maquina. Lo que se limpia es tu barra. */
     try{history.replaceState(null,'',location.href.split('#')[0]);}catch(e){}
   }else restaurarSesion();
+  /* Las columnas SIEMPRE salen de su propia clave, venga la vista de la URL o
+     de la sesion. Es lo unico que garantiza que se vean igual en cualquier
+     filtro. Si es la primera vez, quedan las del set por defecto. */
+  restaurarColumnas();
   montarColumnas();ponerSoloFav(soloFav);
   $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;
   verGrafico(leerLS('screener_ash_grafico')!=='0');

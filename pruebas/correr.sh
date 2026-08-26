@@ -60,6 +60,8 @@ echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
 echo; echo "== teclado =="
 node teclado.js
+echo; echo "== las columnas no dependen del filtro =="
+node columnas_globales.js
 echo; echo "== persistencia de la seleccion de columnas =="
 node persistencia.js
 echo; echo "== pantalla angosta y pastilla de frescura =="
