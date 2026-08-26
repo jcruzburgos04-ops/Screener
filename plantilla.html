@@ -154,6 +154,15 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .marca .firma em{color:var(--ambar);font-style:normal;letter-spacing:.04em}
 /* Un separador fino en vez de puntos: con seis datos seguidos, los "·" se
    confunden con el texto y no se distingue donde termina cada cosa. */
+/* El boton de recargar vive pegado a la pastilla de frescura porque es la
+   respuesta natural a lo que la pastilla te dice: "esto tiene 3 horas" -> "traelo
+   de nuevo". Separado, en el panel, no lo encontraba nadie. */
+.recargar{font-size:.9rem;line-height:1;padding:.2rem .34rem;border-radius:999px;
+  color:var(--tenue);flex:none}
+.recargar:hover{color:var(--ambar);border-color:transparent;background:var(--panel3)}
+.recargar[disabled]{opacity:.55;cursor:default}
+.recargar.girando{animation:giro 900ms linear infinite;color:var(--ambar)}
+@keyframes giro{to{transform:rotate(360deg)}}
 .sep-v{display:inline-block;width:1px;height:9px;background:var(--borde2);
   margin:0 .55rem;vertical-align:baseline}
 .mini-pill{border-radius:999px;padding:.06rem .4rem;font-size:.66rem;
@@ -761,6 +770,7 @@ body.cajon #velo{display:block}
     <button class="icono" id="btnAbrir" title="Mostrar el panel  ·  tecla [">›</button>
     <span class="titulo">Screener ASH</span>
     <span class="pastilla" id="frescura" title="Antigüedad de los precios publicados"></span>
+    <button class="icono recargar" id="btnRefrescar" title="Traer los precios de nuevo · tecla R">⟳</button>
     <span class="firma" id="firma"></span>
     <select id="selRapido" title="Filtros guardados"></select>
     <!-- Tres capsulas y no una sola. La primera es una eleccion entre dos
@@ -2402,10 +2412,10 @@ function estadoActual(){const o={};
   return o;}
 function aplicarEstado(o){
   ponerValores(o,true);
-  if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
+  if(Array.isArray(o._emas))emasOn=o._emas.map(Number);
   if(o._grupos)gruposOn=new Set(o._grupos);
   if(o._orden&&o._orden.col)orden={...o._orden};
-  if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
+  if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
     if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
   if(typeof o._fav==='boolean')ponerSoloFav(o._fav);
   if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
@@ -2419,8 +2429,19 @@ function aplicarEstado(o){
 /* ---------- la sesion se recuerda sola ---------- */
 const SESION='screener_ash_sesion';
 let guardaSesion=null;
-function grabarSesion(){try{escribirLS(SESION,JSON.stringify(estadoActual()))}catch(e){}}
-function guardarSesion(){clearTimeout(guardaSesion);
+/* UNA PESTAÑA SOLO ESCRIBE SI TOCASTE ALGO EN ELLA.
+   Este es EL bug que hacia que "el guardado de columnas nunca funcione", y lo
+   metio el arreglo anterior sin querer. Con el screener abierto en dos pestañas:
+   configurabas en la nueva, volvias a la vieja, y al pasar a segundo plano la
+   vieja grababa SU estado —el de cuando la abriste— encima del tuyo. Y como
+   visibilitychange dispara en CADA cambio de pestaña, no hacia falta ni cerrar
+   nada: alcanzaba con ir y venir para que todo se revirtiera solo.
+   La pestaña que no edito nada no tiene nada que aportar, asi que no escribe. */
+let sucio=false;
+function grabarSesion(){
+  if(!sucio)return;
+  try{escribirLS(SESION,JSON.stringify(estadoActual()));sucio=false;}catch(e){}}
+function guardarSesion(){sucio=true;clearTimeout(guardaSesion);
   guardaSesion=setTimeout(grabarSesion,400);}
 /* El debounce de 400 ms se come el ultimo cambio si cerras la pestaña enseguida:
    antes de irse, se escribe lo que haya pendiente. `pagehide` es el unico evento
@@ -2430,14 +2451,23 @@ function engancharGuardadoFinal(){
   window.addEventListener('pagehide',cerrar);
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='hidden')cerrar();});
+  /* Y si la otra pestaña guardo algo, esta se entera y se pone al dia en vez de
+     seguir con una foto vieja lista para pisarla. */
+  window.addEventListener('storage',e=>{
+    if(e.key===SESION&&!sucio&&e.newValue){try{
+      const o=JSON.parse(e.newValue);
+      if(Array.isArray(o._cols)&&o._cols.length)colsOn=new Set(o._cols);
+      if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
+      montarColumnas();render();
+    }catch(_){}}});
 }
 function restaurarSesion(){
   try{const o=JSON.parse(leerLS(SESION));if(!o)return false;
     ponerValores(o,false);
-    if(o._emas&&o._emas.length)emasOn=o._emas.map(Number);
+    if(Array.isArray(o._emas))emasOn=o._emas.map(Number);
     if(o._grupos)gruposOn=new Set(o._grupos);
     if(o._orden&&o._orden.col)orden={...o._orden};
-    if(o._cols&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
+    if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
     if(Array.isArray(o._ordenCols))ordenCols=o._ordenCols.slice();
     if(typeof o._fav==='boolean')soloFav=o._fav;
     if(typeof o._buscar==='string')$('#buscar').value=o._buscar;
@@ -2694,10 +2724,14 @@ async function seguirProgreso(silenciosa){
 /* En el sitio publicado la pagina pesa ~70 KB y los precios vienen aparte, en
    datos.json. Asi el navegador cachea cada cosa por su lado y la primera pintura
    es inmediata. Se lee en pedazos para poder mostrar cuanto lleva bajado. */
-async function traerArchivoDatos(){
+async function traerArchivoDatos(forzar){
   try{
     mostrarCarga('descargando los precios…',0.05);
-    const r=await fetch('datos.json',{cache:'no-cache'});
+    /* Al recargar a mano se le agrega un parametro y se pide 'reload': si no, el
+       navegador (o el CDN de Pages) puede devolver el datos.json que ya tenia y
+       el boton no haria nada visible aunque el sitio ya se hubiera actualizado. */
+    const url=forzar?('datos.json?t='+Date.now()):'datos.json';
+    const r=await fetch(url,{cache:forzar?'reload':'no-cache'});
     if(!r.ok)return false;
     let texto;
     if(r.body&&r.body.getReader){
@@ -3099,6 +3133,7 @@ function iniciar(){
   $('#chipTL').onclick=()=>{mostrarTL=!mostrarTL;
     $('#chipTL').classList.toggle('on',mostrarTL);
     escribirLS('screener_ash_tl',mostrarTL?'1':'0');dibujar();};
+  $('#btnRefrescar').onclick=refrescarPrecios;
   $('#btnCopiar').onclick=copiarTickers;
   $('#btnGuardarRapido').onclick=()=>{
     const n=prompt('Nombre para estos filtros:');
@@ -3295,6 +3330,7 @@ function iniciar(){
     else if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!escribiendo){
       moverSeleccion(e.key==='ArrowDown'?1:-1);e.preventDefault();}
     else if((e.key==='p'||e.key==='P')&&!escribiendo){verPanorama(!vistaPanorama);}
+    else if((e.key==='r'||e.key==='R')&&!escribiendo){refrescarPrecios();}
     else if((e.key==='g'||e.key==='G')&&!escribiendo){
       verGrafico(document.body.classList.contains('sin-grafico'));}
     else if((e.key==='f'||e.key==='F')&&!escribiendo&&seleccion){marcarFavorito(seleccion);}});
@@ -3310,7 +3346,7 @@ function iniciar(){
      es porque queres ESA vista, no la que dejaste la ultima vez en esta maquina. */
   const vista=leerVistaDeURL();
   if(vista){ponerValores(vista,true);
-    if(vista._emas&&vista._emas.length)emasOn=vista._emas.map(Number);
+    if(Array.isArray(vista._emas))emasOn=vista._emas.map(Number);
     if(vista._grupos)gruposOn=new Set(vista._grupos);
     if(vista._orden&&vista._orden.col)orden={...vista._orden};
     if(vista._cols&&vista._cols.length)colsOn=fusionarColumnas(vista._cols,vista._colsVistas);
@@ -3345,7 +3381,7 @@ function iniciar(){
   montarChips();etiquetas();recalcular();
   // La vista que llego por el enlace pasa a ser tu sesion. Sin esto, al sacar
   // el # de la barra la proxima recarga no encontraria nada que restaurar.
-  if(vista)grabarSesion();
+  if(vista){sucio=true;grabarSesion();}
   // la vista va al final: renderPanorama() necesita `filas` ya calculadas
   if(leerLS('screener_ash_vista')==='p')verPanorama(true);
 }
@@ -3356,6 +3392,28 @@ function iniciar(){
    3. Si los datos ya estan pero son de ayer, los actualiza en segundo plano
       sin hacerte esperar: seguis mirando los viejos hasta que llegan los nuevos.
    4. Sin servidor, usa los datos que tenga incrustados el archivo. */
+/* RECARGAR A MANO
+   Con servidor local dispara la descarga de Python (que no depende de CORS).
+   Sin servidor vuelve a bajar el datos.json publicado, que el cron refresca cada
+   media hora, y despues le pide a Yahoo la rueda de hoy como cuando abris. */
+let refrescando=false;
+async function refrescarPrecios(){
+  if(refrescando)return;
+  const b=$('#btnRefrescar');
+  refrescando=true;
+  if(b){b.disabled=true;b.classList.add('girando');}
+  try{
+    if(SERVIDOR){await lanzarActualizacion(false,false);return;}
+    if(await traerArchivoDatos(true)){
+      recalcular();pintarFrescura();
+      if(vistaPanorama)renderPanorama();
+    }
+    if($('#cajaYahoo').style.display!=='none')await traerDeYahoo(false);
+  }catch(e){console.warn('no pude refrescar',e);}
+  finally{refrescando=false;
+    if(b){b.disabled=false;b.classList.remove('girando');}}
+}
+
 async function arrancar(){
   const est=await estadoServidor();
   SERVIDOR=!!est;

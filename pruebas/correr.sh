@@ -56,6 +56,8 @@ echo; echo "== estres =="
 node estres.js
 echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
+echo; echo "== persistencia de la seleccion de columnas =="
+node persistencia.js
 echo; echo "== pantalla angosta y pastilla de frescura =="
 node movil.js
 echo; echo "== vista panorama (indices y sectores) =="
