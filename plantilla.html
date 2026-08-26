@@ -2060,10 +2060,24 @@ function guardarColumnas(){
     {cols:[...colsOn],orden:ordenCols.slice(),vistas:COLS.map(c=>c.k)}));}catch(e){}}
 function restaurarColumnas(){
   try{const o=JSON.parse(leerLS(CLAVE_COLS));
-    if(!o||!Array.isArray(o.cols)||!o.cols.length)return false;
-    colsOn=fusionarColumnas(o.cols,o.vistas);
-    if(Array.isArray(o.orden))ordenCols=o.orden.slice();
-    return true;}catch(e){return false;}}
+    if(o&&Array.isArray(o.cols)&&o.cols.length){
+      colsOn=fusionarColumnas(o.cols,o.vistas);
+      if(Array.isArray(o.orden))ordenCols=o.orden.slice();
+      return true;}
+  }catch(e){}
+  /* MIGRACION, una sola vez.
+     Hasta ahora las columnas vivian adentro de la sesion (_cols). El que ya
+     tenia su seleccion hecha la perderia al estrenar la clave nueva, y perder
+     la configuracion es justamente lo que se venia a arreglar. Asi que la
+     primera vez se adopta la que haya en la sesion y se guarda en su lugar. */
+  try{const s=JSON.parse(leerLS(SESION));
+    if(s&&Array.isArray(s._cols)&&s._cols.length){
+      colsOn=fusionarColumnas(s._cols,s._colsVistas);
+      if(Array.isArray(s._ordenCols))ordenCols=s._ordenCols.slice();
+      guardarColumnas();
+      return true;}
+  }catch(e){}
+  return false;}
 
 function clavesOrdenadas(){
   const fijas=COLS.filter(c=>c.nosel).map(c=>c.k);
