@@ -157,6 +157,10 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 /* El boton de recargar vive pegado a la pastilla de frescura porque es la
    respuesta natural a lo que la pastilla te dice: "esto tiene 3 horas" -> "traelo
    de nuevo". Separado, en el panel, no lo encontraba nadie. */
+/* El ≈ de "conjunto A aproximado" y el * de "ventana incompleta". Chiquitos y
+   en ambar: tienen que verse sin robarle atencion al numero. */
+.aprox{font-style:normal;color:var(--ambar);font-size:.68em;margin-left:.15em;
+  vertical-align:super;cursor:help}
 .recargar{font-size:.9rem;line-height:1;padding:.2rem .34rem;border-radius:999px;
   color:var(--tenue);flex:none}
 .recargar:hover{color:var(--ambar);border-color:transparent;background:var(--panel3)}
@@ -559,8 +563,38 @@ body.cajon #velo{display:block}
       positiva = la verde por encima de la roja.</p>
   </div></details>
 
+  <details open><summary>Paragon · EMA 100/200</summary><div class="cuerpo">
+    <div class="par">
+      <div><label>EMA rápida</label><input type="number" id="parRap" value="100" min="2"></div>
+      <div><label>EMA lenta</label><input type="number" id="parLen" value="200" min="2"></div>
+    </div>
+    <div class="par">
+      <div><label>Velas de 4h por rueda (k)</label><input type="number" id="parK" value="2" min="1" max="12"></div>
+      <div><label>Cruce fresco ≤</label><input type="number" id="parFresco" value="5" min="0" max="60"></div>
+    </div>
+    <p class="nota"><b style="color:var(--tenue)">Conjunto B</b> (ancla 1D) sale
+      <b>exacto</b>: son la EMA 100 y la 200 sobre las velas diarias que ya baja
+      el screener.<br>
+      <b style="color:var(--tenue)">Conjunto A</b> (ancla 4h) sale
+      <b style="color:var(--ambar)">aproximado</b>: no hay velas de 4h en el
+      pipeline, así que las longitudes se convierten conservando la tasa de
+      decaimiento (no dividiendo por k, que da distinto). Con
+      <code>k=2</code> —una rueda de 6,5 h son dos velas de 4 h— el par 100/200
+      de 4h equivale a <b>50/100</b> en diario. Con <code>k=6</code> (cripto)
+      daría 17/33, que son los números que documenta el Pine original.<br>
+      Las filas aproximadas se marcan con <b style="color:var(--ambar)">≈</b>.</p>
+    <div class="par">
+      <div><label>rVWAP ventana</label><input type="number" id="rvLen" value="365" min="2"></div>
+      <div><label>rVWAP fuente</label>
+        <select id="rvFuente"><option value="hl2">hl2</option>
+          <option value="hlc3">hlc3</option><option value="close">close</option></select></div>
+    </div>
+    <p class="nota">El rVWAP da valor desde el día 1: mientras haya menos velas
+      que la ventana, es un VWAP anclado al inicio del historial. Las que todavía
+      no llenaron la ventana se marcan con <b style="color:var(--ambar)">*</b>.</p>
+  </div></details>
+
   <details><summary>Otros indicadores</summary><div class="cuerpo">
-    <label>EMAs</label><div class="chips" id="chipsEma"></div>
     <div class="par">
       <div><label>ADR ruedas</label><input type="number" id="adrLen" value="20" min="2"></div>
       <div><label>RSI período</label><input type="number" id="rsiLen" value="14" min="2"></div>
@@ -608,13 +642,38 @@ body.cajon #velo{display:block}
       <div><label>RSI máx</label><input type="number" id="fRsiMax" value="100" min="0" max="100"></div>
     </div>
 
-    <div class="subt">Tendencia</div>
-    <label>Precio sobre EMA20</label>
-    <select id="fEma20"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
-    <label>Precio sobre EMA50</label>
-    <select id="fEma50"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
-    <label>EMA20 sobre EMA50</label>
-    <select id="fCruce"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select>
+    <div class="subt">Paragon</div>
+    <label>Régimen</label>
+    <select id="fRegimen"><option value="">—</option>
+      <option value="3">A+ B+ · los dos alcistas</option>
+      <option value="2">A− B+ · sólo el semanal</option>
+      <option value="1">A+ B− · sólo el diario</option>
+      <option value="0">A− B− · los dos bajistas</option>
+      <option value="b+">B alcista (cualquiera sea A)</option>
+      <option value="b-">B bajista (cualquiera sea A)</option></select>
+    <label>Precio vs nube B (ancla 1D)</label>
+    <select id="fPosB"><option value="">—</option><option>arriba</option>
+      <option>adentro</option><option>abajo</option></select>
+    <label>Precio vs nube A (ancla 4h)</label>
+    <select id="fPosA"><option value="">—</option><option>arriba</option>
+      <option>adentro</option><option>abajo</option></select>
+    <label>Cruce de B <b id="lParB">off</b></label>
+    <select id="fCruceB"><option value="">—</option>
+      <option value="1">Alcista, hace poco (≤ N)</option>
+      <option value="1+">Alcista, hace rato (≥ N)</option>
+      <option value="0">Bajista, hace poco (≤ N)</option>
+      <option value="0+">Bajista, hace rato (≥ N)</option></select>
+    <input type="range" id="fCruceBN" min="0" max="120" value="0">
+    <label>Ancho de la nube B ≥ <b id="lAnchoB">off</b></label>
+    <input type="range" id="fAnchoB" min="0" max="30" step="0.5" value="0">
+    <label>Dist. a la nube B ≤ <b id="lDistB">off</b></label>
+    <input type="range" id="fDistB" min="0" max="30" step="0.5" value="0">
+    <label>vs rVWAP 365d ≥ <b id="lRvwap">off</b></label>
+    <input type="range" id="fRvwap" min="-50" max="50" step="1" value="-50">
+    <label class="check"><input type="checkbox" id="fRvLlena">
+      Sólo con la ventana del rVWAP llena</label>
+    <label class="check"><input type="checkbox" id="fConHistorial">
+      Esconder los que no llegan al warmup</label>
 
     <div class="subt">ASH</div>
     <label>ASH diario positivo</label>
@@ -900,6 +959,89 @@ function sma(x,n){const o=new Array(x.length).fill(NaN);let s=0,malos=0;
 function ema(x,n){const o=new Array(x.length).fill(NaN),a=2/(n+1);let p=NaN;
   for(let i=0;i<x.length;i++){const v=x[i];if(!isFinite(v)){o[i]=NaN;continue;}
     p=isFinite(p)?a*v+(1-a)*p:v;o[i]=p;}return o;}
+
+/* ---------- PARAGON: EMA 100/200 ancladas, y rVWAP 365d ----------
+   Reconstruccion de los dos indicadores privados de DocXBT. Los dos son EL
+   MISMO par 100/200: lo unico que cambia es el timeframe de anclaje.
+   "Paragon Daily" ancla a 4h; "Paragon Weekly" ancla a 1D.               */
+
+/* ta.ema de Pine, que NO es la ema() de arriba.
+   Semilla = SMA de los primeros n, y NaN durante las n-1 primeras velas.
+   La ema() de arriba siembra con el primer precio: esa la come el ASH y es
+   lo que sostiene la paridad de 6,7e-14 contra Python. Son dos medias
+   distintas a proposito; no las unifiques. */
+function emaPine(x,n){
+  n=Math.trunc(n);
+  const o=new Array(x.length).fill(NaN);
+  if(n<1||x.length<n)return o;
+  let s=0;for(let i=0;i<n;i++)s+=x[i];
+  let p=s/n; o[n-1]=p;
+  const a=2/(n+1);
+  for(let i=n;i<x.length;i++){const v=x[i];
+    if(!isFinite(v)){o[i]=p;continue;}
+    p=a*v+(1-a)*p;o[i]=p;}
+  return o;}
+
+/* Convierte la longitud del ancla al timeframe de la serie.
+   NO es largo/k: lo que se conserva es la tasa de decaimiento por unidad de
+   tiempo calendario, y eso es multiplicativo.
+       a_dest = 1 - (1-a_ancla)^k        L_dest = 2/a_dest - 1
+   Con k=6 (seis velas de 4h por dia) da 17 y 33, que son exactamente los
+   numeros que documenta el Pine original. Esa es la comprobacion. */
+function largoEquivalente(largo,k){
+  const a=2/(+largo+1), ad=1-Math.pow(1-a,k);
+  if(!(ad>0))return Math.trunc(largo);
+  return Math.max(2,Math.round(2/ad-1));}
+
+/* VWAP rolling sobre las ultimas min(t+1,n) velas.
+   El min() es deliberado: mientras el simbolo tenga menos de n velas la
+   ventana arranca desde la primera disponible en vez de dar NaN. Hasta la
+   vela n el valor es un VWAP anclado al inicio del historico y de ahi pasa a
+   ser la ventana movil, sin salto. */
+function rvwapExpansivo(b,n,fuente){
+  const L=b.c.length,o=new Array(L).fill(NaN);
+  let pv=0,cv=0;
+  const px=i=>fuente==='hlc3'?(b.h[i]+b.l[i]+b.c[i])/3
+            :fuente==='close'?b.c[i]:(b.h[i]+b.l[i])/2;
+  const apv=new Array(L),acv=new Array(L);
+  for(let i=0;i<L;i++){const v=isFinite(b.v[i])?b.v[i]:0;
+    pv+=px(i)*v;cv+=v;apv[i]=pv;acv[i]=cv;}
+  for(let i=0;i<L;i++){
+    const j=i-n;
+    const p=apv[i]-(j>=0?apv[j]:0), c=acv[i]-(j>=0?acv[j]:0);
+    o[i]=c>0?p/c:NaN;}
+  return {serie:o,llena:L>=n};}
+
+/* Un conjunto: las dos EMAs con la longitud convertida y el warmup del ancla.
+   El warmup NO sale de la longitud convertida: para que el conjunto imprima
+   hacen falta `largo` velas del ancla, o sea ceil(largo/k) de la serie. Con
+   k=6 la EMA 200 de 4h necesita 33,33 dias y la primera vela diaria que las
+   completa es la 34, no la 33 donde imprimiria una EMA(33) suelta. Ese uno de
+   diferencia es el dato que identifica al indicador de Doc. */
+function paragonSeries(c,rapida,lenta,k){
+  const lr=k===1?Math.trunc(rapida):largoEquivalente(rapida,k);
+  const ll=k===1?Math.trunc(lenta):largoEquivalente(lenta,k);
+  const corta=(s,velas)=>{for(let i=0;i<Math.min(velas-1,s.length);i++)s[i]=NaN;return s;};
+  return {rap:corta(emaPine(c,lr),Math.ceil(rapida/k)),
+          len:corta(emaPine(c,ll),Math.ceil(lenta/k)),lr,ll};}
+
+/* Las columnas derivadas de un conjunto. Si el conjunto todavia no imprimio
+   (simbolo joven) devuelve todo vacio: no se inventa nada, se marca. */
+function senalesParagon(b,rap,len_,atrv){
+  const n=b.c.length,px=b.c[n-1],a=rap[n-1],z=len_[n-1];
+  if(!isFinite(a)||!isFinite(z))
+    return {sesgo:null,pos:'',ancho:NaN,dist:NaN,dist_atr:NaN,cruce:NaN};
+  const techo=Math.max(a,z),piso=Math.min(a,z);
+  const pos=px>techo?'arriba':(px<piso?'abajo':'adentro');
+  const borde=px>techo?techo:(px<piso?piso:(techo-px<px-piso?techo:piso));
+  let cruce=NaN;
+  const sg=[];
+  for(let i=0;i<n;i++){const d=rap[i]-len_[i];if(isFinite(d))sg.push(Math.sign(d));}
+  if(sg.length>=2){const ult=sg[sg.length-1];let c=0,hubo=false;
+    for(let i=sg.length-2;i>=0;i--){if(sg[i]!==ult&&sg[i]!==0){hubo=true;break;}c++;}
+    cruce=hubo?c:NaN;}
+  return {sesgo:a>=z,pos:pos,ancho:Math.abs(a-z)/px,dist:(px-borde)/px,
+          dist_atr:(isFinite(atrv)&&atrv>0)?(px-borde)/atrv:NaN,cruce:cruce};}
 
 function rma(x,n){const o=new Array(x.length).fill(NaN),a=1/n;let p=NaN;
   for(let i=0;i<x.length;i++){const v=x[i];if(!isFinite(v)){o[i]=NaN;continue;}
@@ -1242,10 +1384,35 @@ function calcularBase(s,cfg){
   f.tl_res_dist=T.distRes; f.tl_sop_dist=T.distSop;
   f.tl_res_pend=T.pendRes; f.tl_sop_pend=T.pendSop;
   f.tl_toques=Math.min(T.tocRes,T.tocSop);
-  for(const e of cfg.emas){const v=ultimo(ema(b.c,e));
-    f['vs_ema'+e]=px/v-1;f['sobre_ema'+e]=px>v;}
-  if(cfg.emas.includes(20)&&cfg.emas.includes(50))
-    f.ema20_sobre_50=ultimo(ema(b.c,20))>ultimo(ema(b.c,50));
+  /* --- PARAGON ---
+     Conjunto B ("Paragon Weekly", ancla 1D): EXACTO. El proyecto baja velas
+     diarias, asi que la EMA 100/200 diaria es literalmente la del ancla.
+     Conjunto A ("Paragon Daily", ancla 4h): APROXIMADO. No hay velas de 4h en
+     el pipeline, asi que se usa la conversion multiplicativa con el k medido
+     (velas de 4h por rueda). Cada fila queda marcada con par_a_aprox. */
+  const atrv=ultimo(atr(b,cfg.atrLen));
+  const B=paragonDe(b,cfg,1);
+  const A=paragonDe(b,cfg,cfg.parK);
+  f.par_b_sesgo=B.sesgo; f.par_b_pos=B.pos; f.par_b_ancho=B.ancho;
+  f.par_b_dist=B.dist; f.par_b_dist_atr=B.dist_atr; f.par_b_cruce=B.cruce;
+  f.par_b_fresco=isFinite(B.cruce)&&B.cruce<=cfg.parFresco;
+  f.par_a_sesgo=A.sesgo; f.par_a_pos=A.pos; f.par_a_ancho=A.ancho;
+  f.par_a_dist=A.dist; f.par_a_dist_atr=A.dist_atr; f.par_a_cruce=A.cruce;
+  f.par_a_fresco=isFinite(A.cruce)&&A.cruce<=cfg.parFresco;
+  f.par_a_aprox=cfg.parK!==1;
+  // el regimen: cruzar los dos sesgos. Cuatro estados, ordenables de mas
+  // alcista a mas bajista, que es la columna con la que se filtra el universo
+  f.regimen=(A.sesgo===null||B.sesgo===null)?''
+    :(B.sesgo?(A.sesgo?'A+ B+':'A− B+'):(A.sesgo?'A+ B−':'A− B−'));
+  f.regimen_ord=(A.sesgo===null||B.sesgo===null)?NaN
+    :((B.sesgo?2:0)+(A.sesgo?1:0));
+  // rVWAP 365d: da valor desde el dia 1, con la ventana marcada
+  const R=rvwapExpansivo(b,cfg.rvLen,cfg.rvFuente);
+  f.rvwap=R.serie[n-1];
+  f.vs_rvwap=isFinite(f.rvwap)?px/f.rvwap-1:NaN;
+  f.rv_llena=R.llena;
+  // Los que no llegan al warmup no se descartan en silencio
+  f.sin_historial=(B.sesgo===null||A.sesgo===null);
   return f;
 }
 
@@ -1284,12 +1451,38 @@ function pasaCruce(f,F){
   return dir.slice(-1)==='+'?f.ash_d_cruce>=F.cruceMax:f.ash_d_cruce<=F.cruceMax;
 }
 
+/* Un conjunto Paragon sobre las barras dadas. k=1 -> las longitudes van tal
+   cual (ancla = serie, exacto). k>1 -> se convierten (aproximado). */
+function paragonDe(b,cfg,k){
+  const P=paragonSeries(b.c,cfg.parRap,cfg.parLen,k);
+  return senalesParagon(b,P.rap,P.len,ultimo(atr(b,cfg.atrLen)));}
+
+/* Las cuatro lecturas del cruce de la nube, igual que el del ASH: alcista o
+   bajista, y hace poco (<= N) o hace rato (>= N). "Bajista hace rato" es lo
+   que sirve para encontrar lo que lleva mucho en rojo. */
+function pasaCruceNube(barras,sesgo,dir,n){
+  if(dir===null||dir==='')return true;
+  const quiereAlza=dir[0]==='1', reciente=dir.length===1;
+  if(sesgo===null||sesgo===undefined)return false;
+  if(sesgo!==quiereAlza)return false;
+  if(!isFinite(barras))return false;
+  return reciente?barras<=n:barras>=n;}
+
 function pasaFiltros(f,F){
   const ge=(v,x)=>x===null||(isFinite(v)&&v>=x), le=(v,x)=>x===null||(isFinite(v)&&v<=x);
   const bo=(v,x)=>x===null||(!!v)===x;
   return ge(f.vol20,F.vol20)&&ge(f.dolar_vol20,F.dvol20)&&ge(f.rel_vol,F.relVol)&&
     ge(f.adr,F.adr)&&ge(f.rsi,F.rsiMin)&&le(f.rsi,F.rsiMax)&&
-    bo(f.sobre_ema20,F.ema20)&&bo(f.sobre_ema50,F.ema50)&&bo(f.ema20_sobre_50,F.cruce)&&
+    // --- Paragon ---
+    (F.regimen===null||(F.regimen==='b+'?f.par_b_sesgo===true
+       :F.regimen==='b-'?f.par_b_sesgo===false
+       :f.regimen_ord===+F.regimen))&&
+    (F.posB===null||f.par_b_pos===F.posB)&&(F.posA===null||f.par_a_pos===F.posA)&&
+    pasaCruceNube(f.par_b_cruce,f.par_b_sesgo,F.cruceB,F.cruceBN)&&
+    (F.anchoB===null||(isFinite(f.par_b_ancho)&&f.par_b_ancho*100>=F.anchoB))&&
+    (F.distB===null||(isFinite(f.par_b_dist)&&Math.abs(f.par_b_dist)*100<=F.distB))&&
+    (F.rvwapMin===null||(isFinite(f.vs_rvwap)&&f.vs_rvwap*100>=F.rvwapMin))&&
+    (!F.rvLlena||f.rv_llena)&&(!F.conHistorial||!f.sin_historial)&&
     bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
     pasaCruce(f,F)&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
@@ -1308,6 +1501,7 @@ function pasaFiltros(f,F){
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
+  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -1320,8 +1514,7 @@ let DATOS = /*__DATOS__*/ {fecha:"", simbolos:[]};
 <!-- ======================================================================= -->
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const EMAS_DISP=[8,10,20,21,50,100,150,200];
-let emasOn=[20,50], gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
+let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
     seleccion=null, tfDetalle='d', filas=[], visibles=[],
     cacheBase=new Map(), cacheSem=new Map(), claveBase='',
     favoritos=new Set(), soloFav=false, memoAsh=new Map(), industriaSel=null,
@@ -1335,30 +1528,34 @@ let emasOn=[20,50], gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
 /* Filtros listos para usar. Son los mismos controles de la izquierda: cada
    clave es el id de un control y su valor lo que se le pone. */
 const PRESETS={
- 'Tendencia limpia':{fEma20:'1',fEma50:'1',fCruce:'1',fAshD:'1',fAshW:'1',fDVol:'10000000'},
- 'Cruce fresco de ASH':{fAshD:'1',fCruceMax:'5',fEma50:'1',fDVol:'5000000'},
- 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fEma50:'1',fRsiMax:'45',fDVol:'5000000'},
+ 'Tendencia limpia':{fRegimen:'3',fPosB:'arriba',fAshD:'1',fAshW:'1',fDVol:'10000000'},
+ 'Cruce fresco de ASH':{fAshD:'1',fCruceMax:'5',fRegimen:'b+',fDVol:'5000000'},
+ 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fRegimen:'b+',fPosB:'adentro',fRsiMax:'45',fDVol:'5000000'},
  'Se mueve y es líquido':{fAdr:'3',fDVol:'20000000',fVol:'500000'},
- 'Fuerza relativa top':{fRs:'80',fEma50:'1',fAshW:'1',fDVol:'5000000'},
+ 'Fuerza relativa top':{fRs:'80',fRegimen:'3',fAshW:'1',fDVol:'5000000'},
  'Pegado a la resistencia':{fResDist:'3',fToques:'3',fAshD:'1',fDVol:'5000000'},
  'Triángulo ascendente':{fPatron:'Triángulo asc.',fToques:'3',fDVol:'5000000'},
  'Canal alcista con ASH':{fPatron:'Canal alcista',fAshD:'1',fAshW:'1',fDVol:'5000000'},
  /* El patron del grafico que mando el usuario: el precio vuelve al AVWAP del
     ultimo maximo y lo recupera, con el ASH acompañando. */
- 'Recupera el AVWAP':{fAvwap:'Recuperado',fAshD:'1',fDVol:'5000000',fEma50:'1'},
+ 'Recupera el AVWAP':{fAvwap:'Recuperado',fAshD:'1',fDVol:'5000000',fRegimen:'b+'},
  'Volviendo al AVWAP':{fAvDist:'2',fAshW:'1',fDVol:'5000000'},
  /* Los que llevan rato en rojo: no es una entrada, es la lista de donde
     puede salir un piso cuando el ASH de vuelta. */
  'Bajista hace rato':{fCruceDir:'0+',fCruceMax:'15',fDVol:'5000000'},
+ /* Los dos que se leen directo de las nubes de Doc. */
+ 'Nube B recién girada':{fCruceB:'1',fCruceBN:'10',fPosB:'arriba',fDVol:'5000000'},
+ 'Bajista hace rato en las dos':{fRegimen:'0',fCruceB:'0+',fCruceBN:'30',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
- fEma20:'',fEma50:'',fCruce:'',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
+ fRegimen:'',fPosB:'',fPosA:'',fCruceB:'',fCruceBN:'0',fAnchoB:'0',fDistB:'0',
+ fRvwap:'-50',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
  fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
-const NEUTRO_CHECK={fSinAtraso:false};
+const NEUTRO_CHECK={fSinAtraso:false,fRvLlena:false,fConHistorial:false};
 /* Que control es un filtro y cual no sale de la misma lista, para no tener
    dos definiciones que se desincronicen. */
 const ES_FILTRO=new Set([...Object.keys(NEUTRO),...Object.keys(NEUTRO_CHECK)]);
@@ -1482,6 +1679,37 @@ const COLS=[
   {k:'avwap',  t:'AVWAP $', fmt:v=>num(v,2)},
   {k:'avwap_barras',t:'Ancla hace', fmt:v=>isFinite(v)?v:''},
   {k:'avwap_cruce',t:'Cruce AVWAP', fmt:v=>isFinite(v)?v:''},
+  // --- PARAGON ---
+  /* El regimen primero, y por defecto: es la columna con la que se filtra el
+     universo. Cuatro estados ordenables de mas alcista a mas bajista. */
+  {k:'regimen', t:'Régimen', izq:1, def:1, ord:'regimen_ord',
+   fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
+     const c=f.regimen_ord===3?'up':f.regimen_ord===0?'dn':'gris';
+     return `<span class="${c}" title="A = Paragon Daily (ancla 4h) · B = Paragon Weekly (ancla 1D)">`+
+       esc(v)+'</span>'+(f.par_a_aprox?'<i class="aprox" title="El conjunto A es aproximado: no hay velas de 4h">≈</i>':'');}},
+  {k:'par_b_pos', t:'Precio vs B', def:1, izq:1,
+   fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
+          :'<span class="gris">·</span>'},
+  {k:'par_b_dist', t:'Dist. nube B', def:1, fmt:pct, color:1},
+  {k:'par_b_dist_atr', t:'Dist. B (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'par_b_ancho', t:'Ancho B', def:1, fmt:pct},
+  {k:'par_b_cruce', t:'Cruce B', def:1,
+   fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
+     :(f.par_b_fresco?`<b class="${f.par_b_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  {k:'par_a_pos', t:'Precio vs A', izq:1,
+   fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
+          :'<span class="gris">·</span>'},
+  {k:'par_a_dist', t:'Dist. nube A', fmt:pct, color:1},
+  {k:'par_a_dist_atr', t:'Dist. A (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'par_a_ancho', t:'Ancho A', fmt:pct},
+  {k:'par_a_cruce', t:'Cruce A', def:1,
+   fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
+     :(f.par_a_fresco?`<b class="${f.par_a_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  {k:'vs_rvwap', t:'vs rVWAP', def:1,
+   fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
+     :pct(v)+(f.rv_llena?'':'<i class="aprox" title="La ventana de 365 ruedas todavía no está llena">*</i>'),
+   color:1},
+  {k:'rvwap', t:'rVWAP $', fmt:v=>num(v,2)},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -1493,7 +1721,6 @@ const COLS=[
   {k:'adr',    t:'ADR %',  def:1, fmt:v=>num(v,2)},
   {k:'atr_pct',t:'ATR %',  fmt:v=>num(v,2)},
   {k:'adx',    t:'ADX',    fmt:v=>num(v,1)},
-  {k:'__emas', t:'vs EMAs', def:1},
   {k:'dist_max52',t:'Desde máx 52s',def:1, fmt:pct},
   {k:'dist_min52',t:'Sobre mín 52s',fmt:pct},
   {k:'perf_1m',t:'1 mes',  fmt:pct, color:1},
@@ -1543,7 +1770,9 @@ function config(){
   $('#almaBox').style.display=t==='ALMA'?'flex':'none';
   return {ash:{modo:$('#ashModo').value,ma_type:t,length:+$('#ashLen').value,
       smooth:+$('#ashSmooth').value,alma_offset:+$('#almaOff').value,alma_sigma:+$('#almaSig').value},
-    emas:emasOn.slice().sort((a,b)=>a-b),
+    parRap:+$('#parRap').value, parLen:+$('#parLen').value,
+    parK:+$('#parK').value, parFresco:+$('#parFresco').value,
+    rvLen:+$('#rvLen').value, rvFuente:$('#rvFuente').value,
     adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
     atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value,
     tlBarras:+$('#tlBarras').value,tlPivote:+$('#tlPivote').value};
@@ -1554,7 +1783,16 @@ function filtros(){return{
   vol20:val('#fVol')||null, dvol20:val('#fDVol')||null, relVol:val('#fRelVol')||null,
   adr:val('#fAdr')||null, rsiMin:val('#fRsiMin')||null,
   rsiMax:val('#fRsiMax')===100?null:val('#fRsiMax'),
-  ema20:tri('#fEma20'), ema50:tri('#fEma50'), cruce:tri('#fCruce'),
+  regimen:$('#fRegimen').value||null, posB:$('#fPosB').value||null,
+  posA:$('#fPosA').value||null,
+  cruceB:$('#fCruceB').value||null,
+  // el N solo cuenta como filtro si hay direccion elegida: si no, un slider
+  // en cero se contaba como "1 filtro puesto" con el panel entero limpio
+  cruceBN:$('#fCruceB').value?(val('#fCruceBN')||0):null,
+  anchoB:val('#fAnchoB')||null, distB:val('#fDistB')||null,
+  rvwapMin:val('#fRvwap')===-50?null:val('#fRvwap'),
+  rvLlena:$('#fRvLlena').checked?true:null,
+  conHistorial:$('#fConHistorial').checked?true:null,
   ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
   cruceMax:val('#fCruceMax')||null,
   // La direccion sola no es un filtro: sin N no filtra nada, y si viajara
@@ -1575,7 +1813,8 @@ function filtros(){return{
 function recalcular(){
   const t0=performance.now(), cfg=config();
   const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,
-                    cfg.tlBarras,cfg.tlPivote,cfg.emas.join('-')].join('|');
+                    cfg.tlBarras,cfg.tlPivote,cfg.parRap,cfg.parLen,cfg.parK,
+                    cfg.parFresco,cfg.rvLen,cfg.rvFuente].join('|');
   if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
 
   const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
@@ -1653,7 +1892,11 @@ function aplicar(ms){
         ||(f.nombre||'').toUpperCase().includes(q)
         ||(f.sector||'').toUpperCase().includes(q)
         ||(f.industria||'').toUpperCase().includes(q)));
-  const s=orden.col, dir=orden.asc?1:-1;
+  /* Una columna puede ordenarse por OTRO campo: "Régimen" muestra "A+ B+" pero
+     se ordena por regimen_ord, que va de 0 (los dos bajistas) a 3 (los dos
+     alcistas). Alfabeticamente quedaria en un orden que no significa nada. */
+  const colOrd=COLS.find(c=>c.k===orden.col);
+  const s=(colOrd&&colOrd.ord)||orden.col, dir=orden.asc?1:-1;
   visibles.sort((a,b)=>{const x=a[s],y=b[s];
     if(typeof x==='string')return dir*String(x).localeCompare(String(y));
     const xx=isFinite(x)?x:-Infinity, yy=isFinite(y)?y:-Infinity;return dir*(xx-yy);});
@@ -1746,12 +1989,11 @@ function reordenar(k,antesDe){
 }
 
 function columnas(){
-  const emaCols=config().emas.map(e=>({k:'vs_ema'+e,t:'vs EMA'+e,fmt:pct,color:1}));
+
   const porK=new Map(COLS.map(c=>[c.k,c]));
   const out=[];
   for(const k of clavesOrdenadas()){
     const c=porK.get(k);if(!c)continue;
-    if(c.k==='__emas'){if(colsOn.has('__emas'))out.push(...emaCols);continue;}
     if(c.nosel||colsOn.has(c.k))out.push(c);
   }
   return out;
@@ -1767,7 +2009,10 @@ const GRUPOS_COL=[
   ['AVWAP del último máximo',['avwap_estado','avwap_dist','avwap','avwap_barras',
           'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
-  ['Momentum y tendencia',['rsi','adr','atr_pct','adx','__emas','dist_max52',
+  ['Paragon',['regimen','par_b_pos','par_b_dist','par_b_dist_atr','par_b_ancho',
+    'par_b_cruce','par_a_pos','par_a_dist','par_a_dist_atr','par_a_ancho',
+    'par_a_cruce','vs_rvwap','rvwap']],
+  ['Momentum y tendencia',['rsi','adr','atr_pct','adx','dist_max52',
           'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
   ['Volumen y tamaño',['rel_vol','vol20','dolar_vol20','float_musd','rotacion','mcap_musd']],
 ];
@@ -1962,7 +2207,12 @@ function dibujar(cursor){
   const A=calcAsh(b,cfg.ash), cor=k=>k.slice(ini);
   const D=cor(b.d),O=cor(b.o),H=cor(b.h),L=cor(b.l),C=cor(b.c),
         BU=cor(A.bulls),BE=cor(A.bears),HI=cor(A.hist);
-  const emaS=cfg.emas.map(e=>({n:e,v:cor(ema(b.c,e))}));
+  /* Las dos nubes Paragon en vez de las EMAs sueltas. B (ancla 1D) es la
+     grande y va en gris neutro, como en los graficos de Doc; A (ancla 4h) es
+     la rapida y se tiñe segun su propio sesgo. */
+  const nubes=[1,cfg.parK].map((k,i)=>{
+    const P=paragonSeries(b.c,cfg.parRap,cfg.parLen,k);
+    return {set:i?'A':'B',k,lr:P.lr,ll:P.ll,r:cor(P.rap),l:cor(P.len)};});
 
   const cv=$('#grafico'), dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth||900, Hpx=286;
@@ -1972,7 +2222,6 @@ function dibujar(cursor){
   const pad=48,h1=168,h2=88,gap=12,x0=8,x1=W-pad;
   const paso=(x1-x0)/N, ancho=Math.max(1,Math.min(9,paso*.6));
   const C_={bd:'#26303E',tn:'#5C6878',up:'#4FB286',dn:'#CF4B3E',am:'#E0A458',hu:'#E9E5DB'};
-  const EMACOL=['#E0A458','#8492A5','#7A6FF0','#4FB2C9','#C97AB8','#9BB868'];
   // escY: valor -> coordenada Y del canvas. Se llamaba `esc` y tapaba a la
   // funcion global esc() que escapa HTML, lo que rompia el panel del detalle.
   const escY=(v,mn,mx,y0,alto)=>y0+alto*(1-(v-mn)/(mx-mn||1));
@@ -1986,7 +2235,8 @@ function dibujar(cursor){
   // ---- panel de precio
   let mn=Infinity,mx=-Infinity;
   for(let i=0;i<N;i++){if(L[i]<mn)mn=L[i];if(H[i]>mx)mx=H[i];}
-  emaS.forEach(e=>e.v.forEach(v=>{if(isFinite(v)){if(v<mn)mn=v;if(v>mx)mx=v;}}));
+  nubes.forEach(nb=>[nb.r,nb.l].forEach(s=>s.forEach(v=>{
+    if(isFinite(v)){if(v<mn)mn=v;if(v>mx)mx=v;}})));
   const m=(mx-mn)*.06;mn-=m;mx+=m;
   grilla(8,h1,mn,mx,v=>v.toFixed(v>200?0:2));
   for(let i=0;i<N;i++){
@@ -1995,12 +2245,35 @@ function dibujar(cursor){
     g.beginPath();g.moveTo(x,escY(H[i],mn,mx,8,h1));g.lineTo(x,escY(L[i],mn,mx,8,h1));g.stroke();
     const ya=escY(Math.max(O[i],C[i]),mn,mx,8,h1),yb=escY(Math.min(O[i],C[i]),mn,mx,8,h1);
     g.fillRect(x-ancho/2,ya,ancho,Math.max(1,yb-ya));}
-  emaS.forEach((e,k)=>{g.strokeStyle=EMACOL[k%EMACOL.length];g.lineWidth=1.3;
+  /* Primero el relleno de cada nube y despues las lineas, para que el relleno
+     no le pase por encima al borde. */
+  const linea=(s,col,ancho_)=>{g.strokeStyle=col;g.lineWidth=ancho_;
     g.beginPath();let p=true;
-    e.v.forEach((v,i)=>{if(!isFinite(v))return;const x=x0+paso*(i+.5),y=escY(v,mn,mx,8,h1);
-      p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();
-    g.fillStyle=EMACOL[k%EMACOL.length];g.font='10px ui-monospace,monospace';
-    g.textAlign='left';g.fillText('EMA '+e.n,x0+6+k*52,20);});
+    s.forEach((v,i)=>{if(!isFinite(v))return;const x=x0+paso*(i+.5),y=escY(v,mn,mx,8,h1);
+      p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();};
+  nubes.forEach(nb=>{
+    const alcista=isFinite(nb.r[N-1])&&isFinite(nb.l[N-1])&&nb.r[N-1]>=nb.l[N-1];
+    // B neutra (es el marco), A teñida por su sesgo (es la señal)
+    const relleno=nb.set==='B'?'rgba(132,146,165,.13)'
+      :(alcista?'rgba(79,178,134,.16)':'rgba(207,75,62,.16)');
+    g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
+    g.fillStyle=relleno;g.beginPath();
+    let abrio=false;
+    for(let i=0;i<N;i++){if(!isFinite(nb.r[i])||!isFinite(nb.l[i]))continue;
+      const x=x0+paso*(i+.5),y=escY(nb.r[i],mn,mx,8,h1);
+      abrio?g.lineTo(x,y):(g.moveTo(x,y),abrio=true);}
+    for(let i=N-1;i>=0;i--){if(!isFinite(nb.r[i])||!isFinite(nb.l[i]))continue;
+      g.lineTo(x0+paso*(i+.5),escY(nb.l[i],mn,mx,8,h1));}
+    if(abrio){g.closePath();g.fill();}
+    g.restore();
+    const col=nb.set==='B'?'#8492A5':(alcista?C_.up:C_.dn);
+    linea(nb.r,col,1.3);linea(nb.l,col,1.3);
+    g.fillStyle=col;g.font='10px ui-monospace,monospace';g.textAlign='left';
+    g.fillText(`${nb.set} ${nb.lr}/${nb.ll}`+(nb.k!==1?' ≈':''),
+               x0+6+(nb.set==='B'?0:78),20);});
+  /* El rVWAP 365d, la linea suelta del conjunto semanal. */
+  {const R=rvwapExpansivo({c:C,h:H,l:L,v:cor(b.v)},cfg.rvLen,cfg.rvFuente);
+   linea(R.serie,'#FFA726',1.2);}
 
   /* ---- AVWAP anclado al ultimo maximo ----
      Se dibuja desde el ancla hasta hoy, con una marca en el ancla para que se
@@ -2087,7 +2360,7 @@ function dibujar(cursor){
   for(let i=0;i<5;i++){const j=Math.round(i*(N-1)/4);
     g.fillText(fecha(D[j]),x0+paso*(j+.5),Hpx-4);}
 
-  ctxGraf={N,x0,paso,D,O,H,L,C,BU,BE,HI,mn,mx,a,z,h1,h2,y2,W,Hpx,emaS};
+  ctxGraf={N,x0,paso,D,O,H,L,C,BU,BE,HI,mn,mx,a,z,h1,h2,y2,W,Hpx,nubes};
 
   // ---- crosshair
   const globo=$('#globo');
@@ -2400,7 +2673,7 @@ function estadoActual(){const o={};
   $$('aside input, aside select').forEach(el=>{
     if(!el.id||el.type==='file'||NO_ESTADO.includes(el.id))return;
     o[el.id]=el.type==='checkbox'?el.checked:el.value;});
-  o._emas=emasOn.slice();o._grupos=[...gruposOn];
+  o._grupos=[...gruposOn];
   o._orden={...orden};o._cols=[...colsOn];o._fav=soloFav;o._sel=seleccion;
   o._colsVistas=COLS.map(c=>c.k);o._ordenCols=ordenCols.slice();
   /* Estos tres se olvidaban al recargar y era lo que mas molestaba: volvias y
@@ -2412,7 +2685,6 @@ function estadoActual(){const o={};
   return o;}
 function aplicarEstado(o){
   ponerValores(o,true);
-  if(Array.isArray(o._emas))emasOn=o._emas.map(Number);
   if(o._grupos)gruposOn=new Set(o._grupos);
   if(o._orden&&o._orden.col)orden={...o._orden};
   if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
@@ -2464,7 +2736,6 @@ function engancharGuardadoFinal(){
 function restaurarSesion(){
   try{const o=JSON.parse(leerLS(SESION));if(!o)return false;
     ponerValores(o,false);
-    if(Array.isArray(o._emas))emasOn=o._emas.map(Number);
     if(o._grupos)gruposOn=new Set(o._grupos);
     if(o._orden&&o._orden.col)orden={...o._orden};
     if(Array.isArray(o._cols)&&o._cols.length)colsOn=fusionarColumnas(o._cols,o._colsVistas);
@@ -2634,6 +2905,20 @@ function etiquetas(){
   p('#fFloat','#lFloat',v=>'$'+v+'M');
   const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
   $('#lRs').classList.toggle('apagado',!(rs>1));
+  p('#fAnchoB','#lAnchoB',v=>'≥ '+v.toFixed(1)+'%');
+  p('#fDistB','#lDistB',v=>'≤ '+v.toFixed(1)+'%');
+  const rv=+$('#fRvwap').value;$('#lRvwap').textContent=rv>-50?rv+'%':'off';
+  $('#lRvwap').classList.toggle('apagado',!(rv>-50));
+  etiquetaCruceNube();
+}
+
+/* Misma logica que la del ASH: el numero solo no distingue "hace poco" de
+   "hace rato". */
+function etiquetaCruceNube(){
+  const n=+$('#fCruceBN').value, dir=$('#fCruceB').value, el=$('#lParB');
+  if(!el)return;
+  el.classList.toggle('apagado',!dir);
+  el.textContent=dir?((dir.slice(-1)==='+'?'≥ ':'≤ ')+n+' ruedas'):'off';
 }
 
 /* "12" a secas no distingue "cruzo hace menos de 12 ruedas" de "hace mas de
@@ -2645,10 +2930,8 @@ function etiquetaCruce(){
 }
 
 function montarChips(){
-  // Estos dos callbacks no guardaban la sesion: elegias EMAs o grupos, recargabas
-  // y volvia todo al default. Era la queja mas concreta sobre "la memoria".
-  chips($('#chipsEma'),EMAS_DISP,emasOn,(v,on)=>{
-    v=+v;emasOn=on?[...emasOn,v]:emasOn.filter(x=>x!==v);recalcular();guardarSesion();});
+  // Este callback no guardaba la sesion: elegias grupos, recargabas y volvia
+  // todo al default. Era la queja mas concreta sobre "la memoria".
   const grupos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))].sort();
   chips($('#chipsGrupo'),grupos,gruposOn,(v,on)=>{
     on?gruposOn.add(v):gruposOn.delete(v);aplicar();guardarSesion();});
@@ -3092,7 +3375,9 @@ function iniciar(){
      cancelaba el recalculo y la tabla se quedaba mostrando el ASH viejo hasta
      el proximo cambio. */
   const recalcIds=['ashModo','ashMa','ashLen','ashSmooth','almaOff','almaSig',
-                   'adrLen','rsiLen','atrLen','adxLen'];
+                   'adrLen','rsiLen','atrLen','adxLen',
+                   // los de Paragon rehacen las EMAs, asi que son pesados
+                   'parRap','parLen','parK','parFresco','rvLen','rvFuente'];
   let timer=null, pendientePesado=false;
   $$('aside input, aside select').forEach(el=>{
     if(NO_ESTADO.includes(el.id)||el.type==='file')return;
@@ -3150,10 +3435,8 @@ function iniciar(){
      mas. Una marca de tiempo se cura sola. */
   let ultimoArrastre=0, colArrastrada=null;
   const claveReal=k=>{
-    // las columnas de EMAs se expanden (vs_ema20, vs_ema50) pero en el orden
-    // viajan como una sola entrada: __emas
     if(COLS.some(c=>c.k===k))return k;
-    return /^vs_ema/.test(k)?'__emas':null;};
+    return null;};
 
   $('#tabla thead').addEventListener('click',e=>{const th=e.target.closest('th');
     if(!th||!th.dataset.k)return;
@@ -3346,7 +3629,6 @@ function iniciar(){
      es porque queres ESA vista, no la que dejaste la ultima vez en esta maquina. */
   const vista=leerVistaDeURL();
   if(vista){ponerValores(vista,true);
-    if(Array.isArray(vista._emas))emasOn=vista._emas.map(Number);
     if(vista._grupos)gruposOn=new Set(vista._grupos);
     if(vista._orden&&vista._orden.col)orden={...vista._orden};
     if(vista._cols&&vista._cols.length)colsOn=fusionarColumnas(vista._cols,vista._colsVistas);

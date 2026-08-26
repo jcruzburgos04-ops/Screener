@@ -15,6 +15,20 @@ for(const [k,b] of Object.entries(S)){
   r.adr=M.adrPct(b,20);
   r.cruce=M.barrasDesdeCruce(M.calcAsh(b,{length:16,smooth:4,modo:'RSI',
     ma_type:'EMA',alma_offset:0.85,alma_sigma:6}).hist);
+  // --- Paragon: las dos EMAs de cada conjunto y el rVWAP ---
+  // El conjunto B va con las longitudes tal cual (k=1, exacto) y el A con las
+  // convertidas (k=2 y k=6, que son la rueda de EEUU y cripto).
+  r.emaPine100=M.emaPine(b.c,100);
+  r.emaPine200=M.emaPine(b.c,200);
+  r.largos={};
+  for(const k of [1,2,6,12])
+    r.largos[k]=[M.largoEquivalente(100,k),M.largoEquivalente(200,k)];
+  // el conjunto entero, que ademas del largo convertido aplica el warmup del ancla
+  for(const k of [1,2,6]){
+    const P=M.paragonSeries(b.c,100,200,k);
+    r['parA'+k]=[P.rap,P.len];}
+  for(const f of ['hl2','hlc3','close'])
+    r['rvwap_'+f]=M.rvwapExpansivo(b,365,f).serie;
   out[k]=r;
 }
 fs.writeFileSync(__dirname+'/salida_js.json',JSON.stringify(out));

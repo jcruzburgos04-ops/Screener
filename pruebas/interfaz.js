@@ -179,8 +179,7 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   // configuro cosas variadas
   $('#fAdr').value='2.5';$('#fAdr').dispatchEvent(new w.Event('input',{bubbles:true}));
   $('#buscar').value='NV';$('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));
-  const chipEma=$$('#chipsEma .chip').find(c=>c.dataset.v==='200');
-  chipEma.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  $('#parK').value='6';$('#parK').dispatchEvent(new w.Event('input',{bubbles:true}));
   const chipGr=$$('#chipsGrupo .chip')[0];const grupoElegido=chipGr.dataset.v;
   chipGr.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await new Promise(r=>setTimeout(r,700));
@@ -190,15 +189,14 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   const guardado=JSON.parse(almacen.getItem('screener_ash_sesion'));
   ok('guardo el ADR',guardado.fAdr==='2.5',guardado.fAdr);
   ok('guardo la busqueda',guardado._buscar==='NV',guardado._buscar);
-  ok('guardo las EMAs',guardado._emas.includes(200),JSON.stringify(guardado._emas));
+  ok('guardo el k de Paragon',guardado.parK==='6',guardado.parK);
   ok('guardo los grupos',guardado._grupos.includes(grupoElegido),JSON.stringify(guardado._grupos));
 
   console.log('\n== reabrir con la misma sesion ==');
   const b=await abrir(almacen);
   ok('vuelve el ADR',b.$('#fAdr').value==='2.5',b.$('#fAdr').value);
   ok('vuelve la busqueda',b.$('#buscar').value==='NV',b.$('#buscar').value);
-  ok('vuelve la EMA 200',b.$$('#chipsEma .chip').find(c=>c.dataset.v==='200')
-      .classList.contains('on'));
+  ok('vuelve el k de Paragon',b.$('#parK').value==='6',b.$('#parK').value);
   ok('vuelve el grupo',b.$$('#chipsGrupo .chip').find(c=>c.dataset.v===grupoElegido)
       .classList.contains('on'));
   ok('la tabla filtro por la busqueda',b.$$('#tabla tbody tr').length<50,
@@ -242,8 +240,7 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   const c=await abrir(nuevoAlmacen(),hash);
   ok('la URL manda sobre un almacen vacio',c.$('#fAdr').value==='2.5',c.$('#fAdr').value);
   ok('la URL trae la busqueda',c.$('#buscar').value==='NV',c.$('#buscar').value);
-  ok('la URL trae las EMAs',c.$$('#chipsEma .chip').find(x=>x.dataset.v==='200')
-      .classList.contains('on'));
+  ok('la URL trae el k de Paragon',c.$('#parK').value==='6',c.$('#parK').value);
 
   console.log('\n== respaldo: exportar e importar ==');
   const d1=await abrir(nuevoAlmacen());

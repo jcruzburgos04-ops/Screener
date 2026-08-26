@@ -44,6 +44,8 @@ python3 series.py
 node paridad_js.js
 python3 paridad.py
 
+echo; echo "== Paragon: EMA de Pine, conversion y rVWAP =="
+python3 paragon.py
 echo; echo "== lineas de tendencia =="
 node tendencias.js
 echo; echo "== AVWAP anclado al ultimo maximo =="

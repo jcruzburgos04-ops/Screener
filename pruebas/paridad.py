@@ -47,6 +47,29 @@ for k, b in series.items():
                        ('adr', S.calc_adr_pct(df,20), js[k]['adr'])):
         peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
         malos += bad
+    # --- Paragon ---
+    # La EMA de Pine (semilla = SMA de los primeros n, NaN antes), la conversion
+    # de longitudes y el rVWAP expansivo, en las tres fuentes.
+    for nom, py, j in (('emaPine100', S.ema_pine(df['Close'],100), js[k]['emaPine100']),
+                       ('emaPine200', S.ema_pine(df['Close'],200), js[k]['emaPine200'])):
+        peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
+        malos += bad
+    for kk in (1,2,6,12):
+        py_l = [S.largo_equivalente(100,kk), S.largo_equivalente(200,kk)]
+        js_l = js[k]['largos'][str(kk)]
+        if py_l != js_l:
+            print(f'  LARGO DISTINTO {k} k={kk}: py={py_l} js={js_l}'); malos += 1
+    for kk in (1,2,6):
+        rap, len_, _, _ = S.paragon_conjunto(df['Close'],100,200,kk)
+        for nom, py, j in ((f'parA{kk} rapida', rap, js[k][f'parA{kk}'][0]),
+                           (f'parA{kk} lenta',  len_, js[k][f'parA{kk}'][1])):
+            peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
+            malos += bad
+    for fu in ('hl2','hlc3','close'):
+        rv, _ = S.rvwap_expansivo(df, 365, fu)
+        peor, bad = cmp(rv.tolist(), js[k]['rvwap_'+fu], f'{k} rvwap {fu}', peor)
+        malos += bad
+
     bu,be,h = S.calc_ash(df, **S.CFG_ASH)
     cr_py = S.barras_desde_cruce(h)
     cr_js = js[k]['cruce']
@@ -54,6 +77,7 @@ for k, b in series.items():
         print(f'  CRUCE DISTINTO {k}: py={cr_py} js={cr_js}'); malos += 1
 
 print(f'\nseries comparadas: {len(series)}  ·  18 combinaciones modo x media + RSI/ATR/ADX/ADR')
+print('mas Paragon: EMA de Pine, conversion de longitudes y rVWAP en tres fuentes')
 print(f'error relativo maximo: {peor[0]:.3e}   ({peor[1]})')
 print('RESULTADO:', 'PARIDAD OK' if malos == 0 else f'{malos} DESVIOS')
 sys.exit(1 if malos else 0)

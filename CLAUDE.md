@@ -13,7 +13,7 @@ tiene, en particular el **ASH** (Absolute Strength Histogram). Lo usa una sola
 persona, un trader argentino que opera CEDEARs y ADRs.
 
 El objetivo central: **filtrar y ordenar ~465 papeles por la señal del ASH**,
-cruzando eso con tendencia (EMAs), momentum (RSI, ADR, ADX), liquidez y fuerza
+cruzando eso con tendencia (las nubes Paragon), momentum (RSI, ADR, ADX), liquidez y fuerza
 relativa de la industria. El resultado se mira todos los días después del cierre
 de Nueva York.
 
@@ -189,6 +189,89 @@ filtro "ASH semanal creciendo" deja pasar a los que ni siquiera tienen semanal.
 
 ---
 
+## 4b. Paragon: las medias que reemplazaron a las EMAs 20/50
+
+Reconstrucción por ingeniería inversa de los dos indicadores privados de DocXBT
+(The Paragon Group). **Los dos son el mismo par 100/200**; lo único que cambia
+es el timeframe de anclaje. No es un error de tipeo:
+
+- **Conjunto B** — "Paragon Weekly": EMA 100/200 ancladas a **1D**
+- **Conjunto A** — "Paragon Daily": EMA 100/200 ancladas a **4h**
+- **rVWAP 365d** — línea suelta, VWAP rolling sobre 365 velas diarias
+
+### La EMA es la de Pine, y NO es la que usa el ASH
+
+`ema_pine()` / `emaPine()`: semilla = **SMA de los primeros L**, `NaN` durante
+las L−1 primeras velas, y de ahí la recursión. **No** es `ewm(adjust=True)` ni
+`ewm(adjust=False)`.
+
+> **No unifiques las dos EMAs.** La `ema()` de más arriba siembra con el primer
+> precio, y eso es exactamente lo que sostiene la paridad de 6,7e-14 del ASH.
+> Son dos medias distintas a propósito. `pruebas/paragon.py` verifica que
+> `ema_pine` difiera de las dos variantes de `ewm`.
+
+### Conversión de longitudes: multiplicativa, no lineal
+
+Lo que se conserva es la tasa de decaimiento por unidad de tiempo calendario:
+
+```
+a_destino = 1 − (1 − a_ancla)^k          L_destino = 2/a_destino − 1
+```
+
+Con **k=6** (cripto) da **17 y 33**, que son exactamente los números que
+documenta el Pine original. Ésa es la comprobación de que la fórmula está bien,
+y está en `pruebas/paragon.py`. Con **k=2** (una rueda de 6,5 h son dos velas de
+4 h) el par 100/200 de 4h equivale a **50/100** en diario.
+
+### El warmup sale del ANCLA, no de la longitud convertida
+
+La longitud convertida gobierna la *forma* de la curva; cuándo puede existir lo
+gobierna el ancla. Para imprimir hacen falta `largo` velas del ancla, o sea
+`ceil(largo/k)` de la serie.
+
+> Con k=6 la EMA 200 de 4h necesita 200/6 = 33,33 días, así que **la primera
+> vela diaria que las completa es la 34** — no la 33, que es donde imprimiría
+> una EMA(33) suelta. Ese uno de diferencia es el dato que identifica al
+> indicador de Doc, y es lo que pidió verificar el usuario. Está en
+> `pruebas/paragon.py`.
+
+### Qué es exacto y qué es aproximado
+
+| | Ancla | Estado |
+|---|---|---|
+| Conjunto B | 1D | **Exacto**: el proyecto ya baja velas diarias |
+| Conjunto A | 4h | **Aproximado**: no hay velas de 4h en el pipeline |
+
+`interval="1d"` está fijo en `_descargar()`, y Yahoo ni siquiera tiene intervalo
+de 4h (el máximo es `1h`, sólo 730 días). El conjunto A usa la conversión
+multiplicativa con `k` configurable y **cada fila queda marcada con `≈`**.
+
+> **`k` no está medido, está asumido.** El usuario pidió medir empíricamente la
+> mediana de velas intradiarias por sesión y no hardcodear nada. Desde el
+> entorno de desarrollo no hay salida a Yahoo, así que k=2 es una deducción
+> (rueda de 6,5 h → dos velas de 4 h), no una medición. Si algún día se agrega
+> data intradiaria, medilo y ajustá el default.
+
+### rVWAP: ventana expansiva
+
+`rvwap[t] = Σ(precio·volumen) / Σ(volumen)` sobre las últimas `min(t+1, 365)`
+velas. El `min()` es deliberado: hasta el día 365 es un VWAP anclado al inicio
+del historial y de ahí pasa a ser la ventana móvil, **sin salto**. Las filas con
+la ventana incompleta se marcan con `*`. Fuente `hl2` por defecto (la del Pine
+del usuario), configurable a `hlc3` o `close`.
+
+### Columnas derivadas
+
+Por conjunto: sesgo, posición del precio (arriba/adentro/abajo), ancho, distancia
+al borde más cercano en % y en ATR(14), velas desde el cruce, y cruce fresco.
+Más `vs_rvwap`, `rv_llena` y **`regimen`** — los dos sesgos cruzados en cuatro
+estados (`A+ B+`, `A− B+`, `A+ B−`, `A− B−`), que es la columna con la que se
+filtra el universo. Se ordena por `regimen_ord` (0 a 3), no alfabéticamente:
+para eso `COLS` acepta ahora un campo `ord` con el nombre del campo alternativo.
+
+Los que no llegan al warmup **no se descartan en silencio**: van con `NaN` y con
+`sin_historial`, que se puede filtrar desde el panel.
+
 ## 5. CEDEARs: la regla que no se negocia
 
 **Nunca se descarga el precio del CEDEAR.** El precio en pesos mezcla el
@@ -228,8 +311,9 @@ Con 465 símbolos × 400 barras, el recálculo completo son **3-35 ms** medidos 
 jsdom (más en un navegador real con pintura, pero el orden es ése). Está partido
 en tres capas para que mover un parámetro no rehaga todo:
 
-1. **`cacheBase`** — RSI, ADR, ATR, ADX, EMAs, volúmenes, performances, máximos
-   de 52 semanas. Se invalida sólo si cambian *esos* períodos o las EMAs.
+1. **`cacheBase`** — RSI, ADR, ATR, ADX, nubes Paragon, rVWAP, volúmenes,
+   performances, máximos de 52 semanas. Se invalida sólo si cambian esos
+   períodos o los parámetros de Paragon.
 2. **`cacheSem`** — las barras semanales resampleadas. Nunca se invalida.
 3. **`memoAsh`** — un Map por configuración de ASH, guarda las últimas 4. Volver
    de 9/4 a 16/4 tarda **3 ms** en vez de recalcular todo.
@@ -244,7 +328,8 @@ tampoco. Sólo `recalcular()` toca el motor; `aplicar()` filtra y `render()` pin
 
 Otras decisiones de peso:
 
-- El sitio se genera con **400 barras**, no 600. Alcanzan para EMA 200 (200), el
+- El sitio se genera con **400 barras**, no 600. Alcanzan para la EMA 200 del
+  conjunto B (200), el
   máximo de 52 semanas (252) y ~80 semanas de ASH. Un tercio menos de peso.
 - **Página y datos separados** en el sitio publicado: el navegador cachea el HTML
   aparte y las visitas siguientes sólo bajan los precios.
@@ -398,7 +483,7 @@ configuración · Datos.
 
 **Qué se guarda y qué se guardaba mal.** El estado incluye ahora la búsqueda, la
 industria seleccionada y el perfil elegido en el desplegable, además de los
-filtros, las EMAs, los grupos, las columnas y el orden. Los chips de EMAs y de
+filtros, los grupos, las columnas y el orden. Los chips de
 grupos **no llamaban a `guardarSesion()`**: los elegías, recargabas y volvía todo
 al default. Era la queja más concreta sobre "la memoria".
 
@@ -642,7 +727,7 @@ seguidos son una lista infinita donde no se encuentra nada.
 
 ### Gráfico
 
-Canvas propio, ~120 líneas. Velas + EMAs arriba, ASH abajo (bulls, bears,
+Canvas propio. Velas + las dos nubes Paragon + rVWAP arriba, ASH abajo (bulls, bears,
 histograma). Crosshair con OHLC. Selector diario/semanal.
 
 > **Bug ya corregido, no lo reintroduzcas:** la escala del panel del ASH **debe
@@ -826,7 +911,9 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `paridad.py` + `paridad_js.js` | Python ↔ JS, 18 combinaciones + RSI/ATR/ADX/ADR |
 | `interfaz.js` | carga, filtros, orden, persistencia, URL, respaldo, teclas |
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
-| `estres.js` | períodos extremos, sin EMAs, sin columnas, industrias, CSV |
+| `estres.js` | períodos extremos, k de Paragon, sin columnas, industrias, CSV |
+| `paragon.py` | EMA de Pine, conversión de longitudes, warmup del ancla, rVWAP |
+| `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
 | `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |
 | `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial |
@@ -865,15 +952,20 @@ necesitan internet.
 4. **`localStorage` siempre vía `leerLS`/`escribirLS`.**
 5. **El workflow no publica datos incompletos.** No aflojes los umbrales de 300
    símbolos y 40% de atraso.
-6. **Los tres quirks del Pine se respetan** (STOCHASTIC con cierre, SMMA no
+6. **La `ema()` del ASH y la `ema_pine()` de Paragon son dos medias distintas.**
+   No las unifiques: la primera siembra con el primer precio y es lo que
+   sostiene la paridad del ASH.
+7. **Los tres quirks del Pine se respetan** (STOCHASTIC con cierre, SMMA no
    recursiva, `sma(src,1)`).
-7. **Nada de dependencias externas en runtime.** El HTML no carga scripts de CDN;
+8. **Nada de dependencias externas en runtime.** El HTML no carga scripts de CDN;
    funciona sin internet.
-8. **La escala del panel del ASH incluye el cero y el histograma va clippeado.**
-9. **`bajar_precios` es una sola.** No la dupliques entre servidor y sitio.
-10. **Todo texto que venga de Yahoo pasa por `esc()`** antes de entrar al HTML.
-11. **Nunca datos inventados.** Sin modo demo, sin rellenos, sin precios de
+9. **La escala del panel del ASH incluye el cero y el histograma va clippeado.**
+10. **`bajar_precios` es una sola.** No la dupliques entre servidor y sitio.
+11. **Todo texto que venga de Yahoo pasa por `esc()`** antes de entrar al HTML.
+12. **Nunca datos inventados.** Sin modo demo, sin rellenos, sin precios de
     mentira. Si no hay datos, la página lo dice.
+13. **Una pestaña sólo graba la sesión si el usuario tocó algo en ella.** Si no,
+    una pestaña vieja en segundo plano te revierte la configuración.
 
 ---
 

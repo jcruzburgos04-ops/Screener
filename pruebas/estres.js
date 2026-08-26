@@ -38,14 +38,20 @@ setTimeout(async()=>{
   $('#ashLen').dispatchEvent(new w.Event('input',{bubbles:true}));
   await esperar(400);
 
-  console.log('== sin ninguna EMA ==');
-  for(const c of $$('#chipsEma .chip'))
-    if(c.classList.contains('on'))c.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
-  await esperar(400);
-  ok('sin EMAs sigue habiendo tabla',$$('#tabla tbody tr').length>100,$$('#tabla tbody tr').length);
-  for(const v of ['20','50'])
-    $$('#chipsEma .chip').find(c=>c.dataset.v===v).dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
-  await esperar(400);
+  console.log('== Paragon con parametros extremos ==');
+  // k=12 lleva la EMA 200 de 4h a una longitud chiquita; k=1 la deja en 200
+  for(const k of ['12','1','6','2']){
+    $('#parK').value=k;$('#parK').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(300);
+    ok('con k='+k+' sigue habiendo tabla',$$('#tabla tbody tr').length>100,
+       $$('#tabla tbody tr').length);}
+  // una ventana de rVWAP mas larga que el historial: tiene que dar valor igual
+  $('#rvLen').value='5000';$('#rvLen').dispatchEvent(new w.Event('input',{bubbles:true}));
+  await esperar(350);
+  ok('con la ventana mas larga que el historial sigue habiendo tabla',
+     $$('#tabla tbody tr').length>100,$$('#tabla tbody tr').length);
+  $('#rvLen').value='365';$('#rvLen').dispatchEvent(new w.Event('input',{bubbles:true}));
+  await esperar(350);
 
   console.log('== sin ninguna columna elegible ==');
   w.eval('ponerColumnas([])');

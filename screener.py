@@ -64,7 +64,11 @@ CFG_ASH = {
 }
 
 # ---- Otros indicadores -------------------------------------------------------
-EMAS = (20, 50)            # las que pediste. Agregar mas es agregar numeros aca.
+PARAGON = {"rapida": 100, "lenta": 200, "k": 2, "fresco": 5,
+           "rv_len": 365, "rv_fuente": "hl2"}
+#   k = velas de 4h por rueda. Con 2 (una rueda de 6,5 h son dos velas de 4 h)
+#   el par 100/200 de 4h equivale a 50/100 en diario. Con 6 (cripto) da 17/33,
+#   que son los numeros que documenta el Pine original.
 ADR_LEN = 20               # ventana del Average Daily Range
 RSI_LEN = 14
 ATR_LEN = 14
@@ -87,9 +91,9 @@ FILTROS = {
     "rsi14_max":           None,
 
     # --- EMAs ---
-    "sobre_ema20":         None,         # True / False / None
-    "sobre_ema50":         None,
-    "ema20_sobre_ema50":   None,
+    "par_b_sesgo":         None,         # True / False / None
+    "par_a_sesgo":         None,
+    "regimen_ord":         None,
 
     # --- ASH diario ---
     "ash_d_min":           None,         # valor de la diferencia
@@ -124,9 +128,8 @@ REGLAS = [
     ("atr_pct_max",        "atr_pct",         "le"),
     ("rsi14_min",          "rsi14",           "ge"),
     ("rsi14_max",          "rsi14",           "le"),
-    ("sobre_ema20",        "sobre_ema20",     "bool"),
-    ("sobre_ema50",        "sobre_ema50",     "bool"),
-    ("ema20_sobre_ema50",  "ema20_sobre_ema50", "bool"),
+    ("par_b_sesgo",        "par_b_sesgo",     "bool"),
+    ("par_a_sesgo",        "par_a_sesgo",     "bool"),
     ("ash_d_min",          "ash_d",           "ge"),
     ("ash_d_positivo",     "ash_d_positivo",  "bool"),
     ("ash_d_creciendo",    "ash_d_creciendo", "bool"),
@@ -170,11 +173,15 @@ COLUMNAS = [
     ("atr_pct",           "ATR %",           "0.00"),
     ("adx14",             "ADX 14",          "0.0"),
     # --- EMAs ---
-    ("vs_ema20",          "vs EMA20 %",      "0.0%"),
-    ("vs_ema50",          "vs EMA50 %",      "0.0%"),
-    ("sobre_ema20",       "Sobre EMA20",     "@"),
-    ("sobre_ema50",       "Sobre EMA50",     "@"),
-    ("ema20_sobre_ema50", "EMA20>EMA50",     "@"),
+    ("regimen",           "Régimen",         "@"),
+    ("par_b_pos",         "Precio vs B",     "@"),
+    ("par_b_dist",        "Dist. nube B",    "0.0%"),
+    ("par_b_ancho",       "Ancho B",         "0.0%"),
+    ("par_b_cruce",       "Cruce B",         "0"),
+    ("par_a_pos",         "Precio vs A",     "@"),
+    ("par_a_dist",        "Dist. nube A",    "0.0%"),
+    ("par_a_cruce",       "Cruce A",         "0"),
+    ("vs_rvwap",          "vs rVWAP 365",    "0.0%"),
     # --- Performance ---
     ("perf_1s",           "1 sem",           "0.0%"),
     ("perf_1m",           "1 mes",           "0.0%"),
@@ -218,6 +225,184 @@ def sma(s, n):
 
 def ema(s, n):
     return s.ewm(span=int(n), adjust=False).mean()
+
+
+# ---------------------------------------------------------------------------
+# PARAGON  ·  EMA 100/200 ancladas, y rVWAP 365d
+#
+# Reconstruccion de los dos indicadores privados de DocXBT (The Paragon Group).
+# Los dos son EL MISMO par 100/200; lo unico que cambia es el timeframe de
+# anclaje: "Paragon Daily" ancla a 4h y "Paragon Weekly" ancla a 1D.
+# ---------------------------------------------------------------------------
+
+def ema_pine(s, n):
+    """
+    ta.ema de Pine Script, que NO es lo mismo que ewm() de pandas.
+
+    Diferencias que importan, porque el usuario cruza estos numeros contra
+    TradingView:
+      - la semilla es la SMA de los primeros n valores, no el primer precio
+        (que es lo que hace ewm(adjust=False)) ni un promedio expansivo
+        (ewm(adjust=True));
+      - devuelve NaN durante las primeras n-1 velas, sin rellenar hacia atras.
+
+    OJO: la ema() de mas arriba NO se toca. Esa la consume el ASH, y su
+    semilla "primer valor" es justo lo que hace que la paridad Python <-> JS
+    del ASH de 6,7e-14 se sostenga. Son dos medias distintas a proposito.
+    """
+    n = int(n)
+    x = np.asarray(s, dtype=float)
+    out = np.full(len(x), np.nan)
+    if len(x) < n or n < 1:
+        return pd.Series(out, index=s.index)
+    a = 2.0 / (n + 1.0)
+    p = float(np.mean(x[:n]))          # semilla = SMA de los primeros n
+    out[n - 1] = p
+    for i in range(n, len(x)):
+        v = x[i]
+        if not np.isfinite(v):
+            out[i] = p
+            continue
+        p = a * v + (1.0 - a) * p
+        out[i] = p
+    return pd.Series(out, index=s.index)
+
+
+def largo_equivalente(largo, k):
+    """
+    Convierte la longitud de una EMA del timeframe ancla al del grafico.
+
+    NO es largo/k. Lo que se conserva es la tasa de decaimiento por unidad de
+    tiempo calendario, y eso es multiplicativo:
+
+        (1 - a_ancla)^k = (1 - a_destino)   ->   a_destino = 1 - (1 - a_ancla)^k
+        L_destino = 2/a_destino - 1
+
+    Para k chico las dos formulas casi coinciden (EMA 200 de 4h en diario:
+    33,33 lineal contra 33,39 exacta), pero para k grande divergen feo: en
+    semanal la EMA 100 de 4h da 2,38 lineal y 2,52 exacta, y eso cambia el
+    redondeo de 2 a 3.
+
+    Con k=6 (cripto, seis velas de 4h por dia) da 17 y 33, que son exactamente
+    los numeros que documenta el Pine original. Es la comprobacion de que la
+    formula esta bien.
+    """
+    a = 2.0 / (float(largo) + 1.0)
+    a_dest = 1.0 - (1.0 - a) ** float(k)
+    if a_dest <= 0:
+        return int(largo)
+    return max(2, int(round(2.0 / a_dest - 1.0)))
+
+
+def rvwap_expansivo(df, n=365, fuente="hl2"):
+    """
+    VWAP rolling sobre las ultimas min(t+1, n) velas diarias.
+
+    El min() es deliberado: mientras el simbolo tenga menos de n velas la
+    ventana arranca desde la primera disponible en vez de devolver NaN. O sea
+    que hasta la vela n el valor es un VWAP anclado al inicio del historico, y
+    de ahi en adelante pasa a ser la ventana movil. La transicion es continua,
+    sin salto.
+
+    Devuelve (serie, ventana_llena_bool).
+
+    Fuente hl2 por defecto, que es la del Pine del usuario. El VWAP nativo de
+    TradingView usa hlc3, asi que queda configurable.
+    """
+    n = int(n)
+    if fuente == "hlc3":
+        px = (df["High"] + df["Low"] + df["Close"]) / 3.0
+    elif fuente == "close":
+        px = df["Close"].astype(float)
+    else:
+        px = (df["High"] + df["Low"]) / 2.0
+    vol = df["Volume"].astype(float).fillna(0.0)
+    pv = (px * vol).cumsum()
+    cv = vol.cumsum()
+    # la diferencia de acumulados: donde todavia no hay n velas, el desplazado
+    # es NaN y el fillna(0) deja el acumulado COMPLETO, que es justo la ventana
+    # expansiva que se busca
+    pvn = pv - pv.shift(n).fillna(0.0)
+    cvn = cv - cv.shift(n).fillna(0.0)
+    out = pd.Series(np.where(cvn > 0, pvn / cvn, np.nan), index=df.index)
+    return out, len(df) >= n
+
+
+def paragon_conjunto(cierre, rapida=100, lenta=200, k=1):
+    """
+    Un conjunto Paragon (el par 100/200) llevado al timeframe de las barras
+    que se le pasan.
+
+    k = velas del ancla por vela de la serie. Con k=1 el ancla ES la serie y
+    las longitudes van tal cual (el caso del conjunto SEMANAL sobre diarias:
+    exacto, sin aproximar nada). Con k>1 el ancla es mas fina que la serie y
+    las longitudes se convierten con largo_equivalente(), que es una
+    aproximacion: misma tasa de decaimiento, pero las dos EMAs comen series
+    distintas, asi que los valores no coinciden con los del ancla de verdad.
+
+    Devuelve (rapida_serie, lenta_serie, largo_rapida_usado, largo_lenta_usado).
+    """
+    lr = largo_equivalente(rapida, k) if k != 1 else int(rapida)
+    ll = largo_equivalente(lenta, k) if k != 1 else int(lenta)
+    a, b = ema_pine(cierre, lr), ema_pine(cierre, ll)
+    # WARMUP: la longitud convertida gobierna la FORMA de la curva, pero no
+    # cuando puede existir. Para que el conjunto imprima hace falta juntar
+    # `largo` velas del ancla, o sea ceil(largo/k) velas de la serie. Con
+    # k=6 la EMA 200 de 4h necesita 200/6 = 33,33 dias, asi que la primera
+    # vela diaria que las completa es la 34 -- y no la 33, que es donde
+    # imprimiria una EMA(33) suelta. Ese uno de diferencia es justo el dato
+    # que identifica al indicador de Doc, asi que se respeta.
+    a = _recortar_warmup(a, int(np.ceil(rapida / float(k))))
+    b = _recortar_warmup(b, int(np.ceil(lenta / float(k))))
+    return a, b, lr, ll
+
+
+def _recortar_warmup(s, velas):
+    """Deja en NaN las primeras `velas - 1`, sin tocar el resto."""
+    if velas <= 1:
+        return s
+    out = s.copy()
+    out.iloc[:min(velas - 1, len(out))] = np.nan
+    return out
+
+
+def senales_paragon(df, rap, len_, atr=None):
+    """
+    Las columnas derivadas de un conjunto: sesgo, posicion del precio respecto
+    de la nube, ancho, distancia al borde mas cercano y velas desde el cruce.
+
+    Todo NaN/None si el conjunto todavia no imprimio (simbolo joven): no se
+    inventa nada, se marca y se filtra.
+    """
+    px = float(df["Close"].iloc[-1])
+    a, b = rap.iloc[-1], len_.iloc[-1]
+    if not (np.isfinite(a) and np.isfinite(b)):
+        return {"sesgo": None, "pos": "", "ancho": np.nan,
+                "dist": np.nan, "dist_atr": np.nan, "cruce": np.nan}
+    a, b = float(a), float(b)
+    techo, piso = max(a, b), min(a, b)
+    pos = "arriba" if px > techo else ("abajo" if px < piso else "adentro")
+    borde = techo if px > techo else (piso if px < piso else
+                                      (techo if techo - px < px - piso else piso))
+    dist = (px - borde) / px
+    val = rap - len_
+    v = val.dropna()
+    cruce = np.nan
+    if len(v) >= 2:
+        signo = np.sign(v.to_numpy())
+        ult = signo[-1]
+        cruce = 0
+        for i in range(len(signo) - 2, -1, -1):
+            if signo[i] != ult and signo[i] != 0:
+                break
+            cruce += 1
+        if cruce >= len(signo) - 1:
+            cruce = np.nan          # nunca cruzo en el historial disponible
+    return {"sesgo": bool(a >= b), "pos": pos,
+            "ancho": abs(a - b) / px, "dist": dist,
+            "dist_atr": (px - borde) / atr if (atr and atr == atr and atr > 0)
+                        else np.nan,
+            "cruce": float(cruce) if cruce == cruce else np.nan}
 
 
 def _conv(s, pesos):
@@ -821,7 +1006,7 @@ def cargar_precios(path=CACHE_PRECIOS):
 # 6. METRICAS
 # ==============================================================================
 
-def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
+def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
              rsi_len=None, atr_len=None, adx_len=None, historial=0):
     """
     Calcula todas las metricas de un simbolo.
@@ -834,7 +1019,7 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
     dibujar el sparkline en la tabla.
     """
     cfg = dict(cfg_ash or CFG_ASH)
-    emas = tuple(emas or EMAS)
+    par = dict(PARAGON, **(paragon or {}))
     adr_len = adr_len or ADR_LEN
     rsi_len = rsi_len or RSI_LEN
     atr_len = atr_len or ATR_LEN
@@ -857,7 +1042,6 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
     else:
         w_val = w_prev = w_norm = np.nan
 
-    e = {n: ema(c, n) for n in emas}
     vol20 = float(v.rolling(20).mean().iloc[-1])
     vent = min(len(c), 252)
     max52, min52 = float(c.iloc[-vent:].max()), float(c.iloc[-vent:].min())
@@ -915,11 +1099,40 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, emas=None, adr_len=None,
         "rotacion_float": vol20 / fs if (fs == fs and fs) else np.nan,
         "mcap_musd": mcap / 1e6 if mcap == mcap else np.nan,
     }
-    for n in emas:
-        f[f"vs_ema{n}"] = px / float(e[n].iloc[-1]) - 1
-        f[f"sobre_ema{n}"] = bool(px > float(e[n].iloc[-1]))
-    if 20 in emas and 50 in emas:
-        f["ema20_sobre_ema50"] = bool(e[20].iloc[-1] > e[50].iloc[-1])
+    # --- PARAGON ---
+    # Conjunto B (ancla 1D): EXACTO, son la EMA 100/200 sobre las diarias que
+    # ya baja el screener. Conjunto A (ancla 4h): APROXIMADO, porque no hay
+    # velas de 4h en el pipeline; se convierten las longitudes conservando la
+    # tasa de decaimiento y la fila queda marcada.
+    atr_v = float(calc_atr(df, 14).iloc[-1])
+    rb, lb, _, _ = paragon_conjunto(c, par["rapida"], par["lenta"], 1)
+    ra, la, kra, kla = paragon_conjunto(c, par["rapida"], par["lenta"], par["k"])
+    B = senales_paragon(df, rb, lb, atr_v)
+    A = senales_paragon(df, ra, la, atr_v)
+    for pre, S in (("par_b", B), ("par_a", A)):
+        f[f"{pre}_sesgo"] = S["sesgo"]
+        f[f"{pre}_pos"] = S["pos"]
+        f[f"{pre}_ancho"] = S["ancho"]
+        f[f"{pre}_dist"] = S["dist"]
+        f[f"{pre}_dist_atr"] = S["dist_atr"]
+        f[f"{pre}_cruce"] = S["cruce"]
+        f[f"{pre}_fresco"] = bool(S["cruce"] == S["cruce"]
+                                  and S["cruce"] <= par["fresco"])
+    f["par_a_aprox"] = par["k"] != 1
+    f["par_a_largos"] = f"{kra}/{kla}"
+    if A["sesgo"] is None or B["sesgo"] is None:
+        f["regimen"], f["regimen_ord"] = "", np.nan
+    else:
+        f["regimen"] = ("A+ B+" if (A["sesgo"] and B["sesgo"]) else
+                        "A− B+" if B["sesgo"] else
+                        "A+ B−" if A["sesgo"] else "A− B−")
+        f["regimen_ord"] = (2 if B["sesgo"] else 0) + (1 if A["sesgo"] else 0)
+    rv, llena = rvwap_expansivo(df, par["rv_len"], par["rv_fuente"])
+    f["rvwap"] = float(rv.iloc[-1]) if np.isfinite(rv.iloc[-1]) else np.nan
+    f["vs_rvwap"] = px / f["rvwap"] - 1 if f["rvwap"] == f["rvwap"] else np.nan
+    f["rv_llena"] = bool(llena)
+    # los que no llegan al warmup no se descartan en silencio
+    f["sin_historial"] = bool(A["sesgo"] is None or B["sesgo"] is None)
     if historial:
         f["serie_d"] = [float(x) for x in ash_d.dropna().iloc[-historial:]]
         f["serie_w"] = ([float(x) for x in ash_w.dropna().iloc[-historial:]]
@@ -952,18 +1165,6 @@ def aplicar_filtros(df, filtros):
 # ==============================================================================
 # 7. EXCEL
 # ==============================================================================
-
-def asegurar_columnas_emas(emas):
-    """Agrega al Excel las columnas de las EMAs que se hayan configurado."""
-    claves = {k for k, _, _ in COLUMNAS}
-    pos = next(i for i, (k, _, _) in enumerate(COLUMNAS) if k == "vs_ema20")
-    for n in emas:
-        for clave, titulo, fmt in ((f"vs_ema{n}", f"vs EMA{n} %", "0.0%"),
-                                   (f"sobre_ema{n}", f"Sobre EMA{n}", "@")):
-            if clave not in claves:
-                COLUMNAS.insert(pos, (clave, titulo, fmt))
-                pos += 1
-
 
 def exportar(df_todo, df_filtrado, salida, notas):
     from openpyxl import Workbook
@@ -1100,7 +1301,6 @@ def main():
     print(f"      {len(df_f)} de {len(df)} pasan el filtro")
 
     print("[5/5] Excel...")
-    asegurar_columnas_emas(EMAS)
     notas = [("Generado", datetime.now().strftime("%Y-%m-%d %H:%M")),
              ("Universo", f"{len(tickers)} simbolos ({args.universo})"),
              ("Con datos", len(df)), ("Pasan el filtro", len(df_f)),
@@ -1112,7 +1312,7 @@ def main():
              ("smooth", CFG_ASH["smooth"]), ("ma_type", CFG_ASH["ma_type"]),
              ("semanal", "barras W-FRI armadas desde las diarias"), ("", ""),
              ("--- Otros ---", ""),
-             ("EMAs", ", ".join(str(x) for x in EMAS)),
+             ("Paragon", f'{PARAGON["rapida"]}/{PARAGON["lenta"]} · k={PARAGON["k"]}'),
              ("ADR", f"{ADR_LEN} ruedas"), ("RSI", RSI_LEN), ("", ""),
              ("--- Filtros activos ---", "")] + \
             [(k, v) for k, v in FILTROS.items() if v is not None]
