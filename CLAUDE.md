@@ -274,52 +274,92 @@ Los que no llegan al warmup **no se descartan en silencio**: van con `NaN` y con
 
 ## 4c. Consolidación: la caja
 
-Encontrar lo que se mueve en un mismo rango. Lo pidió el usuario con una captura
-de un papel lateralizando.
+Encontrar lo que se mueve en un mismo rango. Lo pidió el usuario con una captura,
+y después lo hizo afinar señalando **PLTR**, que es el caso que rompió la primera
+versión.
 
-**Por qué no se mide en % a secas.** Un rango "chico" no significa nada en
-abstracto: 6% en un mes es quieto para un papel que se mueve 3% por día y es un
-temblor para uno que se mueve 0,4%. Medido así, el filtro se llena de papeles
-tranquilos y nunca muestra una consolidación real en algo volátil.
+### El largo de la caja se BUSCA, no se asume
 
-**La vara es el ADR del propio papel.** Si el precio fuera una caminata al azar
-con paso diario igual a su ADR, en N ruedas recorrería del orden de `ADR·√N`:
+**Ésta es la parte que estaba mal.** La primera versión usaba una ventana fija de
+20 ruedas. Sobre PLTR al 26/08/2026 esa ventana llegaba hasta el 30/07 —*antes*
+del salto del 04/08 (+29,45%)— así que medía una caja de **35,4% de alto** y no
+detectaba nada. El rango de verdad eran **13 ruedas desde el 10/08, con 7,9%**.
+
+Ahora se prueban todos los largos y gana **el que minimiza la estrechez**.
+Funciona porque la curva tiene un mínimo nítido justo donde arranca el rango: en
+PLTR baja parejo hasta L=13 (0,55) y salta a 0,79 en L=14, que es la barra
+anterior al rango. La caja termina donde agregar una barra más empieza a doler.
+
+`_mejor_caja()` / `mejorCaja()` es O(maxL): techo y piso corridos, y el ADR de
+una suma acumulada. No recalcula la media en cada vuelta.
+
+### El alto se mide contra el ADR del propio papel
+
+Un rango "chico" no significa nada en abstracto: 6% en un mes es quieto para un
+papel que se mueve 3% por día y es un temblor para uno de 0,4%. Si el precio
+fuera una caminata al azar con paso diario igual a su ADR, en L ruedas recorrería
+del orden de `ADR·√L`:
 
 ```
-estrechez = alto_de_la_caja / (ADR · √N)
+estrechez = alto_de_la_caja / (ADR · √L)
 ```
 
 Menor que 1 = se movió **menos de lo que le corresponde por su propia
-volatilidad**. Eso sí es comparable entre AAPL y una minera chica, y es lo que
-`pruebas/consolidacion.py` verifica explícitamente con dos series de igual rango
-y distinta volatilidad.
+volatilidad**. Comparable entre AAPL y una minera chica.
 
-**Tres estados**, en orden de fuerza:
+### Los estados
 
 | Estado | Cuándo |
 |---|---|
-| `Cajón` | `estrechez < 0,62` y lleva al menos `0,6·N` ruedas adentro |
-| `Se aprieta` | la mitad nueva es < 0,6 de la vieja **y** `estrechez < 1` |
-| `Rango` | `estrechez < 0,85` |
+| `Rompió ↑` / `Rompió ↓` | la caja de ayer era buena y hoy el cierre quedó afuera |
+| `Cajón` | `estrechez ≤ 0,62`, `L ≥ 10` |
+| `Se aprieta` | `contracción < 0,40` y `estrechez ≤ 0,72` |
+| `Rango` | `estrechez ≤ 0,72` |
 
-> El `estrechez < 1` de "Se aprieta" **no es decorativo**: sin él, un papel que
-> se angosta a la mitad pero sigue moviéndose más que su ADR entraba como
-> consolidación. Hay un test para ese falso positivo.
+Todos exigen además `alto ≤ tope` (18% por defecto, editable).
 
-Las ruedas dentro de la caja se cuentan con una **tolerancia del 3% del alto**:
-una mecha que se asoma no rompe la caja, que es como lo lee el ojo.
+**En las rupturas se reporta la caja de la que SALIÓ**, no la de hoy: la de hoy ya
+incluye la barra de la ruptura, así que sale más alta y no es la que el ojo (ni
+el gráfico) llama "el rango que rompió". La posición pasa de 100%.
 
-Los umbrales (0,62 / 0,85 / 0,6) son elegidos, no derivados de nada. Están en un
-solo lugar de cada motor. Si el usuario dice que marca de más o de menos, se
-mueven ahí.
+**La contracción se mide contra lo que vino ANTES de la caja**, no contra su
+propia mitad. Ahora que el largo se elige minimizando la estrechez, la caja es
+uniforme por construcción y comparar sus mitades daba 1,00 siempre.
 
-La caja **se dibuja en el gráfico**: rectángulo desde donde arrancó hasta hoy,
-techo y piso punteados, y `estado · alto% · ruedas` en la esquina.
+### Los umbrales están calibrados contra datos reales
+
+No son inventados: se midieron sobre los **447 papeles del `datos.json`
+publicado**. Con los cortes de la primera versión (pensados para ventana fija),
+`Rango` marcaba al **54% del universo** — media tabla en verde no sirve de filtro.
+Y `Se aprieta` con corte 0,60 marcaba 17%, más que `Rango`, que es al revés de lo
+que sirve.
+
+Hoy: sin caja 75,6% · Rango 11,4% · Cajón 6,9% · Se aprieta 3,4% · rupturas 2,7%.
+
+> **El tope de alto hace falta.** BIOX daba estrechez 0,57 con una caja del 44%
+> en 59 ruedas. Relativo a SU volatilidad es quieto, pero una caja del 44% no es
+> un rango para nadie.
+
+> **Si volvés a tocar los umbrales, medí primero.** `pruebas/` no tiene internet,
+> pero el `datos.json` publicado se baja de `raw.githubusercontent.com` y tiene
+> 400 barras reales de cada papel. Calibrar a ojo sobre series sintéticas fue
+> justamente lo que dejó los cortes mal la primera vez.
+
+### El caso PLTR es un test fijo
+
+`pruebas/pltr.json` tiene las 70 barras reales, guardadas del sitio publicado
+(sin internet no se pueden volver a bajar). `pruebas/consolidacion.py` verifica la
+secuencia completa: **Se aprieta** del 18 al 24/08 (contracción 0,22 contra el
+tramo explosivo), **Cajón** el 25 y 26, **Rompió ↑** el 27, y la caja anclada al
+**10/08** en todos los cortes.
+
+La caja se dibuja en el gráfico: rectángulo desde donde arrancó, techo y piso
+punteados, color según el estado, y `estado · alto% · ruedas` en la esquina.
 
 > **Bug que ya se cometió una vez:** en el JS, `adrPct()` devuelve la **serie**,
-> no el último valor. Escribir `adrPct(b,n)/100` da `NaN` siempre y la caja no
-> se marca nunca — una función muerta que parece andar. Va `ultimo(adrPct(...))`.
-> Lo agarró `pruebas/paridad.py`, que es exactamente para lo que está.
+> no el último valor. Escribir `adrPct(b,n)/100` da `NaN` siempre y la caja no se
+> marca nunca — una función muerta que parece andar. Va `ultimo(adrPct(...))`.
+> Lo agarró `pruebas/paridad.py`.
 
 ## 5. CEDEARs: la regla que no se negocia
 
@@ -962,7 +1002,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
 | `estres.js` | períodos extremos, k de Paragon, sin columnas, industrias, CSV |
 | `paragon.py` | EMA de Pine, conversión de longitudes, warmup del ancla, rVWAP |
-| `consolidacion.py` | la caja, medida contra el ADR propio; falsos positivos |
+| `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
 | `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
 | `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |

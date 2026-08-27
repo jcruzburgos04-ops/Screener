@@ -29,7 +29,7 @@ for(const [k,b] of Object.entries(S)){
     r['parA'+k]=[P.rap,P.len];}
   // la caja: los cinco numeros, en tres ventanas distintas
   r.consol={};
-  for(const N of [10,20,40]){const K=M.consolidacion(b,{consolBarras:N});
+  for(const N of [20,40,60]){const K=M.consolidacion(b,{consolBarras:N,consolAlto:18});
     r.consol[N]=[K.estado,K.rango,K.barras,K.pos,K.aprieta,K.estrechez];}
   for(const f of ['hl2','hlc3','close'])
     r['rvwap_'+f]=M.rvwapExpansivo(b,365,f).serie;

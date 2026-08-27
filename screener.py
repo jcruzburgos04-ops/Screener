@@ -409,64 +409,143 @@ def senales_paragon(df, rap, len_, atr=None):
             "cruce": float(cruce) if cruce == cruce else np.nan}
 
 
-def consolidacion(df, barras=20):
+def consolidacion(df, barras=60, minimo=7, tope_alto=0.18):
     """
     La caja: encontrar lo que se esta moviendo en un mismo rango.
 
-    Un rango "chico" no significa nada en abstracto: 6% en un mes es quieto para
-    un papel que se mueve 3% por dia y es un temblor para uno que se mueve 0,4%.
-    Por eso el rango se mide contra lo que ESE papel suele moverse:
+    DOS DECISIONES, Y LAS DOS IMPORTAN.
 
-        estrechez = rango_de_la_caja / (ADR * sqrt(N))
+    1) El alto NO se mide en % a secas, se mide contra el ADR del propio papel.
+       Un rango "chico" no significa nada en abstracto: 6% en un mes es quieto
+       para un papel que se mueve 3% por dia y es un temblor para uno de 0,4%.
+       Si el precio fuera una caminata al azar con paso diario igual a su ADR,
+       en L ruedas recorreria del orden de ADR*sqrt(L):
 
-    Si el precio fuera una caminata al azar con paso diario igual a su ADR, en N
-    ruedas recorreria del orden de ADR*sqrt(N). Menor que 1 = se movio MENOS de
-    lo que le corresponde por su propia volatilidad, que es lo que uno ve y
-    llama consolidacion. Comparable entre AAPL y una minera chica.
+           estrechez = alto_de_la_caja / (ADR * sqrt(L))
 
-    Espejo exacto de consolidacion() del JS: si tocas una, toca la otra.
+       Menor que 1 = se movio MENOS de lo que le corresponde por su propia
+       volatilidad. Comparable entre AAPL y una minera chica.
+
+    2) El LARGO de la caja se busca, no se asume. Esta es la parte que estaba
+       mal y la encontro el usuario mirando PLTR. Con una ventana fija de 20
+       ruedas, PLTR al 26/08/2026 daba un alto del 35% y no se detectaba nada,
+       porque la ventana llegaba hasta antes del salto del 04/08 (+29%). El
+       rango de verdad eran 13 ruedas desde el 10/08, con un alto del 7,9%.
+
+       Se prueban todos los largos y se elige EL QUE MINIMIZA LA ESTRECHEZ.
+       Funciona porque la curva tiene un minimo nitido justo donde arranca el
+       rango: en PLTR baja parejo hasta L=13 (0,55) y salta a 0,79 en L=14, que
+       es la barra anterior al rango. La caja termina donde agregar una barra
+       mas empieza a doler.
+
+    Devuelve tambien la ruptura: si la caja de ayer era valida y hoy el cierre
+    quedo afuera, se marca. Es el caso de PLTR hoy.
     """
-    N = max(5, int(barras))
+    maxL = max(10, int(barras))
+    minL = max(4, int(minimo))
     vacio = {"estado": "", "rango": np.nan, "barras": np.nan, "pos": np.nan,
              "aprieta": np.nan, "techo": np.nan, "piso": np.nan,
              "estrechez": np.nan}
     n = len(df)
-    if n < N * 2 + 2:
-        return vacio
-    px = float(df["Close"].iloc[-1])
-    if not np.isfinite(px) or px <= 0:
+    if n < minL + 6:
         return vacio
     hi = df["High"].to_numpy(dtype=float)
     lo = df["Low"].to_numpy(dtype=float)
-    techo, piso = float(np.max(hi[-N:])), float(np.min(lo[-N:]))
-    if not (np.isfinite(techo) and np.isfinite(piso)) or techo <= piso:
+    cl = df["Close"].to_numpy(dtype=float)
+    caja_hoy = _mejor_caja(hi, lo, cl, n, maxL, minL)
+    if caja_hoy is None:
         return vacio
+    px = cl[n - 1]
+    techo, piso, L = caja_hoy["techo"], caja_hoy["piso"], caja_hoy["L"]
     rango = (techo - piso) / px
-    tp, pp = float(np.max(hi[-2 * N:-N])), float(np.min(lo[-2 * N:-N]))
-    rango_prev = (tp - pp) / px if (np.isfinite(tp) and np.isfinite(pp) and tp > pp) else np.nan
-    aprieta = rango / rango_prev if (rango_prev == rango_prev and rango_prev > 0) else np.nan
-    adrp = float(calc_adr_pct(df, min(20, N)).iloc[-1]) / 100.0
-    esperado = adrp * np.sqrt(N) if (adrp == adrp and adrp > 0) else np.nan
-    estrechez = rango / esperado if (esperado == esperado and esperado > 0) else np.nan
-    # tolerancia del 3% del alto: una mecha que se asoma no rompe la caja
-    tol = (techo - piso) * 0.03
-    cuenta = 0
-    for i in range(n - 1, -1, -1):
-        if hi[i] > techo + tol or lo[i] < piso - tol:
-            break
-        cuenta += 1
-    pos = (px - piso) / (techo - piso)
+    pos = (px - piso) / (techo - piso) if techo > piso else np.nan
+
+    # SE APRIETA: la caja contra lo que vino ANTES de la caja, no contra su
+    # propia mitad. Ahora que el largo se elige minimizando la estrechez, la
+    # caja es uniforme por construccion y comparar sus mitades daba 1,00
+    # siempre. Lo que interesa es la contraccion: que el tramo previo del mismo
+    # largo haya sido bastante mas ancho.
+    aprieta = np.nan
+    if n >= 2 * L:
+        tv, pv = hi[n - 2 * L:n - L].max(), lo[n - 2 * L:n - L].min()
+        if tv > pv:
+            aprieta = (techo - piso) / (tv - pv)
+
+    # ruptura: la caja de AYER contra el cierre de hoy
     estado = ""
-    if estrechez == estrechez:
-        if estrechez < 0.62 and cuenta >= round(N * 0.6):
+    ayer = _mejor_caja(hi, lo, cl, n - 1, maxL, minL) if n > minL + 7 else None
+    if ayer is not None and ayer["L"] >= minL + 2 and ayer["est"] <= 0.72 \
+            and (ayer["techo"] - ayer["piso"]) / px <= tope_alto:
+        if px > ayer["techo"] * 1.001:
+            estado = "Rompió ↑"
+        elif px < ayer["piso"] * 0.999:
+            estado = "Rompió ↓"
+        if estado:
+            # Se reporta la caja de la que SALIO, no la de hoy: la de hoy ya
+            # incluye la barra de la ruptura, asi que sale mas alta y no es la
+            # que el ojo (ni el grafico) llama "el rango que rompio".
+            techo, piso, L = ayer["techo"], ayer["piso"], ayer["L"]
+            rango = (techo - piso) / px
+            pos = (px - piso) / (techo - piso) if techo > piso else np.nan
+            caja_hoy = ayer
+    # UMBRALES, calibrados sobre los 447 papeles reales del sitio publicado.
+    # Con los de antes (pensados para una ventana fija) la estrechez quedaba
+    # sistematicamente mas baja al elegir el largo que la minimiza, y "Rango"
+    # marcaba al 54% del universo: media tabla en verde no sirve de filtro.
+    # Hoy: Cajon ~8%, Rango ~20%, que es una lista que se puede mirar.
+    #
+    # El tope de alto es la segunda guarda y hace falta: BIOX daba estrechez
+    # 0,57 con una caja del 44% en 59 ruedas. Relativo a SU volatilidad es
+    # quieto, pero una caja del 44% no es un rango para nadie.
+    if not estado and rango <= tope_alto:
+        est = caja_hoy["est"]
+        if est <= 0.62 and L >= 10:
             estado = "Cajón"
-        elif aprieta == aprieta and aprieta < 0.6 and estrechez < 1:
+        elif aprieta == aprieta and aprieta < 0.40 and est <= 0.72:
+            # 0,40 y no 0,60: con el corte flojo "Se aprieta" marcaba al 17% del
+            # universo y le ganaba a "Rango", que es al reves de lo que sirve.
+            # Esta tiene que ser la señal rara (~4%), no la comun.
             estado = "Se aprieta"
-        elif estrechez < 0.85:
+        elif est <= 0.72:
             estado = "Rango"
-    return {"estado": estado, "rango": rango, "barras": cuenta, "pos": pos,
+    return {"estado": estado, "rango": rango, "barras": L, "pos": pos,
             "aprieta": aprieta, "techo": techo, "piso": piso,
-            "estrechez": estrechez}
+            "estrechez": caja_hoy["est"]}
+
+
+def _mejor_caja(hi, lo, cl, hasta, maxL, minL):
+    """
+    El largo de caja que minimiza la estrechez, mirando hacia atras desde
+    `hasta`. O(maxL): el techo y el piso se llevan corridos y el ADR sale de
+    sumas acumuladas, sin recalcular la media en cada vuelta.
+    """
+    if hasta < minL + 2:
+        return None
+    px = cl[hasta - 1]
+    if not np.isfinite(px) or px <= 0:
+        return None
+    techo, piso = -np.inf, np.inf
+    suma, cuenta = 0.0, 0
+    mejor = None
+    tope = min(maxL, hasta - 1)
+    for L in range(1, tope + 1):
+        i = hasta - L
+        if hi[i] > techo:
+            techo = hi[i]
+        if lo[i] < piso:
+            piso = lo[i]
+        if lo[i] > 0 and np.isfinite(hi[i]) and np.isfinite(lo[i]):
+            suma += hi[i] / lo[i]
+            cuenta += 1
+        if L < minL or techo <= piso or cuenta < 4:
+            continue
+        adr = suma / cuenta - 1.0          # ADR en tanto por uno
+        if not (adr > 0):
+            continue
+        est = ((techo - piso) / px) / (adr * np.sqrt(L))
+        if mejor is None or est < mejor["est"]:
+            mejor = {"L": L, "techo": techo, "piso": piso, "est": est}
+    return mejor
 
 
 def _conv(s, pesos):
@@ -1195,7 +1274,7 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
     f["rvwap"] = float(rv.iloc[-1]) if np.isfinite(rv.iloc[-1]) else np.nan
     f["vs_rvwap"] = px / f["rvwap"] - 1 if f["rvwap"] == f["rvwap"] else np.nan
     f["rv_llena"] = bool(llena)
-    K = consolidacion(df, 20)
+    K = consolidacion(df, 60)
     f["consol"] = K["estado"]
     f["consol_rango"] = K["rango"]
     f["consol_barras"] = K["barras"]

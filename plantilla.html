@@ -174,6 +174,8 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 /* El ≈ de "conjunto D aproximado" y el * de "ventana incompleta". Chiquitos y
    en ambar: tienen que verse sin robarle atencion al numero. */
 .caja-si{color:var(--azul);font-weight:600}
+.caja-ru{color:var(--alcista);font-weight:600}
+.caja-rd{color:var(--bajista);font-weight:600}
 .caja-ap{color:var(--ambar);font-weight:600}
 .caja-rg{color:var(--tenue)}
 .aprox{font-style:normal;color:var(--ambar);font-size:.68em;margin-left:.15em;
@@ -650,16 +652,27 @@ body.cajon #velo{display:block}
         <select id="rvFuente"><option value="hl2">hl2</option>
           <option value="hlc3">hlc3</option><option value="close">close</option></select></div>
     </div>
-    <label>Consolidación · ruedas de la caja</label>
-    <input type="number" id="consolBarras" value="20" min="5" max="120">
-    <p class="nota">La caja se mide contra el <b style="color:var(--tenue)">propio
-      ADR del papel</b>, no en % a secas: 6% en un mes es quieto para uno que se
-      mueve 3% por día y es un temblor para uno que se mueve 0,4%.<br>
-      <b style="color:var(--tenue)">Cajón</b>: se movió bastante menos de lo que
-      le corresponde por su volatilidad, y lleva rato ahí.
-      <b style="color:var(--tenue)">Se aprieta</b>: la mitad nueva de la caja es
-      mucho más angosta que la vieja.
-      <b style="color:var(--tenue)">Rango</b>: quieto, pero sin llegar a cajón.</p>
+    <div class="par">
+      <div><label>Caja · máx. ruedas</label>
+        <input type="number" id="consolBarras" value="60" min="10" max="200"></div>
+      <div><label>Caja · alto máx. %</label>
+        <input type="number" id="consolAlto" value="18" min="2" max="60" step="1"></div>
+    </div>
+    <p class="nota">El largo de la caja <b style="color:var(--tenue)">se busca
+      solo</b>: se prueban todos los largos y gana el que deja la caja más
+      estrecha. Con una ventana fija, PLTR el 26/08 daba un alto del 35% y no se
+      detectaba nada, porque la ventana llegaba hasta antes del salto del 04/08;
+      el rango real eran 13 ruedas desde el 10/08, con 7,9% de alto.<br>
+      El alto se mide contra el <b style="color:var(--tenue)">propio ADR del
+      papel</b>, no en % a secas: 6% en un mes es quieto para uno que se mueve 3%
+      por día y es un temblor para uno de 0,4%.</p>
+    <p class="nota"><b style="color:var(--azul)">Cajón</b>: bien quieto y hace
+      rato. <b style="color:var(--ambar)">Se aprieta</b>: la mitad nueva mucho
+      más angosta que la vieja. <b style="color:var(--tenue)">Rango</b>: quieto,
+      sin llegar a cajón. <b style="color:var(--alcista)">Rompió ↑</b> /
+      <b style="color:var(--bajista)">Rompió ↓</b>: la caja de ayer era buena y
+      hoy el cierre quedó afuera — se muestra la caja <i>de la que salió</i>, y
+      la posición pasa de 100%.</p>
     <p class="nota">El rVWAP da valor desde el día 1: mientras haya menos velas
       que la ventana, es un VWAP anclado al inicio del historial. Las que todavía
       no llenaron la ventana se marcan con <b style="color:var(--ambar)">*</b>.</p>
@@ -752,7 +765,10 @@ body.cajon #velo{display:block}
       <option value="Cajón">Cajón · quieto y hace rato</option>
       <option value="Se aprieta">Se aprieta · la caja se angosta</option>
       <option value="Rango">Rango · quieto</option>
-      <option value="any">Cualquiera de los tres</option></select>
+      <option value="Rompió ↑">Rompió ↑ · salió por arriba</option>
+      <option value="Rompió ↓">Rompió ↓ · salió por abajo</option>
+      <option value="any">Cualquiera</option>
+      <option value="quieto">Sólo las quietas (sin rupturas)</option></select>
     <label>Alto de la caja ≤ <b id="lCajaAlto">off</b></label>
     <input type="range" id="fCajaAlto" min="0" max="40" step="0.5" value="0">
     <label>Ruedas en la caja ≥ <b id="lCajaRuedas">off</b></label>
@@ -1138,47 +1154,88 @@ function rvwapExpansivo(b,n,fuente){
    Ademas se mira si la caja se esta apretando (la mitad nueva mas angosta que
    la vieja), que es la parte que anticipa el movimiento. */
 function consolidacion(b,cfg){
-  const n=b.c.length, N=Math.max(5,cfg.consolBarras|0||20);
+  const maxL=Math.max(10,cfg.consolBarras|0||60), minL=7;
+  const tope=(cfg.consolAlto||18)/100;
   const vacio={estado:'',rango:NaN,barras:NaN,pos:NaN,aprieta:NaN,
-               techo:NaN,piso:NaN,desde:NaN,estrechez:NaN};
-  if(n<N*2+2)return vacio;
+               techo:NaN,piso:NaN,estrechez:NaN};
+  const n=b.c.length;
+  if(n<minL+6)return vacio;
+  let caja=mejorCaja(b,n,maxL,minL);
+  if(!caja)return vacio;
   const px=b.c[n-1];
-  if(!isFinite(px)||px<=0)return vacio;
-  let techo=-Infinity,piso=Infinity;
-  for(let i=n-N;i<n;i++){
-    if(b.h[i]>techo)techo=b.h[i];
-    if(b.l[i]<piso)piso=b.l[i];}
-  if(!isFinite(techo)||!isFinite(piso)||techo<=piso)return vacio;
-  const rango=(techo-piso)/px;
-  // la mitad anterior, para saber si se aprieta
-  let tp=-Infinity,pp=Infinity;
-  for(let i=n-2*N;i<n-N;i++){
-    if(b.h[i]>tp)tp=b.h[i];
-    if(b.l[i]<pp)pp=b.l[i];}
-  const rangoPrev=(isFinite(tp)&&isFinite(pp)&&tp>pp)?(tp-pp)/px:NaN;
-  const aprieta=isFinite(rangoPrev)&&rangoPrev>0?rango/rangoPrev:NaN;
-  // el ADR del papel, que es la vara
-  // OJO: adrPct devuelve la SERIE, no el ultimo valor. Dividir el array por 100
-  // daba NaN siempre y la caja nunca se marcaba. Lo agarro paridad.py.
-  const adrp=ultimo(adrPct(b,Math.min(20,N)))/100;
-  const esperado=(isFinite(adrp)&&adrp>0)?adrp*Math.sqrt(N):NaN;
-  const estrechez=isFinite(esperado)&&esperado>0?rango/esperado:NaN;
-  /* Cuantas ruedas lleva adentro de ESTA caja. Se cuenta hacia atras con una
-     tolerancia del 3% del alto: una mecha que se asoma no rompe la caja, que es
-     como lo lee el ojo. */
-  const tol=(techo-piso)*0.03;
-  let barras=0;
-  for(let i=n-1;i>=0;i--){
-    if(b.h[i]>techo+tol||b.l[i]<piso-tol)break;
-    barras++;}
-  const pos=(px-piso)/(techo-piso);
+  let techo=caja.techo,piso=caja.piso,L=caja.L;
+  let rango=(techo-piso)/px;
+  let pos=techo>piso?(px-piso)/(techo-piso):NaN;
+
+  /* SE APRIETA: la caja contra lo que vino ANTES de la caja, no contra su
+     propia mitad. Ahora que el largo se elige minimizando la estrechez, la caja
+     es uniforme por construccion y comparar sus mitades daba 1,00 siempre. Lo
+     que interesa es la contraccion contra el tramo previo del mismo largo. */
+  let aprieta=NaN;
+  if(n>=2*L){
+    let tv=-Infinity,pv=Infinity;
+    for(let i=n-2*L;i<n-L;i++){if(b.h[i]>tv)tv=b.h[i];if(b.l[i]<pv)pv=b.l[i];}
+    if(tv>pv)aprieta=(techo-piso)/(tv-pv);}
+
+  // ruptura: la caja de AYER contra el cierre de hoy
   let estado='';
-  if(isFinite(estrechez)){
-    if(estrechez<0.62&&barras>=Math.round(N*0.6))estado='Cajón';
-    else if(isFinite(aprieta)&&aprieta<0.6&&estrechez<1)estado='Se aprieta';
-    else if(estrechez<0.85)estado='Rango';}
-  return {estado,rango,barras,pos,aprieta,techo,piso,
-          desde:n-barras,estrechez};}
+  const ayer=n>minL+7?mejorCaja(b,n-1,maxL,minL):null;
+  if(ayer&&ayer.L>=minL+2&&ayer.est<=0.72&&(ayer.techo-ayer.piso)/px<=tope){
+    if(px>ayer.techo*1.001)estado='Rompió ↑';
+    else if(px<ayer.piso*0.999)estado='Rompió ↓';
+    if(estado){
+      /* Se reporta la caja de la que SALIO, no la de hoy: la de hoy ya incluye
+         la barra de la ruptura, asi que sale mas alta y no es la que el ojo
+         (ni el grafico) llama "el rango que rompio". */
+      techo=ayer.techo;piso=ayer.piso;L=ayer.L;caja=ayer;
+      rango=(techo-piso)/px;
+      pos=techo>piso?(px-piso)/(techo-piso):NaN;}}
+
+  /* UMBRALES, calibrados sobre los 447 papeles reales del sitio publicado.
+     Con los de antes (pensados para una ventana fija) la estrechez quedaba
+     sistematicamente mas baja al elegir el largo que la minimiza, y "Rango"
+     marcaba al 54% del universo: media tabla en verde no sirve de filtro.
+     Hoy: Cajon ~7%, Rango ~15%, que es una lista que se puede mirar.
+
+     El tope de alto es la segunda guarda y hace falta: BIOX daba estrechez
+     0,57 con una caja del 44% en 59 ruedas. Relativo a SU volatilidad es
+     quieto, pero una caja del 44% no es un rango para nadie. */
+  if(!estado&&rango<=tope){
+    const e=caja.est;
+    if(e<=0.62&&L>=10)estado='Cajón';
+    /* 0,40 y no 0,60: con el corte flojo "Se aprieta" marcaba al 17% del
+       universo y le ganaba a "Rango", que es al reves de lo que sirve. Esta
+       tiene que ser la señal rara (~4%), no la comun. */
+    else if(isFinite(aprieta)&&aprieta<0.40&&e<=0.72)estado='Se aprieta';
+    else if(e<=0.72)estado='Rango';}
+  return {estado,rango,barras:L,pos,aprieta,techo,piso,estrechez:caja.est};}
+
+/* El largo de caja que MINIMIZA la estrechez, mirando hacia atras desde `hasta`.
+   Esta es la parte que estaba mal y la encontro el usuario mirando PLTR: con
+   una ventana FIJA de 20 ruedas, PLTR al 26/08/2026 daba un alto del 35% y no
+   se detectaba nada, porque la ventana llegaba hasta antes del salto del 04/08
+   (+29%). El rango de verdad eran 13 ruedas desde el 10/08, con un alto del
+   7,9%. La curva de estrechez tiene un minimo nitido justo donde arranca el
+   rango: baja parejo hasta L=13 (0,55) y salta a 0,79 en L=14, que es la barra
+   anterior. La caja termina donde agregar una barra mas empieza a doler.
+   O(maxL): techo y piso corridos, y el ADR de una suma acumulada. */
+function mejorCaja(b,hasta,maxL,minL){
+  if(hasta<minL+2)return null;
+  const px=b.c[hasta-1];
+  if(!isFinite(px)||px<=0)return null;
+  let techo=-Infinity,piso=Infinity,suma=0,cuenta=0,mejor=null;
+  const tope=Math.min(maxL,hasta-1);
+  for(let L=1;L<=tope;L++){
+    const i=hasta-L;
+    if(b.h[i]>techo)techo=b.h[i];
+    if(b.l[i]<piso)piso=b.l[i];
+    if(b.l[i]>0&&isFinite(b.h[i])&&isFinite(b.l[i])){suma+=b.h[i]/b.l[i];cuenta++;}
+    if(L<minL||techo<=piso||cuenta<4)continue;
+    const adr=suma/cuenta-1;
+    if(!(adr>0))continue;
+    const est=((techo-piso)/px)/(adr*Math.sqrt(L));
+    if(!mejor||est<mejor.est)mejor={L,techo,piso,est};}
+  return mejor;}
 
 /* Un conjunto: las dos EMAs con la longitud convertida y el warmup del ancla.
    El warmup NO sale de la longitud convertida: para que el conjunto imprima
@@ -1656,7 +1713,9 @@ function pasaFiltros(f,F){
     (F.rvwapMin===null||(isFinite(f.vs_rvwap)&&f.vs_rvwap*100>=F.rvwapMin))&&
     (!F.rvLlena||f.rv_llena)&&(!F.conHistorial||!f.sin_historial)&&
     // --- consolidacion ---
-    (F.consol===null||(F.consol==='any'?!!f.consol:f.consol===F.consol))&&
+    (F.consol===null||(F.consol==='any'?!!f.consol
+       :F.consol==='quieto'?(!!f.consol&&f.consol.indexOf('Rompió')<0)
+       :f.consol===F.consol))&&
     (F.cajaAlto===null||(isFinite(f.consol_rango)&&f.consol_rango*100<=F.cajaAlto))&&
     (F.cajaRuedas===null||(isFinite(f.consol_barras)&&f.consol_barras>=F.cajaRuedas))&&
     (F.cajaPos===null||(isFinite(f.consol_pos)&&(
@@ -1681,7 +1740,7 @@ function pasaFiltros(f,F){
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
-  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,consolidacion,
+  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,consolidacion,mejorCaja,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -1728,7 +1787,8 @@ const PRESETS={
  'Bajista hace rato en las dos':{fRegimen:'0',fCruceW:'0+',fCruceWN:'30',fDVol:'5000000'},
  /* Lo de la foto: quieto, contra el techo de su caja y con el semanal a favor.
     Es la lista de las que estan por definir para algun lado. */
- 'Consolidando':{fConsol:'any',fCajaRuedas:'12',fDVol:'5000000'},
+ 'Consolidando':{fConsol:'quieto',fCajaRuedas:'10',fDVol:'5000000'},
+ 'Rompió la caja':{fConsol:'Rompió ↑',fDVol:'5000000'},
  'Cajón contra el techo':{fConsol:'Cajón',fCajaPos:'alto',fRegimen:'b+',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
@@ -1913,7 +1973,8 @@ const COLS=[
   // --- consolidacion ---
   {k:'consol', t:'Caja', izq:1, def:1, ord:'consol_estrechez',
    fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
-     const c={'Cajón':'caja-si','Se aprieta':'caja-ap','Rango':'caja-rg'}[v]||'';
+     const c={'Cajón':'caja-si','Se aprieta':'caja-ap','Rango':'caja-rg',
+              'Rompió ↑':'caja-ru','Rompió ↓':'caja-rd'}[v]||'';
      return `<span class="${c}" title="${f.consol_barras} ruedas adentro`+
        (isFinite(f.consol_estrechez)?` · se movió el ${Math.round(f.consol_estrechez*100)}% de lo que le corresponde por su ADR`:'')+
        `">${esc(v)}</span>`;}},
@@ -1988,7 +2049,7 @@ function config(){
     parRap:+$('#parRap').value, parLen:+$('#parLen').value,
     parK:+$('#parK').value, parFresco:+$('#parFresco').value,
     rvLen:+$('#rvLen').value, rvFuente:$('#rvFuente').value,
-    consolBarras:+$('#consolBarras').value,
+    consolBarras:+$('#consolBarras').value, consolAlto:+$('#consolAlto').value,
     adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
     atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value,
     tlBarras:+$('#tlBarras').value,tlPivote:+$('#tlPivote').value};
@@ -2032,7 +2093,7 @@ function recalcular(){
   const t0=performance.now(), cfg=config();
   const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,
                     cfg.tlBarras,cfg.tlPivote,cfg.parRap,cfg.parLen,cfg.parK,
-                    cfg.parFresco,cfg.rvLen,cfg.rvFuente,cfg.consolBarras].join('|');
+                    cfg.parFresco,cfg.rvLen,cfg.rvFuente,cfg.consolBarras,cfg.consolAlto].join('|');
   if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
 
   const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
@@ -2562,7 +2623,10 @@ function dibujar(cursor){
      const xa=x0+paso*i0, xb=x1;
      const ya=escY(K.techo,mn,mx,8,h1), yb=escY(K.piso,mn,mx,8,h1);
      g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
-     const cc=K.estado==='Cajón'?'91,155,213':(K.estado==='Se aprieta'?'224,164,88':'132,146,165');
+     const cc=K.estado==='Cajón'?'91,155,213'
+       :K.estado==='Se aprieta'?'224,164,88'
+       :K.estado==='Rompió ↑'?'79,178,134'
+       :K.estado==='Rompió ↓'?'207,75,62':'132,146,165';
      g.fillStyle=`rgba(${cc},.10)`;
      g.fillRect(xa,ya,xb-xa,yb-ya);
      g.strokeStyle=`rgba(${cc},.75)`;g.lineWidth=1;g.setLineDash([4,3]);
@@ -3682,7 +3746,7 @@ function iniciar(){
                    'adrLen','rsiLen','atrLen','adxLen',
                    // los de Paragon rehacen las EMAs, asi que son pesados
                    'parRap','parLen','parK','parFresco','rvLen','rvFuente',
-                   'consolBarras'];
+                   'consolBarras','consolAlto'];
   let timer=null, pendientePesado=false;
   $$('aside input, aside select').forEach(el=>{
     if(NO_ESTADO.includes(el.id)||el.type==='file')return;

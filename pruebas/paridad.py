@@ -71,7 +71,7 @@ for k, b in series.items():
         malos += bad
 
     # --- consolidacion (la caja) ---
-    for N in (10, 20, 40):
+    for N in (20, 40, 60):
         K = S.consolidacion(df, N)
         jk = js[k]['consol'][str(N)]
         if K['estado'] != jk[0]:
