@@ -195,8 +195,8 @@ Reconstrucción por ingeniería inversa de los dos indicadores privados de DocXB
 (The Paragon Group). **Los dos son el mismo par 100/200**; lo único que cambia
 es el timeframe de anclaje. No es un error de tipeo:
 
-- **Conjunto B** — "Paragon Weekly": EMA 100/200 ancladas a **1D**
-- **Conjunto A** — "Paragon Daily": EMA 100/200 ancladas a **4h**
+- **Conjunto W** — "Paragon Weekly": EMA 100/200 ancladas a **1D**
+- **Conjunto D** — "Paragon Daily": EMA 100/200 ancladas a **4h**
 - **rVWAP 365d** — línea suelta, VWAP rolling sobre 365 velas diarias
 
 ### La EMA es la de Pine, y NO es la que usa el ASH
@@ -239,11 +239,11 @@ gobierna el ancla. Para imprimir hacen falta `largo` velas del ancla, o sea
 
 | | Ancla | Estado |
 |---|---|---|
-| Conjunto B | 1D | **Exacto**: el proyecto ya baja velas diarias |
-| Conjunto A | 4h | **Aproximado**: no hay velas de 4h en el pipeline |
+| Conjunto W | 1D | **Exacto**: el proyecto ya baja velas diarias |
+| Conjunto D | 4h | **Aproximado**: no hay velas de 4h en el pipeline |
 
 `interval="1d"` está fijo en `_descargar()`, y Yahoo ni siquiera tiene intervalo
-de 4h (el máximo es `1h`, sólo 730 días). El conjunto A usa la conversión
+de 4h (el máximo es `1h`, sólo 730 días). El conjunto D usa la conversión
 multiplicativa con `k` configurable y **cada fila queda marcada con `≈`**.
 
 > **`k` no está medido, está asumido.** El usuario pidió medir empíricamente la
@@ -265,12 +265,61 @@ del usuario), configurable a `hlc3` o `close`.
 Por conjunto: sesgo, posición del precio (arriba/adentro/abajo), ancho, distancia
 al borde más cercano en % y en ATR(14), velas desde el cruce, y cruce fresco.
 Más `vs_rvwap`, `rv_llena` y **`regimen`** — los dos sesgos cruzados en cuatro
-estados (`A+ B+`, `A− B+`, `A+ B−`, `A− B−`), que es la columna con la que se
+estados (`D+ W+`, `D− W+`, `D+ W−`, `D− W−`), que es la columna con la que se
 filtra el universo. Se ordena por `regimen_ord` (0 a 3), no alfabéticamente:
 para eso `COLS` acepta ahora un campo `ord` con el nombre del campo alternativo.
 
 Los que no llegan al warmup **no se descartan en silencio**: van con `NaN` y con
 `sin_historial`, que se puede filtrar desde el panel.
+
+## 4c. Consolidación: la caja
+
+Encontrar lo que se mueve en un mismo rango. Lo pidió el usuario con una captura
+de un papel lateralizando.
+
+**Por qué no se mide en % a secas.** Un rango "chico" no significa nada en
+abstracto: 6% en un mes es quieto para un papel que se mueve 3% por día y es un
+temblor para uno que se mueve 0,4%. Medido así, el filtro se llena de papeles
+tranquilos y nunca muestra una consolidación real en algo volátil.
+
+**La vara es el ADR del propio papel.** Si el precio fuera una caminata al azar
+con paso diario igual a su ADR, en N ruedas recorrería del orden de `ADR·√N`:
+
+```
+estrechez = alto_de_la_caja / (ADR · √N)
+```
+
+Menor que 1 = se movió **menos de lo que le corresponde por su propia
+volatilidad**. Eso sí es comparable entre AAPL y una minera chica, y es lo que
+`pruebas/consolidacion.py` verifica explícitamente con dos series de igual rango
+y distinta volatilidad.
+
+**Tres estados**, en orden de fuerza:
+
+| Estado | Cuándo |
+|---|---|
+| `Cajón` | `estrechez < 0,62` y lleva al menos `0,6·N` ruedas adentro |
+| `Se aprieta` | la mitad nueva es < 0,6 de la vieja **y** `estrechez < 1` |
+| `Rango` | `estrechez < 0,85` |
+
+> El `estrechez < 1` de "Se aprieta" **no es decorativo**: sin él, un papel que
+> se angosta a la mitad pero sigue moviéndose más que su ADR entraba como
+> consolidación. Hay un test para ese falso positivo.
+
+Las ruedas dentro de la caja se cuentan con una **tolerancia del 3% del alto**:
+una mecha que se asoma no rompe la caja, que es como lo lee el ojo.
+
+Los umbrales (0,62 / 0,85 / 0,6) son elegidos, no derivados de nada. Están en un
+solo lugar de cada motor. Si el usuario dice que marca de más o de menos, se
+mueven ahí.
+
+La caja **se dibuja en el gráfico**: rectángulo desde donde arrancó hasta hoy,
+techo y piso punteados, y `estado · alto% · ruedas` en la esquina.
+
+> **Bug que ya se cometió una vez:** en el JS, `adrPct()` devuelve la **serie**,
+> no el último valor. Escribir `adrPct(b,n)/100` da `NaN` siempre y la caja no
+> se marca nunca — una función muerta que parece andar. Va `ultimo(adrPct(...))`.
+> Lo agarró `pruebas/paridad.py`, que es exactamente para lo que está.
 
 ## 5. CEDEARs: la regla que no se negocia
 
@@ -913,6 +962,9 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
 | `estres.js` | períodos extremos, k de Paragon, sin columnas, industrias, CSV |
 | `paragon.py` | EMA de Pine, conversión de longitudes, warmup del ancla, rVWAP |
+| `consolidacion.py` | la caja, medida contra el ADR propio; falsos positivos |
+| `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
+| `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
 | `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
 | `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |

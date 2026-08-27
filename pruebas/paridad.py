@@ -70,6 +70,22 @@ for k, b in series.items():
         peor, bad = cmp(rv.tolist(), js[k]['rvwap_'+fu], f'{k} rvwap {fu}', peor)
         malos += bad
 
+    # --- consolidacion (la caja) ---
+    for N in (10, 20, 40):
+        K = S.consolidacion(df, N)
+        jk = js[k]['consol'][str(N)]
+        if K['estado'] != jk[0]:
+            print(f'  ESTADO DISTINTO {k} N={N}: py={K["estado"]!r} js={jk[0]!r}')
+            malos += 1
+        if not (K['barras'] != K['barras'] and jk[2] is None) and K['barras'] != jk[2]:
+            print(f'  BARRAS DISTINTAS {k} N={N}: py={K["barras"]} js={jk[2]}')
+            malos += 1
+        for nom, py, j in (('rango', K['rango'], jk[1]), ('pos', K['pos'], jk[3]),
+                           ('aprieta', K['aprieta'], jk[4]),
+                           ('estrechez', K['estrechez'], jk[5])):
+            peor, bad = cmp([py], [j], f'{k} caja{N} {nom}', peor)
+            malos += bad
+
     bu,be,h = S.calc_ash(df, **S.CFG_ASH)
     cr_py = S.barras_desde_cruce(h)
     cr_js = js[k]['cruce']
@@ -77,7 +93,7 @@ for k, b in series.items():
         print(f'  CRUCE DISTINTO {k}: py={cr_py} js={cr_js}'); malos += 1
 
 print(f'\nseries comparadas: {len(series)}  ·  18 combinaciones modo x media + RSI/ATR/ADX/ADR')
-print('mas Paragon: EMA de Pine, conversion de longitudes y rVWAP en tres fuentes')
+print('mas Paragon (EMA de Pine, conversion, rVWAP) y la caja en tres ventanas')
 print(f'error relativo maximo: {peor[0]:.3e}   ({peor[1]})')
 print('RESULTADO:', 'PARIDAD OK' if malos == 0 else f'{malos} DESVIOS')
 sys.exit(1 if malos else 0)

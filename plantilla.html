@@ -171,8 +171,11 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 /* El boton de recargar vive pegado a la pastilla de frescura porque es la
    respuesta natural a lo que la pastilla te dice: "esto tiene 3 horas" -> "traelo
    de nuevo". Separado, en el panel, no lo encontraba nadie. */
-/* El ≈ de "conjunto A aproximado" y el * de "ventana incompleta". Chiquitos y
+/* El ≈ de "conjunto D aproximado" y el * de "ventana incompleta". Chiquitos y
    en ambar: tienen que verse sin robarle atencion al numero. */
+.caja-si{color:var(--azul);font-weight:600}
+.caja-ap{color:var(--ambar);font-weight:600}
+.caja-rg{color:var(--tenue)}
 .aprox{font-style:normal;color:var(--ambar);font-size:.68em;margin-left:.15em;
   vertical-align:super;cursor:help}
 .recargar{font-size:var(--t4);line-height:1;padding:.2rem .34rem;border-radius:999px;
@@ -630,10 +633,10 @@ body.cajon #velo{display:block}
       <div><label>Velas de 4h por rueda (k)</label><input type="number" id="parK" value="2" min="1" max="12"></div>
       <div><label>Cruce fresco ≤</label><input type="number" id="parFresco" value="5" min="0" max="60"></div>
     </div>
-    <p class="nota"><b style="color:var(--tenue)">Conjunto B</b> (ancla 1D) sale
+    <p class="nota"><b style="color:var(--tenue)">Conjunto W</b> (ancla 1D) sale
       <b>exacto</b>: son la EMA 100 y la 200 sobre las velas diarias que ya baja
       el screener.<br>
-      <b style="color:var(--tenue)">Conjunto A</b> (ancla 4h) sale
+      <b style="color:var(--tenue)">Conjunto D</b> (ancla 4h) sale
       <b style="color:var(--ambar)">aproximado</b>: no hay velas de 4h en el
       pipeline, así que las longitudes se convierten conservando la tasa de
       decaimiento (no dividiendo por k, que da distinto). Con
@@ -647,6 +650,16 @@ body.cajon #velo{display:block}
         <select id="rvFuente"><option value="hl2">hl2</option>
           <option value="hlc3">hlc3</option><option value="close">close</option></select></div>
     </div>
+    <label>Consolidación · ruedas de la caja</label>
+    <input type="number" id="consolBarras" value="20" min="5" max="120">
+    <p class="nota">La caja se mide contra el <b style="color:var(--tenue)">propio
+      ADR del papel</b>, no en % a secas: 6% en un mes es quieto para uno que se
+      mueve 3% por día y es un temblor para uno que se mueve 0,4%.<br>
+      <b style="color:var(--tenue)">Cajón</b>: se movió bastante menos de lo que
+      le corresponde por su volatilidad, y lleva rato ahí.
+      <b style="color:var(--tenue)">Se aprieta</b>: la mitad nueva de la caja es
+      mucho más angosta que la vieja.
+      <b style="color:var(--tenue)">Rango</b>: quieto, pero sin llegar a cajón.</p>
     <p class="nota">El rVWAP da valor desde el día 1: mientras haya menos velas
       que la ventana, es un VWAP anclado al inicio del historial. Las que todavía
       no llenaron la ventana se marcan con <b style="color:var(--ambar)">*</b>.</p>
@@ -703,35 +716,52 @@ body.cajon #velo{display:block}
     <div class="subt">Paragon</div>
     <label>Régimen</label>
     <select id="fRegimen"><option value="">—</option>
-      <option value="3">A+ B+ · los dos alcistas</option>
-      <option value="2">A− B+ · sólo el semanal</option>
-      <option value="1">A+ B− · sólo el diario</option>
-      <option value="0">A− B− · los dos bajistas</option>
-      <option value="b+">B alcista (cualquiera sea A)</option>
-      <option value="b-">B bajista (cualquiera sea A)</option></select>
-    <label>Precio vs nube B (ancla 1D)</label>
-    <select id="fPosB"><option value="">—</option><option>arriba</option>
+      <option value="3">D+ W+ · los dos alcistas</option>
+      <option value="2">D− W+ · sólo el semanal</option>
+      <option value="1">D+ W− · sólo el diario</option>
+      <option value="0">D− W− · los dos bajistas</option>
+      <option value="b+">W alcista (cualquiera sea D)</option>
+      <option value="b-">W bajista (cualquiera sea D)</option></select>
+    <label>Precio vs nube W (ancla 1D)</label>
+    <select id="fPosW"><option value="">—</option><option>arriba</option>
       <option>adentro</option><option>abajo</option></select>
-    <label>Precio vs nube A (ancla 4h)</label>
-    <select id="fPosA"><option value="">—</option><option>arriba</option>
+    <label>Precio vs nube D (ancla 4h)</label>
+    <select id="fPosD"><option value="">—</option><option>arriba</option>
       <option>adentro</option><option>abajo</option></select>
-    <label>Cruce de B <b id="lParB">off</b></label>
-    <select id="fCruceB"><option value="">—</option>
+    <label>Cruce de B <b id="lParW">off</b></label>
+    <select id="fCruceW"><option value="">—</option>
       <option value="1">Alcista, hace poco (≤ N)</option>
       <option value="1+">Alcista, hace rato (≥ N)</option>
       <option value="0">Bajista, hace poco (≤ N)</option>
       <option value="0+">Bajista, hace rato (≥ N)</option></select>
-    <input type="range" id="fCruceBN" min="0" max="120" value="0">
-    <label>Ancho de la nube B ≥ <b id="lAnchoB">off</b></label>
-    <input type="range" id="fAnchoB" min="0" max="30" step="0.5" value="0">
-    <label>Dist. a la nube B ≤ <b id="lDistB">off</b></label>
-    <input type="range" id="fDistB" min="0" max="30" step="0.5" value="0">
+    <input type="range" id="fCruceWN" min="0" max="120" value="0">
+    <label>Ancho de la nube W ≥ <b id="lAnchoW">off</b></label>
+    <input type="range" id="fAnchoW" min="0" max="30" step="0.5" value="0">
+    <label>Dist. a la nube W ≤ <b id="lDistW">off</b></label>
+    <input type="range" id="fDistW" min="0" max="30" step="0.5" value="0">
     <label>vs rVWAP 365d ≥ <b id="lRvwap">off</b></label>
     <input type="range" id="fRvwap" min="-50" max="50" step="1" value="-50">
     <label class="check"><input type="checkbox" id="fRvLlena">
       Sólo con la ventana del rVWAP llena</label>
     <label class="check"><input type="checkbox" id="fConHistorial">
       Esconder los que no llegan al warmup</label>
+
+    <div class="subt">Consolidación</div>
+    <label>Estado de la caja</label>
+    <select id="fConsol"><option value="">—</option>
+      <option value="Cajón">Cajón · quieto y hace rato</option>
+      <option value="Se aprieta">Se aprieta · la caja se angosta</option>
+      <option value="Rango">Rango · quieto</option>
+      <option value="any">Cualquiera de los tres</option></select>
+    <label>Alto de la caja ≤ <b id="lCajaAlto">off</b></label>
+    <input type="range" id="fCajaAlto" min="0" max="40" step="0.5" value="0">
+    <label>Ruedas en la caja ≥ <b id="lCajaRuedas">off</b></label>
+    <input type="range" id="fCajaRuedas" min="0" max="90" value="0">
+    <label>Dónde está en la caja</label>
+    <select id="fCajaPos"><option value="">—</option>
+      <option value="alto">Contra el techo (≥ 70%)</option>
+      <option value="medio">En el medio (30-70%)</option>
+      <option value="bajo">Contra el piso (≤ 30%)</option></select>
 
     <div class="subt">ASH</div>
     <label>ASH diario positivo</label>
@@ -960,7 +990,7 @@ body.cajon #velo{display:block}
   <div class="kpis">
     <div class="kpi"><span>En el universo</span><b id="kUni">—</b></div>
     <div class="kpi"><span>Pasan el filtro</span><b id="kFil">—</b></div>
-    <div class="kpi" id="kpiReg" title="Los dos conjuntos Paragon alcistas: A+ B+"><span>Régimen A+ B+</span><b id="kR">—</b></div>
+    <div class="kpi" id="kpiReg" title="Los dos conjuntos Paragon alcistas: D+ W+"><span>Régimen D+ W+</span><b id="kR">—</b></div>
     <div class="kpi"><span>ASH diario +</span><b id="kD">—</b></div>
     <div class="kpi"><span>ASH semanal +</span><b id="kW">—</b></div>
     <div class="kpi"><span>Los dos +</span><b id="kDW">—</b></div>
@@ -1088,6 +1118,67 @@ function rvwapExpansivo(b,n,fuente){
     const p=apv[i]-(j>=0?apv[j]:0), c=acv[i]-(j>=0?acv[j]:0);
     o[i]=c>0?p/c:NaN;}
   return {serie:o,llena:L>=n};}
+
+/* ---------- CONSOLIDACION: la caja de la foto ----------
+   Encontrar lo que se esta moviendo en un mismo rango. La trampa es que un
+   rango "chico" no significa nada en abstracto: 6% en un mes es quieto para un
+   papel que se mueve 3% por dia, y es un temblor para uno que se mueve 0,4%.
+   Por eso el rango NO se mide en % a secas, se mide contra lo que ESE papel
+   suele moverse.
+
+   La vara: si el precio fuera una caminata al azar con paso diario igual a su
+   ADR, en N ruedas recorreria del orden de ADR*sqrt(N). Entonces
+
+       estrechez = rango_de_la_caja / (ADR * sqrt(N))
+
+   menor que 1 quiere decir "se movio MENOS de lo que le corresponde por su
+   propia volatilidad", que es exactamente lo que uno ve y llama consolidacion.
+   Sirve igual para AAPL que para una minera chica.
+
+   Ademas se mira si la caja se esta apretando (la mitad nueva mas angosta que
+   la vieja), que es la parte que anticipa el movimiento. */
+function consolidacion(b,cfg){
+  const n=b.c.length, N=Math.max(5,cfg.consolBarras|0||20);
+  const vacio={estado:'',rango:NaN,barras:NaN,pos:NaN,aprieta:NaN,
+               techo:NaN,piso:NaN,desde:NaN,estrechez:NaN};
+  if(n<N*2+2)return vacio;
+  const px=b.c[n-1];
+  if(!isFinite(px)||px<=0)return vacio;
+  let techo=-Infinity,piso=Infinity;
+  for(let i=n-N;i<n;i++){
+    if(b.h[i]>techo)techo=b.h[i];
+    if(b.l[i]<piso)piso=b.l[i];}
+  if(!isFinite(techo)||!isFinite(piso)||techo<=piso)return vacio;
+  const rango=(techo-piso)/px;
+  // la mitad anterior, para saber si se aprieta
+  let tp=-Infinity,pp=Infinity;
+  for(let i=n-2*N;i<n-N;i++){
+    if(b.h[i]>tp)tp=b.h[i];
+    if(b.l[i]<pp)pp=b.l[i];}
+  const rangoPrev=(isFinite(tp)&&isFinite(pp)&&tp>pp)?(tp-pp)/px:NaN;
+  const aprieta=isFinite(rangoPrev)&&rangoPrev>0?rango/rangoPrev:NaN;
+  // el ADR del papel, que es la vara
+  // OJO: adrPct devuelve la SERIE, no el ultimo valor. Dividir el array por 100
+  // daba NaN siempre y la caja nunca se marcaba. Lo agarro paridad.py.
+  const adrp=ultimo(adrPct(b,Math.min(20,N)))/100;
+  const esperado=(isFinite(adrp)&&adrp>0)?adrp*Math.sqrt(N):NaN;
+  const estrechez=isFinite(esperado)&&esperado>0?rango/esperado:NaN;
+  /* Cuantas ruedas lleva adentro de ESTA caja. Se cuenta hacia atras con una
+     tolerancia del 3% del alto: una mecha que se asoma no rompe la caja, que es
+     como lo lee el ojo. */
+  const tol=(techo-piso)*0.03;
+  let barras=0;
+  for(let i=n-1;i>=0;i--){
+    if(b.h[i]>techo+tol||b.l[i]<piso-tol)break;
+    barras++;}
+  const pos=(px-piso)/(techo-piso);
+  let estado='';
+  if(isFinite(estrechez)){
+    if(estrechez<0.62&&barras>=Math.round(N*0.6))estado='Cajón';
+    else if(isFinite(aprieta)&&aprieta<0.6&&estrechez<1)estado='Se aprieta';
+    else if(estrechez<0.85)estado='Rango';}
+  return {estado,rango,barras,pos,aprieta,techo,piso,
+          desde:n-barras,estrechez};}
 
 /* Un conjunto: las dos EMAs con la longitud convertida y el warmup del ancla.
    El warmup NO sale de la longitud convertida: para que el conjunto imprima
@@ -1462,25 +1553,25 @@ function calcularBase(s,cfg){
   f.tl_res_pend=T.pendRes; f.tl_sop_pend=T.pendSop;
   f.tl_toques=Math.min(T.tocRes,T.tocSop);
   /* --- PARAGON ---
-     Conjunto B ("Paragon Weekly", ancla 1D): EXACTO. El proyecto baja velas
+     Conjunto W ("Paragon Weekly", ancla 1D): EXACTO. El proyecto baja velas
      diarias, asi que la EMA 100/200 diaria es literalmente la del ancla.
-     Conjunto A ("Paragon Daily", ancla 4h): APROXIMADO. No hay velas de 4h en
+     Conjunto D ("Paragon Daily", ancla 4h): APROXIMADO. No hay velas de 4h en
      el pipeline, asi que se usa la conversion multiplicativa con el k medido
-     (velas de 4h por rueda). Cada fila queda marcada con par_a_aprox. */
+     (velas de 4h por rueda). Cada fila queda marcada con par_d_aprox. */
   const atrv=ultimo(atr(b,cfg.atrLen));
   const B=paragonDe(b,cfg,1);
   const A=paragonDe(b,cfg,cfg.parK);
-  f.par_b_sesgo=B.sesgo; f.par_b_pos=B.pos; f.par_b_ancho=B.ancho;
-  f.par_b_dist=B.dist; f.par_b_dist_atr=B.dist_atr; f.par_b_cruce=B.cruce;
-  f.par_b_fresco=isFinite(B.cruce)&&B.cruce<=cfg.parFresco;
-  f.par_a_sesgo=A.sesgo; f.par_a_pos=A.pos; f.par_a_ancho=A.ancho;
-  f.par_a_dist=A.dist; f.par_a_dist_atr=A.dist_atr; f.par_a_cruce=A.cruce;
-  f.par_a_fresco=isFinite(A.cruce)&&A.cruce<=cfg.parFresco;
-  f.par_a_aprox=cfg.parK!==1;
+  f.par_w_sesgo=B.sesgo; f.par_w_pos=B.pos; f.par_w_ancho=B.ancho;
+  f.par_w_dist=B.dist; f.par_w_dist_atr=B.dist_atr; f.par_w_cruce=B.cruce;
+  f.par_w_fresco=isFinite(B.cruce)&&B.cruce<=cfg.parFresco;
+  f.par_d_sesgo=A.sesgo; f.par_d_pos=A.pos; f.par_d_ancho=A.ancho;
+  f.par_d_dist=A.dist; f.par_d_dist_atr=A.dist_atr; f.par_d_cruce=A.cruce;
+  f.par_d_fresco=isFinite(A.cruce)&&A.cruce<=cfg.parFresco;
+  f.par_d_aprox=cfg.parK!==1;
   // el regimen: cruzar los dos sesgos. Cuatro estados, ordenables de mas
   // alcista a mas bajista, que es la columna con la que se filtra el universo
   f.regimen=(A.sesgo===null||B.sesgo===null)?''
-    :(B.sesgo?(A.sesgo?'A+ B+':'A− B+'):(A.sesgo?'A+ B−':'A− B−'));
+    :(B.sesgo?(A.sesgo?'D+ W+':'D− W+'):(A.sesgo?'D+ W−':'D− W−'));
   f.regimen_ord=(A.sesgo===null||B.sesgo===null)?NaN
     :((B.sesgo?2:0)+(A.sesgo?1:0));
   // rVWAP 365d: da valor desde el dia 1, con la ventana marcada
@@ -1488,6 +1579,10 @@ function calcularBase(s,cfg){
   f.rvwap=R.serie[n-1];
   f.vs_rvwap=isFinite(f.rvwap)?px/f.rvwap-1:NaN;
   f.rv_llena=R.llena;
+  // --- consolidacion: la caja ---
+  const K=consolidacion(b,cfg);
+  f.consol=K.estado; f.consol_rango=K.rango; f.consol_barras=K.barras;
+  f.consol_pos=K.pos; f.consol_aprieta=K.aprieta; f.consol_estrechez=K.estrechez;
   // Los que no llegan al warmup no se descartan en silencio
   f.sin_historial=(B.sesgo===null||A.sesgo===null);
   return f;
@@ -1551,15 +1646,23 @@ function pasaFiltros(f,F){
   return ge(f.vol20,F.vol20)&&ge(f.dolar_vol20,F.dvol20)&&ge(f.rel_vol,F.relVol)&&
     ge(f.adr,F.adr)&&ge(f.rsi,F.rsiMin)&&le(f.rsi,F.rsiMax)&&
     // --- Paragon ---
-    (F.regimen===null||(F.regimen==='b+'?f.par_b_sesgo===true
-       :F.regimen==='b-'?f.par_b_sesgo===false
+    (F.regimen===null||(F.regimen==='b+'?f.par_w_sesgo===true
+       :F.regimen==='b-'?f.par_w_sesgo===false
        :f.regimen_ord===+F.regimen))&&
-    (F.posB===null||f.par_b_pos===F.posB)&&(F.posA===null||f.par_a_pos===F.posA)&&
-    pasaCruceNube(f.par_b_cruce,f.par_b_sesgo,F.cruceB,F.cruceBN)&&
-    (F.anchoB===null||(isFinite(f.par_b_ancho)&&f.par_b_ancho*100>=F.anchoB))&&
-    (F.distB===null||(isFinite(f.par_b_dist)&&Math.abs(f.par_b_dist)*100<=F.distB))&&
+    (F.posW===null||f.par_w_pos===F.posW)&&(F.posD===null||f.par_d_pos===F.posD)&&
+    pasaCruceNube(f.par_w_cruce,f.par_w_sesgo,F.cruceW,F.cruceWN)&&
+    (F.anchoW===null||(isFinite(f.par_w_ancho)&&f.par_w_ancho*100>=F.anchoW))&&
+    (F.distW===null||(isFinite(f.par_w_dist)&&Math.abs(f.par_w_dist)*100<=F.distW))&&
     (F.rvwapMin===null||(isFinite(f.vs_rvwap)&&f.vs_rvwap*100>=F.rvwapMin))&&
     (!F.rvLlena||f.rv_llena)&&(!F.conHistorial||!f.sin_historial)&&
+    // --- consolidacion ---
+    (F.consol===null||(F.consol==='any'?!!f.consol:f.consol===F.consol))&&
+    (F.cajaAlto===null||(isFinite(f.consol_rango)&&f.consol_rango*100<=F.cajaAlto))&&
+    (F.cajaRuedas===null||(isFinite(f.consol_barras)&&f.consol_barras>=F.cajaRuedas))&&
+    (F.cajaPos===null||(isFinite(f.consol_pos)&&(
+       F.cajaPos==='alto'?f.consol_pos>=0.7
+       :F.cajaPos==='bajo'?f.consol_pos<=0.3
+       :(f.consol_pos>0.3&&f.consol_pos<0.7))))&&
     bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
     pasaCruce(f,F)&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
@@ -1578,7 +1681,7 @@ function pasaFiltros(f,F){
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
-  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,
+  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,consolidacion,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -1605,9 +1708,9 @@ let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
 /* Filtros listos para usar. Son los mismos controles de la izquierda: cada
    clave es el id de un control y su valor lo que se le pone. */
 const PRESETS={
- 'Tendencia limpia':{fRegimen:'3',fPosB:'arriba',fAshD:'1',fAshW:'1',fDVol:'10000000'},
+ 'Tendencia limpia':{fRegimen:'3',fPosW:'arriba',fAshD:'1',fAshW:'1',fDVol:'10000000'},
  'Cruce fresco de ASH':{fAshD:'1',fCruceMax:'5',fRegimen:'b+',fDVol:'5000000'},
- 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fRegimen:'b+',fPosB:'adentro',fRsiMax:'45',fDVol:'5000000'},
+ 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fRegimen:'b+',fPosW:'adentro',fRsiMax:'45',fDVol:'5000000'},
  'Se mueve y es líquido':{fAdr:'3',fDVol:'20000000',fVol:'500000'},
  'Fuerza relativa top':{fRs:'80',fRegimen:'3',fAshW:'1',fDVol:'5000000'},
  'Pegado a la resistencia':{fResDist:'3',fToques:'3',fAshD:'1',fDVol:'5000000'},
@@ -1621,14 +1724,19 @@ const PRESETS={
     puede salir un piso cuando el ASH de vuelta. */
  'Bajista hace rato':{fCruceDir:'0+',fCruceMax:'15',fDVol:'5000000'},
  /* Los dos que se leen directo de las nubes de Doc. */
- 'Nube B recién girada':{fCruceB:'1',fCruceBN:'10',fPosB:'arriba',fDVol:'5000000'},
- 'Bajista hace rato en las dos':{fRegimen:'0',fCruceB:'0+',fCruceBN:'30',fDVol:'5000000'},
+ 'Nube B recién girada':{fCruceW:'1',fCruceWN:'10',fPosW:'arriba',fDVol:'5000000'},
+ 'Bajista hace rato en las dos':{fRegimen:'0',fCruceW:'0+',fCruceWN:'30',fDVol:'5000000'},
+ /* Lo de la foto: quieto, contra el techo de su caja y con el semanal a favor.
+    Es la lista de las que estan por definir para algun lado. */
+ 'Consolidando':{fConsol:'any',fCajaRuedas:'12',fDVol:'5000000'},
+ 'Cajón contra el techo':{fConsol:'Cajón',fCajaPos:'alto',fRegimen:'b+',fDVol:'5000000'},
 };
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
- fRegimen:'',fPosB:'',fPosA:'',fCruceB:'',fCruceBN:'0',fAnchoB:'0',fDistB:'0',
+ fRegimen:'',fPosW:'',fPosD:'',fCruceW:'',fCruceWN:'0',fAnchoW:'0',fDistW:'0',
+ fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',
  fRvwap:'-50',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
  fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
@@ -1638,9 +1746,11 @@ const NEUTRO_CHECK={fSinAtraso:false,fRvLlena:false,fConHistorial:false};
 const NOMBRE_FILTRO={
   vol20:'Volumen mínimo', dvol20:'Volumen en dólares', relVol:'Volumen relativo',
   adr:'ADR mínimo', rsiMin:'RSI mínimo', rsiMax:'RSI máximo',
-  regimen:'Régimen', posB:'Precio vs nube B', posA:'Precio vs nube A',
-  cruceB:'Cruce de la nube B', anchoB:'Ancho de la nube B',
-  distB:'Distancia a la nube B', rvwapMin:'vs rVWAP 365d',
+  regimen:'Régimen', posW:'Precio vs nube W', posD:'Precio vs nube D',
+  cruceW:'Cruce de la nube W', anchoW:'Ancho de la nube W',
+  distW:'Distancia a la nube W', rvwapMin:'vs rVWAP 365d',
+  consol:'Estado de la caja', cajaAlto:'Alto de la caja',
+  cajaRuedas:'Ruedas en la caja', cajaPos:'Dónde en la caja',
   rvLlena:'Ventana del rVWAP llena', conHistorial:'Con historial suficiente',
   ashD:'ASH diario', ashW:'ASH semanal', ashCrece:'ASH creciendo',
   cruceMax:'Cruce del ASH', adxMin:'ADX mínimo', precio:'Precio mínimo',
@@ -1768,38 +1878,53 @@ const COLS=[
   {k:'avwap_dist',t:'vs AVWAP', def:1, fmt:pct, color:1},
   {k:'avwap',  t:'AVWAP $', fmt:v=>num(v,2)},
   {k:'avwap_barras',t:'Ancla hace', fmt:v=>isFinite(v)?v:''},
-  {k:'avwap_cruce',t:'Cruce AVWAP', fmt:v=>isFinite(v)?v:''},
+  {k:'avwap_cruce',t:'Cruce DVWAP', fmt:v=>isFinite(v)?v:''},
   // --- PARAGON ---
   /* El regimen primero, y por defecto: es la columna con la que se filtra el
      universo. Cuatro estados ordenables de mas alcista a mas bajista. */
   {k:'regimen', t:'Régimen', izq:1, def:1, ord:'regimen_ord',
    fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
      const c=f.regimen_ord===3?'up':f.regimen_ord===0?'dn':'gris';
-     return `<span class="${c}" title="A = Paragon Daily (ancla 4h) · B = Paragon Weekly (ancla 1D)">`+
-       esc(v)+'</span>'+(f.par_a_aprox?'<i class="aprox" title="El conjunto A es aproximado: no hay velas de 4h">≈</i>':'');}},
-  {k:'par_b_pos', t:'Precio vs B', def:1, izq:1,
+     return `<span class="${c}" title="D = Paragon Daily (ancla 4h) · W = Paragon Weekly (ancla 1D)">`+
+       esc(v)+'</span>'+(f.par_d_aprox?'<i class="aprox" title="El conjunto D es aproximado: no hay velas de 4h">≈</i>':'');}},
+  {k:'par_w_pos', t:'Precio vs W', def:1, izq:1,
    fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
           :'<span class="gris">·</span>'},
-  {k:'par_b_dist', t:'Dist. nube B', def:1, fmt:pct, color:1},
-  {k:'par_b_dist_atr', t:'Dist. B (ATR)', fmt:v=>num(v,2), color:1},
-  {k:'par_b_ancho', t:'Ancho B', def:1, fmt:pct},
-  {k:'par_b_cruce', t:'Cruce B', def:1,
+  {k:'par_w_dist', t:'Dist. nube W', def:1, fmt:pct, color:1},
+  {k:'par_w_dist_atr', t:'Dist. W (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'par_w_ancho', t:'Ancho W', def:1, fmt:pct},
+  {k:'par_w_cruce', t:'Cruce W', def:1,
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
-     :(f.par_b_fresco?`<b class="${f.par_b_sesgo?'up':'dn'}">${v}</b>`:String(v))},
-  {k:'par_a_pos', t:'Precio vs A', izq:1,
+     :(f.par_w_fresco?`<b class="${f.par_w_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  {k:'par_d_pos', t:'Precio vs D', izq:1,
    fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
           :'<span class="gris">·</span>'},
-  {k:'par_a_dist', t:'Dist. nube A', fmt:pct, color:1},
-  {k:'par_a_dist_atr', t:'Dist. A (ATR)', fmt:v=>num(v,2), color:1},
-  {k:'par_a_ancho', t:'Ancho A', fmt:pct},
-  {k:'par_a_cruce', t:'Cruce A', def:1,
+  {k:'par_d_dist', t:'Dist. nube D', fmt:pct, color:1},
+  {k:'par_d_dist_atr', t:'Dist. D (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'par_d_ancho', t:'Ancho D', fmt:pct},
+  {k:'par_d_cruce', t:'Cruce D', def:1,
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
-     :(f.par_a_fresco?`<b class="${f.par_a_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+     :(f.par_d_fresco?`<b class="${f.par_d_sesgo?'up':'dn'}">${v}</b>`:String(v))},
   {k:'vs_rvwap', t:'vs rVWAP', def:1,
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
      :pct(v)+(f.rv_llena?'':'<i class="aprox" title="La ventana de 365 ruedas todavía no está llena">*</i>'),
    color:1},
   {k:'rvwap', t:'rVWAP $', fmt:v=>num(v,2)},
+  // --- consolidacion ---
+  {k:'consol', t:'Caja', izq:1, def:1, ord:'consol_estrechez',
+   fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
+     const c={'Cajón':'caja-si','Se aprieta':'caja-ap','Rango':'caja-rg'}[v]||'';
+     return `<span class="${c}" title="${f.consol_barras} ruedas adentro`+
+       (isFinite(f.consol_estrechez)?` · se movió el ${Math.round(f.consol_estrechez*100)}% de lo que le corresponde por su ADR`:'')+
+       `">${esc(v)}</span>`;}},
+  {k:'consol_rango', t:'Alto caja', def:1, fmt:pct},
+  {k:'consol_barras',t:'Ruedas caja', def:1, fmt:v=>isFinite(v)?v:''},
+  {k:'consol_pos',   t:'Dónde en la caja', def:1,
+   fmt:v=>{if(!isFinite(v))return '<span class="gris">·</span>';
+     const p=Math.round(v*100);
+     const c=p>=70?'up':(p<=30?'dn':'');
+     return `<span class="${c}" title="0% = piso de la caja, 100% = techo">${p}%</span>`;}},
+  {k:'consol_aprieta',t:'Se aprieta', fmt:v=>isFinite(v)?num(v,2):''},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -1863,6 +1988,7 @@ function config(){
     parRap:+$('#parRap').value, parLen:+$('#parLen').value,
     parK:+$('#parK').value, parFresco:+$('#parFresco').value,
     rvLen:+$('#rvLen').value, rvFuente:$('#rvFuente').value,
+    consolBarras:+$('#consolBarras').value,
     adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
     atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value,
     tlBarras:+$('#tlBarras').value,tlPivote:+$('#tlPivote').value};
@@ -1873,16 +1999,18 @@ function filtros(){return{
   vol20:val('#fVol')||null, dvol20:val('#fDVol')||null, relVol:val('#fRelVol')||null,
   adr:val('#fAdr')||null, rsiMin:val('#fRsiMin')||null,
   rsiMax:val('#fRsiMax')===100?null:val('#fRsiMax'),
-  regimen:$('#fRegimen').value||null, posB:$('#fPosB').value||null,
-  posA:$('#fPosA').value||null,
-  cruceB:$('#fCruceB').value||null,
+  regimen:$('#fRegimen').value||null, posW:$('#fPosW').value||null,
+  posD:$('#fPosD').value||null,
+  cruceW:$('#fCruceW').value||null,
   // el N solo cuenta como filtro si hay direccion elegida: si no, un slider
   // en cero se contaba como "1 filtro puesto" con el panel entero limpio
-  cruceBN:$('#fCruceB').value?(val('#fCruceBN')||0):null,
-  anchoB:val('#fAnchoB')||null, distB:val('#fDistB')||null,
+  cruceWN:$('#fCruceW').value?(val('#fCruceWN')||0):null,
+  anchoW:val('#fAnchoW')||null, distW:val('#fDistW')||null,
   rvwapMin:val('#fRvwap')===-50?null:val('#fRvwap'),
   rvLlena:$('#fRvLlena').checked?true:null,
   conHistorial:$('#fConHistorial').checked?true:null,
+  consol:$('#fConsol').value||null, cajaAlto:val('#fCajaAlto')||null,
+  cajaRuedas:val('#fCajaRuedas')||null, cajaPos:$('#fCajaPos').value||null,
   ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
   cruceMax:val('#fCruceMax')||null,
   // La direccion sola no es un filtro: sin N no filtra nada, y si viajara
@@ -1904,7 +2032,7 @@ function recalcular(){
   const t0=performance.now(), cfg=config();
   const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,
                     cfg.tlBarras,cfg.tlPivote,cfg.parRap,cfg.parLen,cfg.parK,
-                    cfg.parFresco,cfg.rvLen,cfg.rvFuente].join('|');
+                    cfg.parFresco,cfg.rvLen,cfg.rvFuente,cfg.consolBarras].join('|');
   if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
 
   const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
@@ -1982,7 +2110,7 @@ function aplicar(ms){
         ||(f.nombre||'').toUpperCase().includes(q)
         ||(f.sector||'').toUpperCase().includes(q)
         ||(f.industria||'').toUpperCase().includes(q)));
-  /* Una columna puede ordenarse por OTRO campo: "Régimen" muestra "A+ B+" pero
+  /* Una columna puede ordenarse por OTRO campo: "Régimen" muestra "D+ W+" pero
      se ordena por regimen_ord, que va de 0 (los dos bajistas) a 3 (los dos
      alcistas). Alfabeticamente quedaria en un orden que no significa nada. */
   const colOrd=COLS.find(c=>c.k===orden.col);
@@ -2136,9 +2264,10 @@ const GRUPOS_COL=[
   ['AVWAP del último máximo',['avwap_estado','avwap_dist','avwap','avwap_barras',
           'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
-  ['Paragon',['regimen','par_b_pos','par_b_dist','par_b_dist_atr','par_b_ancho',
-    'par_b_cruce','par_a_pos','par_a_dist','par_a_dist_atr','par_a_ancho',
-    'par_a_cruce','vs_rvwap','rvwap']],
+  ['Consolidación',['consol','consol_rango','consol_barras','consol_pos','consol_aprieta']],
+  ['Paragon',['regimen','par_w_pos','par_w_dist','par_w_dist_atr','par_w_ancho',
+    'par_w_cruce','par_d_pos','par_d_dist','par_d_dist_atr','par_d_ancho',
+    'par_d_cruce','vs_rvwap','rvwap']],
   ['Momentum y tendencia',['rsi','adr','atr_pct','adx','dist_max52',
           'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
   ['Volumen y tamaño',['rel_vol','vol20','dolar_vol20','float_musd','rotacion','mcap_musd']],
@@ -2363,7 +2492,7 @@ function dibujar(cursor){
      la rapida y se tiñe segun su propio sesgo. */
   const nubes=[1,cfg.parK].map((k,i)=>{
     const P=paragonSeries(b.c,cfg.parRap,cfg.parLen,k);
-    return {set:i?'A':'B',k,lr:P.lr,ll:P.ll,r:cor(P.rap),l:cor(P.len)};});
+    return {set:i?'D':'W',k,lr:P.lr,ll:P.ll,r:cor(P.rap),l:cor(P.len)};});
 
   const cv=$('#grafico'), dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth||900, Hpx=286;
@@ -2405,7 +2534,7 @@ function dibujar(cursor){
   nubes.forEach(nb=>{
     const alcista=isFinite(nb.r[N-1])&&isFinite(nb.l[N-1])&&nb.r[N-1]>=nb.l[N-1];
     // B neutra (es el marco), A teñida por su sesgo (es la señal)
-    const relleno=nb.set==='B'?'rgba(132,146,165,.13)'
+    const relleno=nb.set==='W'?'rgba(132,146,165,.13)'
       :(alcista?'rgba(79,178,134,.16)':'rgba(207,75,62,.16)');
     g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
     g.fillStyle=relleno;g.beginPath();
@@ -2417,11 +2546,35 @@ function dibujar(cursor){
       g.lineTo(x0+paso*(i+.5),escY(nb.l[i],mn,mx,8,h1));}
     if(abrio){g.closePath();g.fill();}
     g.restore();
-    const col=nb.set==='B'?'#8492A5':(alcista?C_.up:C_.dn);
+    const col=nb.set==='W'?'#8492A5':(alcista?C_.up:C_.dn);
     linea(nb.r,col,1.3);linea(nb.l,col,1.3);
     g.fillStyle=col;g.font='10px ui-monospace,monospace';g.textAlign='left';
     g.fillText(`${nb.set} ${nb.lr}/${nb.ll}`+(nb.k!==1?' ≈':''),
-               x0+6+(nb.set==='B'?0:78),20);});
+               x0+6+(nb.set==='W'?0:78),20);});
+  /* LA CAJA DE LA CONSOLIDACION.
+     Se dibuja como en el grafico que mando el usuario: un rectangulo translucido
+     desde donde arranco la caja hasta hoy, con el techo y el piso marcados. El
+     alto y las ruedas van en la esquina, que es lo que se mira para decidir. */
+  {const visB={d:D,o:O,h:H,l:L,c:C,v:cor(b.v)};
+   const K=consolidacion(visB,cfg);
+   if(K.estado&&isFinite(K.techo)&&isFinite(K.piso)&&K.barras>=3){
+     const i0=Math.max(0,N-K.barras);
+     const xa=x0+paso*i0, xb=x1;
+     const ya=escY(K.techo,mn,mx,8,h1), yb=escY(K.piso,mn,mx,8,h1);
+     g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
+     const cc=K.estado==='Cajón'?'91,155,213':(K.estado==='Se aprieta'?'224,164,88':'132,146,165');
+     g.fillStyle=`rgba(${cc},.10)`;
+     g.fillRect(xa,ya,xb-xa,yb-ya);
+     g.strokeStyle=`rgba(${cc},.75)`;g.lineWidth=1;g.setLineDash([4,3]);
+     g.beginPath();g.moveTo(xa,ya+.5);g.lineTo(xb,ya+.5);
+     g.moveTo(xa,yb-.5);g.lineTo(xb,yb-.5);g.stroke();
+     g.setLineDash([]);
+     g.fillStyle=`rgba(${cc},.95)`;g.font='10px ui-monospace,monospace';
+     g.textAlign='left';
+     g.fillText(`${K.estado} · ${(K.rango*100).toFixed(1)}% · ${K.barras}r`,
+                xa+4,Math.max(18,ya-4));
+     g.restore();}}
+
   /* El rVWAP 365d, la linea suelta del conjunto semanal. */
   {const R=rvwapExpansivo({c:C,h:H,l:L,v:cor(b.v)},cfg.rvLen,cfg.rvFuente);
    linea(R.serie,'#FFA726',1.2);}
@@ -3054,8 +3207,10 @@ function etiquetas(){
   p('#fFloat','#lFloat',v=>'$'+v+'M');
   const rs=+$('#fRs').value;$('#lRs').textContent=rs>1?rs:'off';
   $('#lRs').classList.toggle('apagado',!(rs>1));
-  p('#fAnchoB','#lAnchoB',v=>'≥ '+v.toFixed(1)+'%');
-  p('#fDistB','#lDistB',v=>'≤ '+v.toFixed(1)+'%');
+  p('#fAnchoW','#lAnchoW',v=>'≥ '+v.toFixed(1)+'%');
+  p('#fCajaAlto','#lCajaAlto',v=>'≤ '+v.toFixed(1)+'%');
+  p('#fCajaRuedas','#lCajaRuedas',v=>'≥ '+v);
+  p('#fDistW','#lDistW',v=>'≤ '+v.toFixed(1)+'%');
   const rv=+$('#fRvwap').value;$('#lRvwap').textContent=rv>-50?rv+'%':'off';
   $('#lRvwap').classList.toggle('apagado',!(rv>-50));
   etiquetaCruceNube();
@@ -3064,7 +3219,7 @@ function etiquetas(){
 /* Misma logica que la del ASH: el numero solo no distingue "hace poco" de
    "hace rato". */
 function etiquetaCruceNube(){
-  const n=+$('#fCruceBN').value, dir=$('#fCruceB').value, el=$('#lParB');
+  const n=+$('#fCruceWN').value, dir=$('#fCruceW').value, el=$('#lParW');
   if(!el)return;
   el.classList.toggle('apagado',!dir);
   el.textContent=dir?((dir.slice(-1)==='+'?'≥ ':'≤ ')+n+' ruedas'):'off';
@@ -3526,7 +3681,8 @@ function iniciar(){
   const recalcIds=['ashModo','ashMa','ashLen','ashSmooth','almaOff','almaSig',
                    'adrLen','rsiLen','atrLen','adxLen',
                    // los de Paragon rehacen las EMAs, asi que son pesados
-                   'parRap','parLen','parK','parFresco','rvLen','rvFuente'];
+                   'parRap','parLen','parK','parFresco','rvLen','rvFuente',
+                   'consolBarras'];
   let timer=null, pendientePesado=false;
   $$('aside input, aside select').forEach(el=>{
     if(NO_ESTADO.includes(el.id)||el.type==='file')return;

@@ -91,8 +91,8 @@ FILTROS = {
     "rsi14_max":           None,
 
     # --- EMAs ---
-    "par_b_sesgo":         None,         # True / False / None
-    "par_a_sesgo":         None,
+    "par_w_sesgo":         None,         # True / False / None
+    "par_d_sesgo":         None,
     "regimen_ord":         None,
 
     # --- ASH diario ---
@@ -128,8 +128,8 @@ REGLAS = [
     ("atr_pct_max",        "atr_pct",         "le"),
     ("rsi14_min",          "rsi14",           "ge"),
     ("rsi14_max",          "rsi14",           "le"),
-    ("par_b_sesgo",        "par_b_sesgo",     "bool"),
-    ("par_a_sesgo",        "par_a_sesgo",     "bool"),
+    ("par_w_sesgo",        "par_w_sesgo",     "bool"),
+    ("par_d_sesgo",        "par_d_sesgo",     "bool"),
     ("ash_d_min",          "ash_d",           "ge"),
     ("ash_d_positivo",     "ash_d_positivo",  "bool"),
     ("ash_d_creciendo",    "ash_d_creciendo", "bool"),
@@ -174,14 +174,18 @@ COLUMNAS = [
     ("adx14",             "ADX 14",          "0.0"),
     # --- EMAs ---
     ("regimen",           "Régimen",         "@"),
-    ("par_b_pos",         "Precio vs B",     "@"),
-    ("par_b_dist",        "Dist. nube B",    "0.0%"),
-    ("par_b_ancho",       "Ancho B",         "0.0%"),
-    ("par_b_cruce",       "Cruce B",         "0"),
-    ("par_a_pos",         "Precio vs A",     "@"),
-    ("par_a_dist",        "Dist. nube A",    "0.0%"),
-    ("par_a_cruce",       "Cruce A",         "0"),
+    ("par_w_pos",         "Precio vs W",     "@"),
+    ("par_w_dist",        "Dist. nube W",    "0.0%"),
+    ("par_w_ancho",       "Ancho W",         "0.0%"),
+    ("par_w_cruce",       "Cruce W",         "0"),
+    ("par_d_pos",         "Precio vs D",     "@"),
+    ("par_d_dist",        "Dist. nube D",    "0.0%"),
+    ("par_d_cruce",       "Cruce D",         "0"),
     ("vs_rvwap",          "vs rVWAP 365",    "0.0%"),
+    ("consol",            "Caja",            "@"),
+    ("consol_rango",      "Alto caja",       "0.0%"),
+    ("consol_barras",     "Ruedas caja",     "0"),
+    ("consol_pos",        "Dónde en la caja","0.0%"),
     # --- Performance ---
     ("perf_1s",           "1 sem",           "0.0%"),
     ("perf_1m",           "1 mes",           "0.0%"),
@@ -403,6 +407,66 @@ def senales_paragon(df, rap, len_, atr=None):
             "dist_atr": (px - borde) / atr if (atr and atr == atr and atr > 0)
                         else np.nan,
             "cruce": float(cruce) if cruce == cruce else np.nan}
+
+
+def consolidacion(df, barras=20):
+    """
+    La caja: encontrar lo que se esta moviendo en un mismo rango.
+
+    Un rango "chico" no significa nada en abstracto: 6% en un mes es quieto para
+    un papel que se mueve 3% por dia y es un temblor para uno que se mueve 0,4%.
+    Por eso el rango se mide contra lo que ESE papel suele moverse:
+
+        estrechez = rango_de_la_caja / (ADR * sqrt(N))
+
+    Si el precio fuera una caminata al azar con paso diario igual a su ADR, en N
+    ruedas recorreria del orden de ADR*sqrt(N). Menor que 1 = se movio MENOS de
+    lo que le corresponde por su propia volatilidad, que es lo que uno ve y
+    llama consolidacion. Comparable entre AAPL y una minera chica.
+
+    Espejo exacto de consolidacion() del JS: si tocas una, toca la otra.
+    """
+    N = max(5, int(barras))
+    vacio = {"estado": "", "rango": np.nan, "barras": np.nan, "pos": np.nan,
+             "aprieta": np.nan, "techo": np.nan, "piso": np.nan,
+             "estrechez": np.nan}
+    n = len(df)
+    if n < N * 2 + 2:
+        return vacio
+    px = float(df["Close"].iloc[-1])
+    if not np.isfinite(px) or px <= 0:
+        return vacio
+    hi = df["High"].to_numpy(dtype=float)
+    lo = df["Low"].to_numpy(dtype=float)
+    techo, piso = float(np.max(hi[-N:])), float(np.min(lo[-N:]))
+    if not (np.isfinite(techo) and np.isfinite(piso)) or techo <= piso:
+        return vacio
+    rango = (techo - piso) / px
+    tp, pp = float(np.max(hi[-2 * N:-N])), float(np.min(lo[-2 * N:-N]))
+    rango_prev = (tp - pp) / px if (np.isfinite(tp) and np.isfinite(pp) and tp > pp) else np.nan
+    aprieta = rango / rango_prev if (rango_prev == rango_prev and rango_prev > 0) else np.nan
+    adrp = float(calc_adr_pct(df, min(20, N)).iloc[-1]) / 100.0
+    esperado = adrp * np.sqrt(N) if (adrp == adrp and adrp > 0) else np.nan
+    estrechez = rango / esperado if (esperado == esperado and esperado > 0) else np.nan
+    # tolerancia del 3% del alto: una mecha que se asoma no rompe la caja
+    tol = (techo - piso) * 0.03
+    cuenta = 0
+    for i in range(n - 1, -1, -1):
+        if hi[i] > techo + tol or lo[i] < piso - tol:
+            break
+        cuenta += 1
+    pos = (px - piso) / (techo - piso)
+    estado = ""
+    if estrechez == estrechez:
+        if estrechez < 0.62 and cuenta >= round(N * 0.6):
+            estado = "Cajón"
+        elif aprieta == aprieta and aprieta < 0.6 and estrechez < 1:
+            estado = "Se aprieta"
+        elif estrechez < 0.85:
+            estado = "Rango"
+    return {"estado": estado, "rango": rango, "barras": cuenta, "pos": pos,
+            "aprieta": aprieta, "techo": techo, "piso": piso,
+            "estrechez": estrechez}
 
 
 def _conv(s, pesos):
@@ -1100,8 +1164,8 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
         "mcap_musd": mcap / 1e6 if mcap == mcap else np.nan,
     }
     # --- PARAGON ---
-    # Conjunto B (ancla 1D): EXACTO, son la EMA 100/200 sobre las diarias que
-    # ya baja el screener. Conjunto A (ancla 4h): APROXIMADO, porque no hay
+    # Conjunto W (ancla 1D): EXACTO, son la EMA 100/200 sobre las diarias que
+    # ya baja el screener. Conjunto D (ancla 4h): APROXIMADO, porque no hay
     # velas de 4h en el pipeline; se convierten las longitudes conservando la
     # tasa de decaimiento y la fila queda marcada.
     atr_v = float(calc_atr(df, 14).iloc[-1])
@@ -1118,19 +1182,26 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
         f[f"{pre}_cruce"] = S["cruce"]
         f[f"{pre}_fresco"] = bool(S["cruce"] == S["cruce"]
                                   and S["cruce"] <= par["fresco"])
-    f["par_a_aprox"] = par["k"] != 1
-    f["par_a_largos"] = f"{kra}/{kla}"
+    f["par_d_aprox"] = par["k"] != 1
+    f["par_d_largos"] = f"{kra}/{kla}"
     if A["sesgo"] is None or B["sesgo"] is None:
         f["regimen"], f["regimen_ord"] = "", np.nan
     else:
-        f["regimen"] = ("A+ B+" if (A["sesgo"] and B["sesgo"]) else
-                        "A− B+" if B["sesgo"] else
-                        "A+ B−" if A["sesgo"] else "A− B−")
+        f["regimen"] = ("D+ W+" if (A["sesgo"] and B["sesgo"]) else
+                        "D− W+" if B["sesgo"] else
+                        "D+ W−" if A["sesgo"] else "D− W−")
         f["regimen_ord"] = (2 if B["sesgo"] else 0) + (1 if A["sesgo"] else 0)
     rv, llena = rvwap_expansivo(df, par["rv_len"], par["rv_fuente"])
     f["rvwap"] = float(rv.iloc[-1]) if np.isfinite(rv.iloc[-1]) else np.nan
     f["vs_rvwap"] = px / f["rvwap"] - 1 if f["rvwap"] == f["rvwap"] else np.nan
     f["rv_llena"] = bool(llena)
+    K = consolidacion(df, 20)
+    f["consol"] = K["estado"]
+    f["consol_rango"] = K["rango"]
+    f["consol_barras"] = K["barras"]
+    f["consol_pos"] = K["pos"]
+    f["consol_aprieta"] = K["aprieta"]
+    f["consol_estrechez"] = K["estrechez"]
     # los que no llegan al warmup no se descartan en silencio
     f["sin_historial"] = bool(A["sesgo"] is None or B["sesgo"] is None)
     if historial:

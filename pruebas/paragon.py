@@ -71,7 +71,7 @@ ok("con k grande la lineal y la correcta difieren",
    f"correcta={S.largo_equivalente(100,42)} lineal={lineal}")
 ok("nunca baja de 2", S.largo_equivalente(100, 10000) >= 2)
 
-print("\n== warmup del conjunto A sobre un grafico diario ==")
+print("\n== warmup del conjunto D (ancla 4h) sobre un grafico diario ==")
 # 200 velas de 4h son 33,33 dias, asi que la 34a vela diaria es la primera que
 # las completa. Es el test que confirma que la reconstruccion esta bien.
 n = 120
@@ -86,7 +86,7 @@ prim = int(np.argmax(np.isfinite(len_.to_numpy()))) + 1
 ok("la nube diaria imprime por primera vez en la vela 34", prim == 34, prim)
 ok("en la vela 33 todavia es NaN", not np.isfinite(len_.iloc[32]))
 
-print("\n== conjunto B: exacto sobre diarias ==")
+print("\n== conjunto W (ancla 1D): exacto sobre diarias ==")
 rb, lb, lrb, llb = S.paragon_conjunto(df["Close"], 100, 200, 1)
 ok("las longitudes van tal cual", (lrb, llb) == (100, 200), (lrb, llb))
 ok("la EMA 100 es identica a ema_pine(close,100)",
