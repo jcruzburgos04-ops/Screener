@@ -112,7 +112,12 @@ function conFecha(diasAtras){
 
   console.log('\n== la pastilla de frescura ==');
   {
+    // `ts` (epoch) es el campo autoritativo y `fecha` es solo el texto: hay
+    // que mover los dos, que es lo que hace Python al armar el payload. Si se
+    // toca solo `fecha`, manda `ts` y la pastilla no se entera -- que es
+    // justamente la precedencia que se quiere.
     const recien=JSON.parse(JSON.stringify(datos));
+    recien.ts=Math.floor(Date.now()/1000);
     recien.fecha=new Date().toISOString().slice(0,16).replace('T',' ');
     const w1=await abrir({payload:recien,almacen:{screener_ash_yahoo_auto:'0'}});
     const p1=w1.document.querySelector('#frescura');
@@ -120,7 +125,10 @@ function conFecha(diasAtras){
        p1.className+' | '+p1.textContent);
 
     const anoche=JSON.parse(JSON.stringify(datos));
-    anoche.fecha='2020-01-01 22:30';
+    // el cierre de la ultima rueda: mas de 75 minutos, pero no dos ruedas
+    const haceRato=Date.now()-5*3600*1000;
+    anoche.ts=Math.floor(haceRato/1000);
+    anoche.fecha=new Date(haceRato).toISOString().slice(0,16).replace('T',' ');
     const w2=await abrir({payload:anoche,almacen:{screener_ash_yahoo_auto:'0'}});
     const p2=w2.document.querySelector('#frescura');
     ok('el cierre de la rueda va en ambar',p2.classList.contains('tibio'),
