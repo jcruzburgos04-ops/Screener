@@ -2202,7 +2202,11 @@ function aplicar(ms){
   const ruedas=ruedasHasta(fechaMayoritaria());
   $('#firma').innerHTML=`<em>${esc(c.ash.modo)} ${c.ash.length}/${c.ash.smooth} ${esc(c.ash.ma_type)}</em>`+
     `<i class="sep-v"></i>${DATOS.simbolos.length} símbolos`+
-    `<i class="sep-v"></i>cierre ${fechaCorta(DATOS.ultimo_cierre)}`+
+    /* La fecha de la MAYORIA, no el maximo. Con el maximo alcanzaba un solo
+       papel de Tokio con la barra de hoy para que el encabezado dijera una
+       fecha que ningun papel de Nueva York tenia: el 28/08 decia "cierre
+       28/08" con toda la rueda de EEUU todavia en el 27. */
+    `<i class="sep-v"></i>cierre ${fechaCorta(fechaMayoritaria())}`+
     // Que TODO el archivo este viejo (el cron fallo, la pestaña quedo abierta
     // desde el jueves) es otro problema distinto de que un papel venga atrasado.
     (ruedas>=2?` <span style="color:var(--bajista)" title="Ni siquiera el más `+
@@ -3378,11 +3382,19 @@ async function seguirProgreso(silenciosa){
 async function traerArchivoDatos(forzar){
   try{
     mostrarCarga('descargando los precios…',0.05);
-    /* Al recargar a mano se le agrega un parametro y se pide 'reload': si no, el
-       navegador (o el CDN de Pages) puede devolver el datos.json que ya tenia y
-       el boton no haria nada visible aunque el sitio ya se hubiera actualizado. */
-    const url=forzar?('datos.json?t='+Date.now()):'datos.json';
-    const r=await fetch(url,{cache:forzar?'reload':'no-cache'});
+    /* SIEMPRE con un parametro que cambia, no solo al apretar el boton.
+       `cache:'no-cache'` hace que el NAVEGADOR revalide, pero el CDN de GitHub
+       Pages puede contestar con una copia vieja igual, y ahi recargar no sirve
+       de nada: es lo que le paso al usuario el 28/08, que recargo diez veces y
+       seguia viendo el cierre anterior. Una URL distinta no puede salir de la
+       cache del borde.
+
+       El parametro va por tramos de dos minutos y no con Date.now() crudo:
+       asi recargar tres veces seguidas no baja 8 MB tres veces, pero nunca se
+       arrastra una copia de mas de dos minutos. Al forzar a mano, si va el
+       instante exacto. */
+    const sello=forzar?Date.now():Math.floor(Date.now()/120000);
+    const r=await fetch('datos.json?v='+sello,{cache:forzar?'reload':'no-cache'});
     if(!r.ok)return false;
     let texto;
     if(r.body&&r.body.getReader){
@@ -3535,7 +3547,7 @@ function fechaMayoritaria(){
 function pintarFrescura(){
   const el=$('#frescura');if(!el)return;
   const f=fechaMayoritaria(), r=ruedasHasta(f);
-  const t=DATOS.fecha?Date.parse(String(DATOS.fecha).replace(' ','T')):NaN;
+  const t=momentoDatos();
   const min=isFinite(t)?Math.round((Date.now()-t)/60000):NaN;
   let cls,txt,ayuda;
   if(r>=2){cls='viejo';txt=`${r} ruedas de atraso`;
@@ -3619,6 +3631,7 @@ async function traerDeYahoo(silenciosa){
     if(vivos){
       recalcularAtrasos();
       DATOS.fecha=new Date().toISOString().slice(0,16).replace('T',' ');
+      DATOS.ts=Math.floor(Date.now()/1000);
       cacheBase.clear();cacheSem.clear();memoAsh.clear();claveBase='';
       pintarInfoDatos();montarChips();recalcular();
     }
@@ -3673,8 +3686,8 @@ function estadoYahoo(r){
 }
 
 function datosViejos(){
-  if(!DATOS.fecha)return true;
-  const t=Date.parse(DATOS.fecha.replace(' ','T'));
+  if(!DATOS.fecha&&!isFinite(DATOS.ts))return true;
+  const t=momentoDatos();
   return !isFinite(t)||(Date.now()-t)>12*3600*1000;
 }
 
@@ -3699,9 +3712,28 @@ function pintarInfoDatos(){
     : '';
 }
 
+/* CUANDO SE ARMO EL ARCHIVO, en milisegundos. Un solo lugar.
+
+   El runner escribe la hora en UTC pero el texto va sin zona ("2026-08-28
+   14:53"), y Date.parse de un texto sin zona lo interpreta como hora LOCAL.
+   Para el usuario, que esta en UTC-3, eso corria todo 3 horas hacia adelante:
+   un archivo recien hecho daba MENOS 177 minutos, y uno de 12 horas daba 571
+   en vez de 751. O sea que cualquier cosa de menos de 3 horas se mostraba como
+   "precios de recien", aunque fuera del cierre anterior. Fue exactamente lo
+   que dejo pasar el 28/08: el cron no habia corrido en todo el dia y la
+   pastilla seguia en verde.
+
+   Ahora el payload trae `ts` (epoch, no se puede malinterpretar) y los
+   archivos viejos se leen forzando la Z, que es lo que siempre fueron. */
+function momentoDatos(){
+  if(isFinite(DATOS.ts))return DATOS.ts*1000;
+  if(!DATOS.fecha)return NaN;
+  return Date.parse(String(DATOS.fecha).replace(' ','T')+'Z');
+}
+
 function hace(fecha){
   if(!fecha)return 'hace un rato';
-  const t=Date.parse(String(fecha).replace(' ','T'));
+  const t=Date.parse(String(fecha).replace(' ','T')+'Z');
   if(!isFinite(t))return fecha;
   const m=Math.round((Date.now()-t)/60000);
   if(m<2)return 'recién';

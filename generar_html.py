@@ -20,7 +20,7 @@ Para actualizar los precios: volvé a correrlo. Reescribe el mismo archivo.
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -108,7 +108,10 @@ def armar_payload(precios, meta, uni, barras):
             "v": [int(v) if np.isfinite(v) else 0 for v in d["Volume"]],
         })
     ultima = max((s["d"][-1] for s in simbolos), default=0)
-    return {"fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    _ahora = datetime.now(timezone.utc)
+    # "fecha" es texto sin zona; "ts" es el epoch, que no se puede malinterpretar
+    return {"fecha": _ahora.strftime("%Y-%m-%d %H:%M"),
+            "ts": int(_ahora.timestamp()),
             "ultimo_cierre": ultima,
             "atrasados": sum(1 for s in simbolos if s["at"] > 0),
             "benchmark": BENCHMARK, "barras": barras, "simbolos": simbolos}

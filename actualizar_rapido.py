@@ -33,7 +33,7 @@ mejor los precios del cierre anterior que un archivo a medio armar.
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -136,7 +136,13 @@ def main():
         s["at"] = int(tarde.get(s["t"], 0))
     payload["ultimo_cierre"] = max(s["d"][-1] for s in simbolos)
     payload["atrasados"] = sum(1 for s in simbolos if s["at"] > 0)
-    payload["fecha"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # El momento va TAMBIEN como epoch: "fecha" es texto sin zona y el
+    # navegador lo interpretaba como hora LOCAL. Para el usuario (UTC-3) eso
+    # hacia que todo se viera 3 horas mas nuevo de lo que era, y un archivo
+    # de 3 horas se mostraba como "precios de recien".
+    _ahora = datetime.now(timezone.utc)
+    payload["fecha"] = _ahora.strftime("%Y-%m-%d %H:%M")
+    payload["ts"] = int(_ahora.timestamp())
     payload["parcial"] = True     # se armo durante la rueda, no despues del cierre
 
     # Pre-market y after-hours. Es una pasada aparte porque necesita barras de

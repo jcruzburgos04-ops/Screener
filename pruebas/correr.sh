@@ -66,6 +66,8 @@ echo; echo "== las columnas no dependen del filtro =="
 node columnas_globales.js
 echo; echo "== persistencia de la seleccion de columnas =="
 node persistencia.js
+echo; echo "== frescura: la pastilla no puede mentir (en UTC-3) =="
+TZ=America/Argentina/Buenos_Aires node frescura.js
 echo; echo "== pantalla angosta y pastilla de frescura =="
 node movil.js
 echo; echo "== vista panorama (indices y sectores) =="
