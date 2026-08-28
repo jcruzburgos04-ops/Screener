@@ -1,43 +1,64 @@
 # =============================================================================
-# Actualiza SOLO los precios del dia, cada media hora, mientras Nueva York
-# opera.
+# Mantiene frescos los precios del dia mientras Nueva York opera.
 #
 # POR QUE HACE FALTA
 # El navegador no puede pedirle precios a Yahoo por su cuenta: la respuesta
 # viene sin cabecera CORS y la bloquea con un "Failed to fetch". Eso no se
 # arregla desde este proyecto. La solucion que no depende de nadie es que el
-# sitio publicado ya este fresco cuando abris el link, y de eso se encarga este
-# workflow.
+# sitio publicado ya este fresco cuando abris el link.
 #
 # ES BARATO A PROPOSITO: no vuelve a bajar tres años de historial. Agarra el
-# datos.json que ya esta publicado en gh-pages, le pide a Yahoo el ultimo mes
-# de cada simbolo y le pega las barras nuevas encima. La corrida pesada sigue
-# siendo la de la noche (actualizar.yml).
+# datos.json que ya esta publicado, le pide a Yahoo el ultimo mes de cada
+# simbolo y le pega las barras nuevas encima. La corrida pesada sigue siendo la
+# de la noche (actualizar.yml).
+#
+# -----------------------------------------------------------------------------
+# POR QUE UN BUCLE ADENTRO, Y NO UN CRON CADA MEDIA HORA
+# -----------------------------------------------------------------------------
+# Porque el cron cada media hora NO SE CUMPLE. Los cron de GitHub Actions son
+# "mejor esfuerzo": cuando la cola esta cargada se demoran, y a los repos que
+# piden mucha frecuencia se les empieza a saltear corridas. Medido sobre este
+# mismo repo, con `0,30 8-23` pedido (32 corridas por dia):
+#
+#     21/08  23 corridas        26/08  10 corridas
+#     24/08  21 corridas        27/08   2 corridas
+#     25/08  19 corridas        28/08   1 corrida  <- y ninguna con el mercado
+#                                                     abierto
+#
+# El 28/08 la unica corrida fue 02:25 UTC, o sea que a las 14:46 —con la rueda
+# abierta hacia mas de una hora— lo publicado seguia siendo el cierre anterior.
+# Ese es exactamente el sintoma que reporto el usuario.
+#
+# La salida no es pedir MAS corridas (empeora el estrangulamiento) sino que
+# cada corrida cubra un rato: se pide una por hora y adentro se refresca cada
+# 10 minutos durante ~50. Asi, con que GitHub cumpla dos o tres disparos en
+# todo el dia, lo publicado igual queda con menos de 10 minutos.
 # =============================================================================
 
 name: Precios del dia
 
 on:
   schedule:
-    # Nueva York: pre-market 8:00-13:30 UTC, rueda 13:30-20:00, after-hours
-    # 20:00-24:00 (horario de verano). Se cubre todo el arco, de lunes a
-    # viernes, cada media hora. GitHub suele demorar los cron unos minutos: no
-    # es un problema, el objetivo es que lo publicado tenga menos de una hora.
-    - cron: "0,30 8-23 * * 1-5"
+    # Una por hora, no cada media hora: pedir menos es lo que hace que se
+    # cumpla mas. Cubre pre-market (8:00 UTC), la rueda (13:30-20:00) y el
+    # after-hours, de lunes a viernes.
+    - cron: "0 8-23 * * 1-5"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# Que no se pise con la corrida nocturna ni consigo misma.
+# La nocturna tiene su propio grupo, asi que nunca se cancela por esto. Entre
+# corridas de este workflow SI se cancela la vieja: si GitHub largo dos juntas
+# despues de una demora, la que vale es la nueva.
 concurrency:
-  group: screener
-  cancel-in-progress: false
+  group: intradia
+  cancel-in-progress: true
 
 jobs:
   refrescar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 70
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +67,6 @@ jobs:
       # bajar. Si todavia no hay nada publicado, este workflow no tiene nada
       # que hacer y termina sin error.
       - name: Traer el sitio publicado
-        id: previo
         continue-on-error: true
         uses: actions/checkout@v4
         with:
@@ -73,26 +93,64 @@ jobs:
         if: steps.hay.outputs.si == 'true'
         run: pip install -q -r requirements.txt
 
-      - name: Actualizar los precios
+      # Un solo paso que refresca y publica varias veces. Tiene que ser UN paso
+      # porque una action (peaceiris) no se puede llamar dentro de un bucle de
+      # bash; el publicado se hace con git a mano, que es lo mismo que hacia esa
+      # action con force_orphan: un repo nuevo cada vez, o sea un solo commit en
+      # gh-pages y no 2 GB de historial al año.
+      - name: Refrescar y publicar durante ~50 minutos
         if: steps.hay.outputs.si == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          for intento in 1 2; do
-            if python actualizar_rapido.py --previo sitio_previo/datos.json --salida sitio; then
-              exit 0
-            fi
-            echo "Fallo el intento $intento, espero 60s"
-            sleep 60
-          done
-          echo "No pude actualizar; dejo el sitio anterior en pie"
-          exit 1
+          set -u
+          MINUTOS=50
+          PASO=600                       # 10 minutos entre refrescos
+          FIN=$(( $(date +%s) + MINUTOS * 60 ))
 
-      - name: Publicar
-        if: steps.hay.outputs.si == 'true'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./sitio
-          publish_branch: gh-pages
-          force_orphan: true
-          commit_message: "Precios del dia ${{ github.run_number }}"
+          mkdir -p estado
+          cp sitio_previo/datos.json estado/datos.json
+
+          publicar() {
+            ( cd sitio
+              rm -rf .git
+              git init -q -b gh-pages
+              git config user.name  "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add -A
+              git commit -q -m "Precios del dia · $(date -u '+%Y-%m-%d %H:%M UTC')"
+              git push -q --force \
+                "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+                gh-pages )
+          }
+
+          vuelta=0
+          exitos=0
+          while :; do
+            vuelta=$(( vuelta + 1 ))
+            echo "::group::vuelta $vuelta  ($(date -u '+%H:%M:%S') UTC)"
+            # Una vuelta que falla NO corta la corrida: Yahoo tiene rachas malas
+            # y la de dentro de diez minutos puede andar perfecto. Solo se
+            # devuelve error si no salio ninguna.
+            if python actualizar_rapido.py --previo estado/datos.json --salida sitio; then
+              publicar
+              cp sitio/datos.json estado/datos.json
+              exitos=$(( exitos + 1 ))
+              echo "publicado"
+            else
+              echo "esta vuelta no salio; dejo lo anterior en pie y sigo"
+            fi
+            echo "::endgroup::"
+
+            resto=$(( FIN - $(date +%s) ))
+            if [ "$resto" -lt "$PASO" ]; then
+              break
+            fi
+            sleep "$PASO"
+          done
+
+          echo "vueltas: $vuelta · publicadas: $exitos"
+          if [ "$exitos" -eq 0 ]; then
+            echo "No pude publicar ni una vez; queda el sitio anterior."
+            exit 1
+          fi

@@ -949,6 +949,47 @@ fallaron por una racha vuelven a entrar. **La usan los dos**, `servidor.py` y
 `generar_sitio.py`. El botón "Rehacer todo el historial" del servidor perdona la
 cuarentena a propósito: si el usuario lo aprieta es porque sospecha de los datos.
 
+### El cron de GitHub no se cumple, y por eso el workflow tiene un bucle adentro
+
+**Medido sobre este repo**, con `0,30 8-23 * * 1-5` pedido (32 corridas al día):
+
+| Día | Corridas reales |
+|---|---|
+| 21/08 | 23 |
+| 24/08 | 21 |
+| 25/08 | 19 |
+| 26/08 | 10 |
+| 27/08 | **2** |
+| 28/08 | **1** (a las 02:25 UTC, ninguna con el mercado abierto) |
+
+El 28/08 el usuario abrió el link a las 14:46 UTC —una hora larga después de la
+apertura— y vio los precios del cierre anterior. No era el navegador ni la
+caché: **el cron simplemente no se ejecutó**. Los cron de Actions son "mejor
+esfuerzo" y a los repos que piden mucha frecuencia se les saltean corridas.
+
+**La salida no es pedir más corridas**, que empeora el estrangulamiento, sino
+que cada corrida cubra un rato: se pide **una por hora** y adentro se refresca
+**cada 10 minutos durante ~50**. Con que GitHub cumpla dos o tres disparos en
+todo el día, lo publicado igual queda con menos de 10 minutos.
+
+Detalles que importan:
+
+- El publicado va **con `git` a mano**, no con `peaceiris/actions-gh-pages`: una
+  action no se puede llamar dentro de un bucle de bash. Se replica `force_orphan`
+  haciendo `git init` en cada vuelta, así `gh-pages` sigue teniendo **un solo
+  commit** y no 2 GB de historial al año.
+- **Una vuelta que falla no corta la corrida.** Yahoo tiene rachas malas y la de
+  dentro de diez minutos puede andar perfecto. Sólo se devuelve error si no
+  publicó ninguna.
+- El grupo de concurrencia es **`intradia`**, distinto del `screener` de la
+  nocturna, así la nocturna nunca se cancela por esto. Entre corridas de este
+  workflow sí se cancela la vieja: si GitHub larga dos juntas tras una demora,
+  la que vale es la nueva.
+
+> El botón `⟳` de la página **no arregla esto**: vuelve a bajar el `datos.json`
+> publicado, que es tan fresco como la última corrida del workflow. Cuando el
+> cron no corre, no hay nada más fresco que traer.
+
 ### Yahoo bloquea más a los servidores
 
 Las IPs de GitHub Actions reciben más cortes que una conexión hogareña. El
