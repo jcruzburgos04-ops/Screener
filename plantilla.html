@@ -219,20 +219,57 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
    nativa y un ancho que bailaba con el largo del nombre. Ahora tiene la misma
    cara que los chips de al lado: capsula, flecha propia y ancho fijo con
    puntos suspensivos. */
-.marca select{-webkit-appearance:none;appearance:none;width:190px;flex:none;
-  font-family:var(--mono);font-size:var(--t1);padding:.34rem 1.5rem .34rem .7rem;
-  border-radius:999px;background:var(--panel);border:1px solid var(--borde);
-  color:var(--tenue);text-overflow:ellipsis;
-  background-image:linear-gradient(45deg,transparent 50%,var(--apagado) 50%),
-                   linear-gradient(135deg,var(--apagado) 50%,transparent 50%);
-  background-position:calc(100% - 13px) 51%,calc(100% - 9px) 51%;
-  background-size:4px 4px,4px 4px;background-repeat:no-repeat}
-.marca select:hover{border-color:var(--borde2);color:var(--hueso)}
-.marca select:focus{outline:none;border-color:var(--borde2);
-  box-shadow:0 0 0 2px rgba(224,164,88,.18)}
+/* ------------------------- selector de perfiles ---------------------------
+   EL DESPLEGABLE DE UN <select> LO DIBUJA EL SISTEMA OPERATIVO, NO EL CSS.
+   Por eso la lista de filtros salia con fondo crema, letras naranjas y la
+   opcion elegida en azul chillon: nada de eso se puede tocar desde la hoja de
+   estilos, por mas que el boton cerrado si se pueda pintar. Contra un fondo
+   negro neutro quedaba de otra pagina.
+
+   Solucion: el <select> sigue existiendo y sigue siendo la fuente de verdad
+   —la logica, la persistencia y las pruebas lo usan igual—, pero se esconde y
+   la lista se dibuja a mano. Elegir en la lista le pone el valor al <select> y
+   dispara su `change`, asi que abajo no cambia absolutamente nada. */
+.marca select,aside select.oculto-sel{position:absolute;width:1px;height:1px;
+  opacity:0;pointer-events:none;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.selector{position:relative;flex:none}
+.selector.ancho{width:100%}
+.sel-boton{display:flex;align-items:center;gap:.5rem;width:220px;margin:0;
+  font-family:var(--sans);font-size:var(--t1);font-weight:500;letter-spacing:.005em;
+  text-transform:none;padding:.4rem .7rem .4rem .85rem;border-radius:999px;
+  background:var(--panel);border:1px solid var(--borde);color:var(--tenue);
+  cursor:pointer;text-align:left;transition:border-color .12s,color .12s,background .12s}
+.selector.ancho .sel-boton{width:100%;border-radius:var(--r)}
+.sel-boton:hover{border-color:var(--borde2);color:var(--hueso);background:var(--panel2)}
+.sel-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-flecha{width:.42em;height:.42em;flex:none;font-style:normal;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+  transform:rotate(45deg) translate(-2px,-2px);opacity:.65;transition:transform .15s}
+.selector.abierto .sel-flecha{transform:rotate(225deg) translate(-2px,-2px)}
 /* con un perfil puesto, se enciende como un chip activo */
-.marca select.puesto{color:var(--ambar);border-color:rgba(224,164,88,.4);
-  background-color:var(--ambar-t)}
+.sel-boton.puesto{color:var(--ambar);border-color:rgba(232,163,61,.4);
+  background:var(--ambar-t)}
+
+.sel-lista{position:absolute;top:calc(100% + 6px);left:0;min-width:100%;
+  width:max-content;max-width:340px;max-height:60vh;overflow:auto;z-index:60;
+  display:none;background:var(--panel);border:1px solid var(--borde2);
+  border-radius:var(--r2);box-shadow:var(--sombra);padding:.4rem}
+.selector.abierto .sel-lista{display:block}
+.sel-grupo{font-size:var(--t0);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tenue);font-weight:600;padding:.6rem .7rem .3rem}
+.sel-grupo:first-child{padding-top:.3rem}
+.sel-op{display:flex;align-items:center;gap:.5rem;padding:.46rem .7rem;
+  border-radius:var(--r);font-size:var(--t2);color:var(--hueso);cursor:pointer;
+  white-space:nowrap;transition:background .1s,color .1s}
+.sel-op:hover,.sel-op.marcada{background:var(--panel2)}
+/* La elegida se marca con un tilde y el ambar de siempre, no con el azul del
+   sistema, que era lo que mas desentonaba. */
+.sel-op.elegida{color:var(--ambar);background:var(--ambar-t)}
+.sel-op::before{content:'';width:.9em;flex:none;opacity:0;
+  font-size:.9em;line-height:1}
+.sel-op.elegida::before{content:'✓';opacity:1}
+.sel-sep{height:1px;background:var(--borde);margin:.35rem .3rem}
 
 /* La frescura es el dato mas importante de la pagina: si esto no esta al dia,
    todo lo demas da igual. Por eso vive arriba de todo y cambia de color solo. */
@@ -3023,6 +3060,109 @@ function avisarAlmacen(){
 function marcarPerfil(){
   const v=$('#selRapido').value;
   $('#selRapido').classList.toggle('puesto',!!v&&v!=='0');
+  sincroSelectores();
+}
+
+/* ---------- el desplegable dibujado a mano ----------
+   Un <select> nativo no se puede estilar por dentro: la lista la dibuja el
+   sistema operativo. Contra el fondo negro salia crema con letras naranjas y
+   la opcion elegida en azul.
+
+   Aca el <select> SIGUE SIENDO LA FUENTE DE VERDAD: se esconde, se lee de el
+   para armar la lista, y al elegir se le pone el valor y se dispara su
+   `change`. Todo lo de abajo —elegirPerfil, la persistencia, las pruebas— no
+   se entera de nada. */
+const SELECTORES=[];
+
+function selectorLindo(sel,ancho){
+  if(!sel||sel._selector)return sel&&sel._selector;
+  const cont=document.createElement('div');
+  cont.className='selector'+(ancho?' ancho':'');
+  const boton=document.createElement('button');
+  boton.type='button';boton.className='sel-boton';
+  boton.setAttribute('aria-haspopup','listbox');
+  boton.setAttribute('aria-expanded','false');
+  if(sel.title)boton.title=sel.title;
+  boton.innerHTML='<span class="sel-txt"></span><i class="sel-flecha"></i>';
+  const lista=document.createElement('div');
+  lista.className='sel-lista';lista.setAttribute('role','listbox');
+  cont.appendChild(boton);cont.appendChild(lista);
+  sel.parentNode.insertBefore(cont,sel.nextSibling);
+  if(sel.id!=='selRapido')sel.classList.add('oculto-sel');
+  sel._selector={cont,boton,lista,sel};
+
+  const abrir=v=>{
+    cont.classList.toggle('abierto',v);
+    boton.setAttribute('aria-expanded',v?'true':'false');
+    if(v){
+      // cerrar los otros y los desplegables de arriba
+      SELECTORES.forEach(o=>{if(o.cont!==cont)o.cont.classList.remove('abierto');});
+      const el=lista.querySelector('.sel-op.elegida')||lista.querySelector('.sel-op');
+      if(el)el.scrollIntoView({block:'nearest'});
+    }};
+  boton.onclick=e=>{e.stopPropagation();abrir(!cont.classList.contains('abierto'));};
+  cont.onclick=e=>e.stopPropagation();
+  lista.onclick=e=>{
+    const op=e.target.closest('.sel-op');if(!op)return;
+    sel.value=op.dataset.v;
+    sel.dispatchEvent(new Event('change',{bubbles:true}));
+    abrir(false);boton.focus();};
+  /* Las teclas del screener (R, G, F...) no tienen que dispararse mientras se
+     navega la lista, asi que aca se cortan. */
+  cont.addEventListener('keydown',e=>{
+    const ops=[...lista.querySelectorAll('.sel-op')];
+    if(!ops.length)return;
+    const abierta=cont.classList.contains('abierto');
+    if(e.key==='Escape'&&abierta){abrir(false);boton.focus();e.stopPropagation();e.preventDefault();return;}
+    if((e.key==='Enter'||e.key===' ')&&!abierta){abrir(true);e.preventDefault();e.stopPropagation();return;}
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault();e.stopPropagation();
+      if(!abierta){abrir(true);return;}
+      const i=ops.findIndex(o=>o.classList.contains('marcada'));
+      const j=Math.max(0,Math.min(ops.length-1,(i<0?ops.findIndex(o=>o.classList.contains('elegida')):i)+(e.key==='ArrowDown'?1:-1)));
+      ops.forEach(o=>o.classList.remove('marcada'));
+      ops[j].classList.add('marcada');ops[j].scrollIntoView({block:'nearest'});
+      return;}
+    if(e.key==='Enter'&&abierta){
+      e.preventDefault();e.stopPropagation();
+      const m=lista.querySelector('.sel-op.marcada');
+      if(m){sel.value=m.dataset.v;sel.dispatchEvent(new Event('change',{bubbles:true}));}
+      abrir(false);boton.focus();return;}
+    if(abierta)e.stopPropagation();});
+  SELECTORES.push(sel._selector);
+  return sel._selector;
+}
+
+/* Rehace la lista a partir de las <option> del select, respetando los grupos. */
+function pintarSelector(s){
+  const {lista,sel}=s;
+  let html='';
+  for(const nodo of sel.children){
+    if(nodo.tagName==='OPTGROUP'){
+      html+=`<div class="sel-grupo">${esc(nodo.label)}</div>`;
+      for(const o of nodo.children)
+        html+=`<div class="sel-op" role="option" data-v="${esc(o.value)}">${esc(o.textContent)}</div>`;
+    }else if(nodo.tagName==='OPTION'){
+      html+=`<div class="sel-op" role="option" data-v="${esc(nodo.value)}">${esc(nodo.textContent)}</div>`;
+      // "Sin filtros" es la salida, no una opcion mas: se separa del resto
+      if(nodo.value==='0')html+='<div class="sel-sep"></div>';
+    }
+  }
+  lista.innerHTML=html;
+}
+
+/* Pone el texto del boton y la marca, leyendo del select. */
+function sincroSelectores(){
+  for(const s of SELECTORES){
+    const o=s.sel.options[s.sel.selectedIndex];
+    const txt=o?o.textContent:'—';
+    s.boton.querySelector('.sel-txt').textContent=txt;
+    s.boton.title=txt;
+    s.boton.classList.toggle('puesto',!!s.sel.value&&s.sel.value!=='0');
+    [...s.lista.querySelectorAll('.sel-op')].forEach(op=>{
+      op.classList.toggle('elegida',op.dataset.v===s.sel.value);
+      op.classList.remove('marcada');});
+  }
 }
 
 function pintarPerfiles(){
@@ -3037,6 +3177,7 @@ function pintarPerfiles(){
   $('#selPerfil').innerHTML=html;
   $('#selRapido').innerHTML=html;
   $('#cuentaPerfiles').textContent=Object.keys(mios).length||'';
+  SELECTORES.forEach(pintarSelector);
   marcarPerfil();
 }
 
@@ -3857,7 +3998,7 @@ function iniciar(){
     const n=prompt('Nombre para estos filtros:');
     if(!n)return;
     const p=leerPerfiles();p[n.trim()]=estadoActual();escribirLS(CLAVE,JSON.stringify(p));
-    pintarPerfiles();$('#selRapido').value='m:'+n.trim();};
+    pintarPerfiles();$('#selRapido').value='m:'+n.trim();marcarPerfil();};
   /* Un encabezado hace dos cosas: al hacer clic ordena, al arrastrar mueve la
      columna. Hay que evitar que soltar el arrastre dispare tambien el
      ordenamiento.
@@ -3957,7 +4098,8 @@ function iniciar(){
     if(chip){cambiarCampoGrupo(chip.dataset.campo);return;}
     const tr=e.target.closest('tr[data-ind]');if(tr)elegirIndustria(tr.dataset.ind);};
   $('#indTodas').onclick=()=>{industriaSel=null;montarIndustrias();aplicar();};
-  document.addEventListener('click',()=>{verPanelCols(false);verPanelInd(false);});
+  document.addEventListener('click',()=>{verPanelCols(false);verPanelInd(false);
+    SELECTORES.forEach(s=>s.cont.classList.remove('abierto'));});
   $('#btnCerrar').onclick=()=>panel(false);
   $('#btnAbrir').onclick=()=>panel(true);
   $('#velo').onclick=()=>panel(false);
@@ -3988,6 +4130,7 @@ function iniciar(){
   $('#btnGuardar').onclick=()=>{const n=$('#nomPerfil').value.trim();if(!n)return;
     const p=leerPerfiles();p[n]=estadoActual();escribirLS(CLAVE,JSON.stringify(p));
     pintarPerfiles();$('#selPerfil').value='m:'+n;$('#selRapido').value='m:'+n;
+    marcarPerfil();
     $('#nomPerfil').value='';};
   $('#btnBorrar').onclick=()=>{const v=$('#selPerfil').value;
     if(!v||v[0]!=='m')return;                      // los listos no se borran
@@ -4098,6 +4241,9 @@ function iniciar(){
   montarColumnas();ponerSoloFav(soloFav);
   $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;
   verGrafico(leerLS('screener_ash_grafico')!=='0');
+// El <select> queda escondido y manda; la lista la dibujamos nosotros.
+  selectorLindo($('#selRapido'),false);
+  selectorLindo($('#selPerfil'),true);
   pintarPerfiles();
   // el desplegable tiene que mostrar el perfil con el que estabas, no "— sin filtros —"
   if(perfilPendiente){$('#selRapido').value=perfilPendiente;
