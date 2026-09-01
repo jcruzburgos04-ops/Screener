@@ -68,16 +68,26 @@ def bajar(url):
         return json.loads(r.read().decode("utf-8"))
 
 
-def especie_base(d):
+def especie_base(d, todos):
     """
     True si la fila es la especie en PESOS y no la variante en dolares.
 
-    Se decide por el precio, no por el sufijo: en pesos son miles, en dolares
-    son unidades. Tambien se descartan los codigos con punto (B.C, CAR.D), que
-    son siempre variantes de moneda.
+    HACEN FALTA LAS DOS REGLAS, ninguna alcanza sola:
+
+      - por precio: en pesos son miles y en dolares unidades. Pero se rompe con
+        los papeles caros: HWMC y HWMD (las variantes de HWM) cotizan arriba de
+        200 dolares y pasaban el corte como si fueran CEDEARs nuevos.
+      - por sufijo: si sacarle la C o la D final da un simbolo que TAMBIEN esta
+        en el panel, es una variante. Pero se rompe con GOGLC, porque la base
+        no es GOGL sino GOOGL.
+
+    Juntas se tapan mutuamente. Los codigos con punto (B.C, CAR.D) son siempre
+    variantes.
     """
     sym = d.get("symbol") or ""
     if "." in sym:
+        return False
+    if len(sym) > 1 and sym[-1] in ("C", "D") and sym[:-1] in todos:
         return False
     px = d.get("c") or d.get("px_ask") or d.get("px_bid") or 0
     return float(px or 0) >= PISO_PESOS
@@ -100,7 +110,7 @@ def main():
     vivos = {}
     for d in crudo:
         s = d.get("symbol")
-        if not s or not especie_base(d):
+        if not s or not especie_base(d, todos):
             continue
         if (d.get("v") or 0) < args.min_volumen:
             continue
