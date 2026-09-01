@@ -18,12 +18,19 @@
       hueso, y todo lo secundario en gris tenue.
    --------------------------------------------------------------------------- */
 :root{
-  --tinta:#0E131A; --panel:#151C25; --panel2:#1B2430; --panel3:#212C3A;
-  --borde:#25303E; --borde2:#2E3B4C;
-  --hueso:#E9E6DD; --tenue:#8494A8; --apagado:#5B6878;
-  --alcista:#4FB286; --bajista:#D45647; --ambar:#E0A458; --azul:#5B9BD5;
-  --alcista-t:rgba(79,178,134,.14); --bajista-t:rgba(212,86,71,.14);
-  --ambar-t:rgba(224,164,88,.13);
+  /* PALETA. Antes era azulada (#0E131A y familia). El azul tiñe los numeros y
+     compite con el verde y el rojo, que son lo unico que TIENE que tener color
+     en una tabla de precios. Ahora es un negro neutro: el fondo desaparece y
+     el color queda disponible para la señal. */
+  --tinta:#0B0C0E;        /* el fondo de la pagina */
+  --panel:#131517;        /* tarjetas, panel, encabezados */
+  --panel2:#191C1F;       /* hover */
+  --panel3:#212528;       /* activo */
+  --borde:#232629; --borde2:#31363B;
+  --hueso:#E8E8E6; --tenue:#8A9096; --apagado:#5F656B;
+  --alcista:#4ADE80; --bajista:#F0554B; --ambar:#E8A33D; --azul:#6BA4E0;
+  --alcista-t:rgba(74,222,128,.13); --bajista-t:rgba(240,85,75,.13);
+  --ambar-t:rgba(232,163,61,.13);
   /* Sin fuentes de internet: el screener tiene que abrir sin conexion. Se
      ordena la pila para que caiga en la mejor cara que tenga cada sistema.
      ui-monospace da SF Mono en Mac y Cascadia en Windows 11. */
@@ -34,31 +41,33 @@
   /* Dos perillas que multiplican todo: el tamaño de letra de la tabla y el
      aire entre filas. Se manejan desde el panel. */
   --escala:1; --aire:1;
-  /* ESCALA TIPOGRAFICA. Antes habia .6, .63, .66, .68, .69, .7, .71, .73, .78...
-     casi todas a un pelo de la de al lado, que es lo que hace que una interfaz
-     se vea hecha a mano. Seis pasos y nada mas: cada uno se distingue del
-     anterior, asi que la jerarquia se lee sin pensarla. */
-  --t0:.62rem;   /* etiquetas de encabezado, unidades */
-  --t1:.68rem;   /* chips, botones, notas */
-  --t2:.73rem;   /* texto de la interfaz */
-  --t3:.78rem;   /* los numeros de la tabla: es lo que mas se mira */
-  --t4:.86rem;   /* titulos de seccion */
-  --t5:1rem;     /* KPIs */
-  /* ESPACIADO. Mismo problema: multiplos de 4 px y se termina la discusion. */
-  --e1:.25rem; --e2:.5rem; --e3:.75rem; --e4:1rem; --e5:1.5rem;
-  /* Un solo radio, y uno mas grande para lo que flota. */
-  --r2:8px;
-  --panel-ancho:282px; --barra-sc:14px; --panel-w:var(--panel-ancho); --r:3px;
-  --sombra:0 10px 34px rgba(0,0,0,.5);
+  /* ESCALA TIPOGRAFICA. Seis pasos, cada uno claramente distinto del anterior.
+     Subio todo un escalon respecto de la version anterior: estaba pensada para
+     meter la mayor cantidad de datos posible y se leia con esfuerzo. Los datos
+     que no se leen no sirven, asi que ahora la tabla arranca en 13 px y las
+     etiquetas de encabezado son legibles sin acercarse. */
+  --t0:.665rem;  /* etiquetas en versalita, unidades */
+  --t1:.735rem;  /* chips, botones, notas */
+  --t2:.8rem;    /* texto de la interfaz */
+  --t3:.815rem;  /* los numeros de la tabla: es lo que mas se mira */
+  --t4:.95rem;   /* titulos de seccion */
+  --t5:1.5rem;   /* los numeros grandes de los KPI */
+  /* ESPACIADO en multiplos de 4 px, con mas aire que antes: lo que apretaba la
+     version anterior no era la densidad de datos sino la falta de margen, que
+     es lo que hace que todo parezca amontonado aunque no lo este. */
+  --e1:.25rem; --e2:.5rem; --e3:.75rem; --e4:1.15rem; --e5:1.6rem;
+  --r:6px; --r2:12px;
+  --panel-ancho:300px; --barra-sc:14px; --panel-w:var(--panel-ancho);
+  --sombra:0 16px 44px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box}
 ::-webkit-scrollbar{width:11px;height:11px}
 ::-webkit-scrollbar-track{background:var(--tinta)}
-::-webkit-scrollbar-thumb{background:#2E3947;border-radius:6px;border:3px solid var(--tinta)}
-::-webkit-scrollbar-thumb:hover{background:#41505f}
+::-webkit-scrollbar-thumb{background:#2B3034;border-radius:6px;border:3px solid var(--tinta)}
+::-webkit-scrollbar-thumb:hover{background:#3D4348}
 :focus-visible{outline:2px solid var(--ambar);outline-offset:1px}
 body{margin:0;background:var(--tinta);color:var(--hueso);font-family:var(--sans);
-  font-size:13px;display:flex;height:100vh;height:100dvh;overflow:hidden;
+  font-size:14px;display:flex;height:100vh;height:100dvh;overflow:hidden;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   text-rendering:optimizeLegibility}
 body.compacto{--panel-w:0px}
@@ -73,26 +82,33 @@ body.compacto aside{border-right:none}
    quedaban cortados contra el borde y parecia todo superpuesto. No se puede
    usar width:100% porque al plegar el panel (width:0) se aplastaria todo. */
 aside .interior{width:calc(var(--panel-ancho) - var(--barra-sc))}
-.cabecera-panel{display:flex;align-items:center;gap:.6rem;padding:.75rem .85rem .7rem;
+.cabecera-panel{display:flex;align-items:center;gap:.6rem;
+  padding:var(--e4) var(--e4) var(--e3);
   border-bottom:1px solid var(--borde);position:sticky;top:0;background:var(--panel);z-index:6}
-.cabecera-panel h1{font-family:var(--mono);font-size:var(--t1);letter-spacing:.2em;
-  font-weight:600;text-transform:uppercase;margin:0;flex:1;color:var(--hueso)}
+.cabecera-panel h1{font-size:var(--t4);letter-spacing:.01em;
+  font-weight:600;margin:0;flex:1;color:var(--hueso)}
+/* Las secciones del panel se leen como navegacion, no como un formulario
+   comprimido: texto normal en vez de versalita monoespaciada, mas alto de
+   linea y una flechita en vez del +/- , que es lo que hace la referencia. */
 details{border-bottom:1px solid var(--borde)}
-summary{font-family:var(--mono);font-size:var(--t1);letter-spacing:.13em;text-transform:uppercase;
-  color:var(--tenue);padding:.52rem .85rem;cursor:pointer;user-select:none;list-style:none;
+summary{font-size:var(--t2);font-weight:500;letter-spacing:.005em;
+  color:var(--tenue);padding:.7rem var(--e4);cursor:pointer;user-select:none;list-style:none;
   display:flex;align-items:center;transition:color .12s,background .12s}
-summary:hover{color:var(--hueso);background:rgba(255,255,255,.02)}
+summary:hover{color:var(--hueso);background:var(--panel2)}
 summary::-webkit-details-marker{display:none}
-summary::before{content:'+';margin-right:.55rem;color:var(--ambar);width:.6em;
-  font-weight:600}
-details[open]>summary::before{content:'−'}
+summary::before{content:'';margin-right:.6rem;width:.5em;height:.5em;flex:none;
+  border-right:1.5px solid var(--apagado);border-bottom:1.5px solid var(--apagado);
+  transform:rotate(-45deg);transition:transform .15s,border-color .12s}
+details[open]>summary::before{transform:rotate(45deg);border-color:var(--ambar)}
+summary:hover::before{border-color:var(--hueso)}
 details[open]>summary{color:var(--hueso)}
-summary .cuenta{margin-left:auto;color:var(--ambar);font-size:var(--t1);letter-spacing:.05em;
-  background:var(--ambar-t);border-radius:999px;padding:.05rem .42rem;min-width:1.3em;
+summary .cuenta{margin-left:auto;color:var(--ambar);font-size:var(--t0);
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  background:var(--ambar-t);border-radius:999px;padding:.12rem .45rem;min-width:1.5em;
   text-align:center}
 summary .cuenta:empty{display:none}
-.cuerpo{padding:.1rem .85rem 1rem}
-label{display:flex;font-size:var(--t1);color:var(--tenue);margin:.6rem 0 .24rem;
+.cuerpo{padding:.2rem var(--e4) var(--e4)}
+label{display:flex;font-size:var(--t1);color:var(--tenue);margin:.85rem 0 .3rem;
   justify-content:space-between;align-items:baseline;gap:.5rem}
 label b{color:var(--ambar);font-family:var(--mono);font-weight:500;
   font-variant-numeric:tabular-nums;background:var(--ambar-t);border-radius:999px;
@@ -101,11 +117,11 @@ label b{color:var(--ambar);font-family:var(--mono);font-weight:500;
    estan puestos. */
 label b.apagado{color:var(--apagado);background:transparent;padding:0}
 input,select{width:100%;background:var(--tinta);color:var(--hueso);
-  border:1px solid var(--borde);border-radius:var(--r);padding:.42rem .5rem;
+  border:1px solid var(--borde);border-radius:var(--r);padding:.5rem .6rem;
   font-family:var(--mono);font-size:var(--t3);font-variant-numeric:tabular-nums;
   transition:border-color .12s,background .12s}
 input:hover,select:hover{border-color:var(--borde2)}
-input:focus,select:focus{outline:none;border-color:var(--ambar);background:#0A0E14}
+input:focus,select:focus{outline:none;border-color:var(--ambar);background:#08090B}
 /* Los deslizadores por defecto son enormes y con el `accent-color` cada
    navegador dibuja otra cosa. Se dibujan a mano: riel de 4 px y perilla de 13,
    para que no se coman el espacio ni choquen con la etiqueta de arriba. */
@@ -117,35 +133,38 @@ input[type=range]:hover,input[type=range]:focus{background:transparent}
    leen como dos filtros distintos. */
 select + input[type=range]{margin-top:.42rem}
 input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
-  background:var(--panel3);border:1px solid var(--borde)}
+  background:var(--panel3);border:1px solid var(--borde2)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
   width:13px;height:13px;border-radius:50%;background:var(--ambar);margin-top:-5.5px;
   border:2px solid var(--panel);box-shadow:0 0 0 1px var(--ambar);
   transition:transform .1s}
 input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.15)}
 input[type=range]::-moz-range-track{height:4px;border-radius:2px;
-  background:var(--panel3);border:1px solid var(--borde)}
+  background:var(--panel3);border:1px solid var(--borde2)}
 input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;
   background:var(--ambar);border:2px solid var(--panel);box-shadow:0 0 0 1px var(--ambar)}
 .par{display:flex;gap:.5rem}.par>div{flex:1;min-width:0}
 .chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
-.chip{font-family:var(--mono);font-size:var(--t1);padding:.26rem .5rem;border-radius:var(--r);
-  border:1px solid var(--borde);color:var(--apagado);cursor:pointer;user-select:none;
+.chip{font-size:var(--t1);padding:.34rem .6rem;border-radius:999px;
+  border:1px solid var(--borde);color:var(--tenue);cursor:pointer;user-select:none;
   transition:border-color .12s,color .12s,background .12s;white-space:nowrap}
 .chip:hover{color:var(--hueso);border-color:var(--borde2)}
 .chip.on{border-color:var(--ambar);color:var(--ambar);background:var(--ambar-t)}
-.nota{color:var(--apagado);font-size:var(--t2);line-height:1.6;margin:.7rem 0 0}
+/* Las notas explican POR QUE existe cada control. Con 1,6 de interlineado y
+   el gris mas apagado no se leian: ahora tienen el mismo aire que el texto
+   corrido de la referencia, que es lo que las hace legibles de verdad. */
+.nota{color:var(--tenue);font-size:var(--t1);line-height:1.75;margin:.85rem 0 0}
 /* Subtitulos dentro de una seccion: 20 filtros seguidos son una lista infinita
    donde no se encuentra nada. Agrupados, se barren de un vistazo. */
-.subt{font-family:var(--mono);font-size:var(--t0);letter-spacing:.16em;
+.subt{font-size:var(--t0);letter-spacing:.1em;font-weight:600;
   text-transform:uppercase;color:var(--apagado);margin:1.1rem 0 .1rem;
   padding-top:.55rem;border-top:1px solid var(--borde);display:flex;
   align-items:center;gap:.4rem}
 .subt:first-child{margin-top:.3rem;padding-top:0;border-top:none}
 .nota code{color:var(--ambar);font-family:var(--mono);font-size:.95em}
-button{font-family:var(--mono);font-size:var(--t1);letter-spacing:.07em;text-transform:uppercase;
+button{font-family:var(--sans);font-size:var(--t1);letter-spacing:.01em;font-weight:500;
   background:var(--panel2);color:var(--hueso);border:1px solid var(--borde);
-  border-radius:var(--r);padding:.48rem .7rem;cursor:pointer;width:100%;margin-top:.6rem;
+  border-radius:var(--r);padding:.55rem .85rem;cursor:pointer;width:100%;margin-top:.7rem;
   transition:border-color .12s,color .12s,background .12s}
 button:hover{border-color:var(--ambar);color:var(--ambar);background:var(--panel3)}
 button:active{transform:translateY(1px)}
@@ -158,14 +177,17 @@ body.cajon #btnAbrir{display:none}
 
 /* --------------------------------- principal ------------------------------ */
 main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;position:relative}
-.marca{display:flex;align-items:center;gap:.7rem;padding:.7rem 1.1rem;
+/* La barra de arriba es lo primero que se mira, asi que respira: 1,15rem de
+   alto contra los 0,7 de antes, y el titulo con el peso de una marca en vez de
+   una etiqueta en versalita apretada. */
+.marca{display:flex;align-items:center;gap:.85rem;padding:var(--e4) 1.35rem;
   border-bottom:1px solid var(--borde);background:var(--panel);flex:none}
-.marca .titulo{font-family:var(--mono);font-size:var(--t2);letter-spacing:.19em;
-  text-transform:uppercase;font-weight:600;white-space:nowrap}
-.marca .firma{font-family:var(--mono);font-size:var(--t2);color:var(--tenue);
-  letter-spacing:.03em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+.marca .titulo{font-size:var(--t4);letter-spacing:.005em;
+  font-weight:600;white-space:nowrap}
+.marca .firma{font-family:var(--mono);font-size:var(--t1);color:var(--tenue);
+  letter-spacing:.01em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap}
-.marca .firma em{color:var(--ambar);font-style:normal;letter-spacing:.04em}
+.marca .firma em{color:var(--hueso);font-style:normal;letter-spacing:.01em}
 /* Un separador fino en vez de puntos: con seis datos seguidos, los "·" se
    confunden con el texto y no se distingue donde termina cada cosa. */
 /* El boton de recargar vive pegado a la pastilla de frescura porque es la
@@ -214,54 +236,62 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 
 /* La frescura es el dato mas importante de la pagina: si esto no esta al dia,
    todo lo demas da igual. Por eso vive arriba de todo y cambia de color solo. */
-.pastilla{font-family:var(--mono);font-size:var(--t1);letter-spacing:.05em;
-  padding:.24rem .55rem;border-radius:999px;white-space:nowrap;cursor:default;
-  border:1px solid transparent;display:inline-flex;align-items:center;gap:.35rem}
+.pastilla{font-size:var(--t1);font-weight:500;letter-spacing:.005em;
+  padding:.32rem .7rem;border-radius:999px;white-space:nowrap;cursor:default;
+  border:1px solid transparent;display:inline-flex;align-items:center;gap:.42rem}
 .pastilla::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;
   box-shadow:0 0 0 3px color-mix(in srgb,currentColor 22%,transparent)}
-.pastilla.fresco{color:var(--alcista);background:var(--alcista-t);border-color:rgba(79,178,134,.3)}
-.pastilla.tibio{color:var(--ambar);background:var(--ambar-t);border-color:rgba(224,164,88,.3)}
-.pastilla.viejo{color:var(--bajista);background:var(--bajista-t);border-color:rgba(212,86,71,.35)}
+.pastilla.fresco{color:var(--alcista);background:var(--alcista-t);border-color:rgba(74,222,128,.28)}
+.pastilla.tibio{color:var(--ambar);background:var(--ambar-t);border-color:rgba(232,163,61,.28)}
+.pastilla.viejo{color:var(--bajista);background:var(--bajista-t);border-color:rgba(240,85,75,.32)}
 
-.kpis{display:flex;gap:1px;background:var(--borde);border-bottom:1px solid var(--borde);
+/* Los KPI pasan de una tira pegada con lineas de 1 px a tarjetas separadas,
+   que es lo que hace la referencia: cada dato es una cosa y se lee sola. */
+.kpis{display:flex;gap:var(--e2);background:transparent;
+  border-bottom:1px solid var(--borde);padding:var(--e3) 1.35rem;
   flex:none;overflow-x:auto;scrollbar-width:none}
 .kpis::-webkit-scrollbar{display:none}
-.kpi{flex:1;background:var(--tinta);padding:.5rem .9rem;min-width:108px;
-  display:flex;flex-direction:column;justify-content:center}
-.kpi span{display:block;font-size:var(--t0);letter-spacing:.1em;text-transform:uppercase;
-  color:var(--apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  margin-bottom:.12rem}
-.kpi b{font-family:var(--mono);font-size:calc(1.28rem * var(--escala));font-weight:500;
-  font-variant-numeric:tabular-nums;line-height:1.1;
+.kpi{flex:1;background:var(--panel);border:1px solid var(--borde);
+  border-radius:var(--r2);padding:.7rem .9rem;min-width:124px;
+  display:flex;flex-direction:column;justify-content:center;
+  transition:border-color .12s,background .12s}
+.kpi span{display:block;font-size:var(--t0);letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tenue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-bottom:.3rem;font-weight:500}
+.kpi b{font-family:var(--mono);font-size:calc(var(--t5) * var(--escala));font-weight:500;
+  font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-.01em;
   /* los digitos no tienen que "saltar" al recalcular: ancho fijo por caracter */
   font-feature-settings:'tnum' 1,'zero' 1}
 #kpiReg.hay b{color:var(--alcista)}
 /* Una barra fina arriba del KPI que esta filtrando: el color solo no alcanza */
 #kpiAtraso.filtrando{box-shadow:inset 0 2px 0 var(--ambar)}
 #kpiAtraso{cursor:pointer;transition:background .12s}
-#kpiAtraso:hover{background:var(--panel2)}
+#kpiAtraso:hover{background:var(--panel2);border-color:var(--borde2)}
 #kpiAtraso.hay b{color:var(--ambar)}
-#kpiAtraso.filtrando{background:var(--ambar-t)}
+#kpiAtraso.filtrando{background:var(--ambar-t);border-color:rgba(232,163,61,.35)}
 
-.barra{display:flex;align-items:center;gap:.6rem;padding:.5rem 1.1rem;
+.barra{display:flex;align-items:center;gap:.6rem;padding:var(--e3) 1.35rem;
   border-bottom:1px solid var(--borde);flex:none;flex-wrap:wrap}
-.barra input[type=search]{width:240px;flex:none}
+.barra input[type=search]{width:280px;flex:none;font-family:var(--sans);
+  font-size:var(--t2);padding:.52rem .75rem;border-radius:999px}
 .barra .sep{flex:1}
 .barra .nota{margin:0;white-space:nowrap}
 
 .tabla-wrap{flex:1;overflow:auto;min-height:120px;position:relative}
 body.sin-grafico .detalle{display:none}
-.desplegable{position:absolute;right:1.1rem;top:52px;z-index:30;display:none;
-  width:380px;max-width:calc(100vw - 2rem);max-height:72vh;overflow:auto;
-  background:var(--panel);border:1px solid var(--borde2);border-radius:6px;
-  padding:.85rem .95rem 1rem;box-shadow:var(--sombra)}
+/* Los desplegables flotan: radio grande y sombra profunda, para que se lean
+   como una capa por encima y no como un recuadro pegado al fondo. */
+.desplegable{position:absolute;right:1.35rem;top:62px;z-index:30;display:none;
+  width:400px;max-width:calc(100vw - 2rem);max-height:72vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--borde2);border-radius:var(--r2);
+  padding:var(--e4);box-shadow:var(--sombra)}
 .desplegable.abierto{display:block}
-.dcab{display:flex;align-items:center;gap:.4rem;padding-bottom:.6rem;
-  border-bottom:1px solid var(--borde);margin-bottom:.6rem;flex-wrap:wrap}
-.dcab b{flex:1;font-family:var(--mono);font-size:var(--t1);letter-spacing:.13em;
-  text-transform:uppercase;color:var(--tenue);font-weight:500}
-.dgrupo{font-family:var(--mono);font-size:var(--t0);letter-spacing:.12em;
-  text-transform:uppercase;color:var(--apagado);margin:.8rem 0 .35rem}
+.dcab{display:flex;align-items:center;gap:.45rem;padding-bottom:var(--e3);
+  border-bottom:1px solid var(--borde);margin-bottom:var(--e3);flex-wrap:wrap}
+.dcab b{flex:1;font-size:var(--t2);letter-spacing:.005em;
+  color:var(--hueso);font-weight:600}
+.dgrupo{font-size:var(--t0);letter-spacing:.09em;font-weight:500;
+  text-transform:uppercase;color:var(--tenue);margin:1rem 0 .45rem}
 #btnCols b{color:var(--ambar);font-weight:600}
 #ordenCols{display:flex;flex-direction:column;gap:2px;max-height:216px;overflow:auto}
 .fila-ord{display:flex;align-items:center;gap:.45rem;background:var(--panel2);
@@ -303,8 +333,8 @@ table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--mon
   font-size:calc(var(--t3) * var(--escala));font-variant-numeric:tabular-nums;
   font-feature-settings:'tnum' 1,'zero' 1;letter-spacing:0}
 thead th{position:sticky;top:0;background:var(--panel);color:var(--tenue);font-weight:500;
-  font-size:calc(var(--t0) * var(--escala));letter-spacing:.08em;text-transform:uppercase;
-  text-align:right;padding:.5rem .5rem .45rem;border-bottom:1px solid var(--borde2);
+  font-size:calc(var(--t0) * var(--escala));letter-spacing:.085em;text-transform:uppercase;
+  text-align:right;padding:.62rem .6rem .56rem;border-bottom:1px solid var(--borde2);
   cursor:pointer;
   white-space:nowrap;z-index:3;user-select:none;transition:color .12s}
 /* La columna por la que se esta ordenando: ademas del color, una barra arriba.
@@ -319,15 +349,15 @@ thead th.destino{box-shadow:inset 3px 0 0 var(--ambar),0 1px 0 var(--borde2);
   background:var(--ambar-t);color:var(--hueso)}
 thead th.izq{text-align:left}
 thead th.act{color:var(--ambar)}
-tbody td{padding:calc(.28rem * var(--aire)) .5rem;text-align:right;
-  white-space:nowrap;line-height:calc(1.35 * var(--aire))}
+tbody td{padding:calc(.36rem * var(--aire)) .6rem;text-align:right;
+  white-space:nowrap;line-height:calc(1.4 * var(--aire))}
 /* RAYADO EN VEZ DE UNA LINEA POR FILA.
    Con 465 filas y veinte columnas, una linea bajo cada fila son 465 lineas
    horizontales compitiendo con los numeros. El rayado alterno hace el mismo
    trabajo —no perder el renglon al recorrer a lo ancho— sin dibujar nada. */
-tbody tr:nth-child(even) td{background:rgba(255,255,255,.017)}
+tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
 /* Una linea cada cinco filas: el ojo se agarra de ahi para contar sin marear. */
-tbody tr:nth-child(5n) td{box-shadow:inset 0 -1px 0 rgba(37,48,62,.55)}
+tbody tr:nth-child(5n) td{box-shadow:inset 0 -1px 0 rgba(49,54,59,.5)}
 tbody td.izq{text-align:left}
 /* Sector, industria y nombre son largos y estiraban la tabla a lo ancho: se
    cortan con puntos suspensivos y el texto entero queda en el title. */
@@ -353,7 +383,7 @@ th:nth-child(2),td:nth-child(2){box-shadow:6px 0 8px -6px rgba(0,0,0,.55),
 /* Las dos fijas van sobre el fondo, no transparentes, o al desplazar se ve el
    contenido pasando por debajo. Por eso repiten el rayado y los estados. */
 tbody tr:nth-child(even) td:nth-child(1),
-tbody tr:nth-child(even) td:nth-child(2){background:#10151D}
+tbody tr:nth-child(even) td:nth-child(2){background:#0F1113}
 tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2),
 tbody tr:nth-child(even):hover td:nth-child(1),
 tbody tr:nth-child(even):hover td:nth-child(2){background:var(--panel2)}
