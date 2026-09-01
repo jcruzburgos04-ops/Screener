@@ -1,0 +1,33 @@
+# Prueba y publica el payload de bonos. Por ahora a mano: mientras la seccion
+# se esta armando conviene mirar la salida antes de que entre al sitio.
+name: Bonos
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bonos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Armar el payload
+        run: |
+          python bonos.py --salida /tmp/sitio
+          echo "--- bonos.json ---"
+          python -c "
+          import json
+          d=json.load(open('/tmp/sitio/bonos.json'))
+          print('fecha',d['fecha'],'| bonos',len(d['bonos']),'| pares',len(d['canje']))
+          print()
+          print(f\"{'bono':<6}{'pesos':>12}{'MEP':>9}{'cable':>9}{'tc MEP':>10}{'tc cable':>10}{'brecha':>9}\")
+          for b in d['bonos']:
+              print(f\"{b['t']:<6}{b['pesos']:>12,.0f}{(b['usd_mep'] or 0):>9.2f}{(b['usd_cable'] or 0):>9.2f}\"
+                    f\"{(b['tc_mep'] or 0):>10,.0f}{(b['tc_cable'] or 0):>10,.0f}{(b.get('brecha') or 0)*100:>8.2f}%\")
+          print()
+          print('canje de leyes (NY / ARG, en dolares MEP):')
+          for p in d['canje']:
+              print(f\"  {p['arg']} vs {p['ny']}  ({p['vto']}):  {p['ratio']}\")
+          "
