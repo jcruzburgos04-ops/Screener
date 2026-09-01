@@ -47,9 +47,19 @@ from screener import cargar_mapa_cedears
 FUENTE = "https://data912.com/live/arg_cedears"
 CABECERA = {"User-Agent": "Mozilla/5.0"}
 
-# Sufijos que data912 agrega al mismo papel para las especies en dolares:
-# AAL / AALC (cable) / AALD (MEP). Solo interesa el de pesos.
-SUFIJOS_MONEDA = ("C", "D")
+# data912 lista TRES especies del mismo papel: la de pesos (AAL), la de cable
+# (AALC) y la de MEP (AALD). Solo interesa la de pesos.
+#
+# OJO CON EL FILTRO POR SUFIJO: no alcanza con sacar la ultima letra y ver si la
+# base existe. GOGLC es la especie cable de GOOGL, pero "GOGL" no figura en el
+# panel, asi que pasaba como si fuera un CEDEAR nuevo -- y agregarlo mapeado a
+# si mismo habria hecho que se baje el precio del CEDEAR en vez del subyacente,
+# que es el error que el proyecto NO se puede permitir.
+#
+# El discriminador de verdad esta en el precio: un CEDEAR en pesos vale miles
+# (AAL: 10.300) y su especie en dolares vale unidades (AALC: 6,48). Eso sale de
+# los datos y no de adivinar la nomenclatura.
+PISO_PESOS = 200.0
 
 
 def bajar(url):
@@ -58,15 +68,19 @@ def bajar(url):
         return json.loads(r.read().decode("utf-8"))
 
 
-def especie_base(sym, todos):
+def especie_base(d):
     """
-    True si `sym` es la especie en pesos y no la variante C/D del mismo papel.
-    Se comprueba contra el conjunto: si sacarle la ultima letra da un simbolo
-    que tambien existe, es una variante.
+    True si la fila es la especie en PESOS y no la variante en dolares.
+
+    Se decide por el precio, no por el sufijo: en pesos son miles, en dolares
+    son unidades. Tambien se descartan los codigos con punto (B.C, CAR.D), que
+    son siempre variantes de moneda.
     """
-    if len(sym) > 1 and sym[-1] in SUFIJOS_MONEDA and sym[:-1] in todos:
+    sym = d.get("symbol") or ""
+    if "." in sym:
         return False
-    return True
+    px = d.get("c") or d.get("px_ask") or d.get("px_bid") or 0
+    return float(px or 0) >= PISO_PESOS
 
 
 def main():
@@ -86,7 +100,7 @@ def main():
     vivos = {}
     for d in crudo:
         s = d.get("symbol")
-        if not s or not especie_base(s, todos):
+        if not s or not especie_base(d):
             continue
         if (d.get("v") or 0) < args.min_volumen:
             continue
@@ -101,6 +115,10 @@ def main():
 
     # Los que coinciden con su ticker de origen se resuelven solos; los demas
     # hay que mirarlos a mano.
+    # Solo se auto-mapea lo que es un ticker plausible de EEUU: puras letras y
+    # de 1 a 5 caracteres. Los brasileños (VALE3, PETR3, ITUB3) terminan en
+    # numero y su subyacente cotiza con OTRO codigo (VALE, PBR, ITUB), asi que
+    # van siempre a mano.
     obvios = [s for s in nuevos if s.isalpha() and 1 <= len(s) <= 5]
     dudosos = [s for s in nuevos if s not in obvios]
 
