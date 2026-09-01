@@ -1,0 +1,36 @@
+# Temporal: averigua a que fuentes de datos llega el runner. Se borra despues.
+name: Sonda de fuentes
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probar endpoints
+        run: |
+          probar(){ 
+            c=$(curl -s -o /tmp/r.txt -w "%{http_code}" -m 15 -H 'User-Agent: Mozilla/5.0' "$1" 2>/dev/null || echo "ERR")
+            n=$(wc -c < /tmp/r.txt 2>/dev/null || echo 0)
+            printf "%-6s %8s bytes  %s\n" "$c" "$n" "$2"
+            if [ "$c" = "200" ] && [ "$n" -gt 10 ]; then echo "        muestra: $(head -c 220 /tmp/r.txt | tr -d '\n')"; fi
+          }
+          echo "===== BONOS Y RENTA FIJA ARGENTINA ====="
+          probar "https://data912.com/live/arg_bonds" "data912 · bonos soberanos"
+          probar "https://data912.com/live/arg_corp" "data912 · obligaciones negociables"
+          probar "https://data912.com/live/arg_stocks" "data912 · acciones locales"
+          probar "https://data912.com/live/arg_cedears" "data912 · cedears"
+          probar "https://data912.com/live/mep" "data912 · dolar MEP"
+          echo
+          echo "===== BYMA ====="
+          probar "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cedears" "BYMA · cedears"
+          echo
+          echo "===== FCI (CAFCI) ====="
+          probar "https://api.cafci.org.ar/fondo" "CAFCI · fondos"
+          echo
+          echo "===== GLOBAL por Yahoo (lo que ya usamos) ====="
+          for s in "%5ETNX" "%5ETYX" "CL=F" "GC=F" "ZS=F" "%5EGSPC"; do
+            probar "https://query1.finance.yahoo.com/v8/finance/chart/$s?range=5d&interval=1d" "Yahoo $s"
+          done
