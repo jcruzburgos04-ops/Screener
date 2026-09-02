@@ -3644,7 +3644,7 @@ function renderFuturos(){
   /* La clave es la familia de la fuente (LETRAS-FIJO), no el indice (Fijo):
      buscar por la vieja dejaba el grafico con una sola serie y sin carry, que
      es justamente lo unico que este grafico existe para mostrar. */
-  const fija=((d.pesos||[]).find(c=>c.clave==='LETRAS-FIJO')||{filas:[]}).filas
+  const fija=((d.pesos||[]).find(c=>c.clave==='Fijo')||{filas:[]}).filas
     .filter(x=>hay(x.tna)&&hay(x.dias))
     .map(x=>({x:x.dias,y:x.tna*100,t:x.t,serie:'tasa fija en pesos'}));
 

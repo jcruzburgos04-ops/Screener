@@ -210,20 +210,23 @@ PESOS = [
     {"ticker": "SINPX", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2028-01-01", "days_to_finish": 480,
      "last_price": 0, "tir": 0, "settlement": "24hs"},
     # familia que no esta en CURVAS_PESOS: se ignora en vez de romper
-    {"ticker": "OTRO", "bond_family": "FAMILIA-NUEVA",
+    {"ticker": "OTRO", "bond_family": "FAMILIA-NUEVA", "index": "InventadoNuevo",
      "bond_family_label": "Una familia que todavía no existe", "end_date": "2028-01-01",
      "days_to_finish": 480, "last_price": 100, "tir": 0.2, "settlement": "24hs"},
 ]
 c = bonos.armar_pesos(PESOS)
 por = {x["clave"]: [f["t"] for f in x["filas"]] for x in c}
-ok("agrupa por la familia que declara la fuente",
-   sorted(por) == ["FAMILIA-NUEVA", "LETRAS-CER", "LETRAS-FIJO"], sorted(por))
-ok("una letra viva entra sola", por.get("LETRAS-FIJO") == ["S30S6"], por.get("LETRAS-FIJO"))
+# La familia decide QUE ENTRA (filtra las -USD y las patas sinteticas); el
+# indice decide EN QUE CURVA VA. Una LECAP y un BONCAP son familias distintas
+# y la misma curva de tasa fija.
+ok("agrupa por el indice, no por la familia",
+   sorted(por) == ["CER", "Fijo", "InventadoNuevo"], sorted(por))
+ok("una letra viva entra sola", por.get("Fijo") == ["S30S6"], por.get("Fijo"))
 # ESTO es lo que hace que no haya que mantenerlo: una familia que este programa
 # no conoce entra igual, con la etiqueta que le pone la fuente, en vez de
 # desaparecer en silencio.
-ok("una familia desconocida aparece sola y con su nombre",
-   any(x["clave"] == "FAMILIA-NUEVA"
+ok("un indice desconocido aparece solo y con el nombre que le pone la fuente",
+   any(x["clave"] == "InventadoNuevo"
        and x["titulo"] == "Una familia que todavía no existe" for x in c),
    [(x["clave"], x["titulo"]) for x in c])
 ok("descarta las patas sinteticas de los duales", "TTS26_CAP" not in str(por))
@@ -244,8 +247,24 @@ ok("se queda con el plazo que se opera (24hs)",
 ok("pasa la TEM tal cual la publica la fuente",
    cerca(c[0]["filas"][0]["tem"], 0.020, 1e-9), c[0]["filas"][0]["tem"])
 ok("las conocidas van en el orden declarado y las nuevas al final",
-   [x["clave"] for x in c] == ["LETRAS-FIJO", "LETRAS-CER", "FAMILIA-NUEVA"],
+   [x["clave"] for x in c] == ["Fijo", "CER", "InventadoNuevo"],
    [x["clave"] for x in c])
+
+# LO QUE ESTE CAMBIO ARREGLA: una LECAP (LETRAS-FIJO) y un BONCAP
+# (BONO-CAPITALIZABLE) son familias distintas y la MISMA curva de tasa fija.
+# Agrupando por familia salian nueve curvas donde el mercado ve cinco.
+JUNTAS = [
+    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo",
+     "end_date": "2026-09-30", "days_to_finish": 27, "last_price": 115.4,
+     "tir": 0.27, "tna": 0.24, "mtir": 0.020, "settlement": "24hs"},
+    {"ticker": "TO26", "bond_family": "BONO-CAPITALIZABLE", "index": "Fijo",
+     "end_date": "2026-10-17", "days_to_finish": 46, "last_price": 104.7,
+     "tir": 0.2559, "tna": 0.23, "mtir": 0.0192, "settlement": "24hs"},
+]
+j = bonos.armar_pesos(JUNTAS)
+ok("LECAP y BONCAP caen en la MISMA curva de tasa fija",
+   len(j) == 1 and sorted(f["t"] for f in j[0]["filas"]) == ["S30S6", "TO26"],
+   [(x["clave"], [f["t"] for f in x["filas"]]) for x in j])
 
 print("\n== futuros: el vencimiento sale del simbolo, no de una lista ==")
 import futuros  # noqa: E402

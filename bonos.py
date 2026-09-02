@@ -477,26 +477,37 @@ def emisores(ons):
 # que se mira este mercado). Se muestran atribuidos, igual que en las ONs.
 # ---------------------------------------------------------------------------
 
-# El agrupamiento va por `bond_family` y NO por `index`, y la diferencia
-# importa: con `index` la letra en pesos S30S6 y su gemela en dolares SS6D
-# caian las dos en "Fijo", y la curva quedaba con dos puntos al mismo plazo y
-# rendimientos muy distintos (TO26 25,6% contra TO26D 46,5%). Son instrumentos
-# distintos y la fuente ya los separa: LETRAS-FIJO contra LETRAS-FIJO-USD.
+# DOS CAMPOS, DOS TRABAJOS DISTINTOS. Costo dos vueltas entenderlo:
 #
-# El orden y el texto son de las familias que se conocen; las que no, entran
+#   `bond_family` decide QUE ENTRA. Separa la letra en pesos S30S6 de su gemela
+#   en dolares SS6D (LETRAS-FIJO contra LETRAS-FIJO-USD), y marca las patas
+#   sinteticas de los duales. Agrupar por `index` sin filtrar antes metia las
+#   dos en la misma curva, con dos puntos al mismo plazo y rendimientos muy
+#   distintos: TO26 25,6% contra TO26D 46,5%.
+#
+#   `index` decide EN QUE CURVA VA. Una LECAP y un BONCAP son familias
+#   distintas (LETRAS-FIJO y BONO-CAPITALIZABLE) pero la misma curva de tasa
+#   fija, y quien opera las mira juntas. Agrupar por familia las partia en
+#   nueve curvas donde el mercado ve cinco.
+#
+# Filtrar por familia y despues agrupar por indice da las dos cosas bien.
+#
+# El titulo y el orden son de los indices que se conocen; los que no, entran
 # igual al final con la etiqueta que les pone la fuente. ESO es lo que hace que
-# esto no haya que mantenerlo: si mañana el Tesoro estrena una familia nueva,
-# aparece sola con su nombre en vez de desaparecer en silencio.
+# esto no haya que mantenerlo: en la primera corrida real aparecieron solos
+# cuatro que no estaban declarados en ningun lado (Badlar, Bonos CER, Bonos
+# Capitalizables y Bonos TAMAR).
 CURVAS_PESOS = [
-    ("LETRAS-FIJO",    "Tasa fija",    "LECAP y BONCAP: capitalizan una tasa fija en pesos."),
-    ("LETRAS-CER",     "CER",          "Ajustan por inflación. Su rendimiento es REAL: es lo "
-                                       "que rinden POR ENCIMA de la inflación."),
-    ("TAMAR",          "TAMAR",        "Pagan la tasa mayorista de plazo fijo más un margen."),
-    ("DUAL",           "Duales",       "Pagan lo que resulte mayor entre dos patas: tasa fija "
-                                       "o TAMAR. El precio incluye esa opción."),
-    ("DUAL-CER-TAMAR", "Duales CER",   "Lo mismo, pero la otra pata ajusta por inflación."),
-    ("DOLAR-LINKED",   "Dólar linked", "Siguen al dólar oficial. Su rendimiento es EN DÓLARES: "
-                                       "lo que rinden por encima de la devaluación."),
+    ("Fijo",    "Tasa fija",    "LECAP y BONCAP: capitalizan una tasa fija en pesos."),
+    ("CER",     "CER",          "LECER y BONCER: ajustan por inflación. Su rendimiento es "
+                                "REAL: es lo que rinden POR ENCIMA de la inflación."),
+    ("Tamar",   "TAMAR",        "Pagan la tasa mayorista de plazo fijo más un margen."),
+    ("Badlar",  "BADLAR",       "Pagan la tasa de los plazos fijos mayoristas más un margen."),
+    ("Dual",    "Duales",       "Pagan lo que resulte mayor entre dos patas: tasa fija o "
+                                "TAMAR. El precio incluye esa opción."),
+    ("DualCER", "Duales CER",   "Lo mismo, pero la otra pata ajusta por inflación."),
+    ("USDL",    "Dólar linked", "Siguen al dólar oficial. Su rendimiento es EN DÓLARES: lo "
+                                "que rinden por encima de la devaluación."),
 ]
 
 # Familias que NO son de esta pestaña: los soberanos hard dollar tienen la suya
@@ -504,11 +515,7 @@ CURVAS_PESOS = [
 PREFIJOS_AJENOS = ("ONS", "BONO-USD-", "BOPREAL")
 
 # Y las que terminan en -USD son la MISMA letra liquidada en dolares: la S30S6
-# y la SS6D son el mismo papel, con precio 115 y 0,07 respectivamente. En una
-# pestaña que se llama "Pesos" no van, y mezclarlas ademas mete dos puntos al
-# mismo plazo con rendimientos distintos. La fuente ya las separa por familia
-# (LETRAS-FIJO contra LETRAS-FIJO-USD), asi que el corte es por el sufijo de la
-# familia y no por una lista de tickers: se sigue manteniendo solo.
+# vale 115 y la SS6D 0,07. En una pestaña que se llama "Pesos" no van.
 SUFIJO_EN_DOLARES = "-USD"
 
 
@@ -532,21 +539,25 @@ def _ajena(familia):
 
 def armar_pesos(crudo):
     """
-    Una curva por familia, con lo que este cotizando hoy. Se descarta lo que no
+    Una curva por indice, con lo que este cotizando hoy. Se descarta lo que no
     tiene precio o no tiene rendimiento: una fila con todo en cero no dice nada
     y ensucia la curva.
     """
-    conocidas = {k: (t, n) for k, t, n in CURVAS_PESOS}
-    etiquetas, por_familia = {}, {}
+    conocidos = {k: (t, n) for k, t, n in CURVAS_PESOS}
+    etiquetas, por_indice = {}, {}
     for f in crudo:
-        fam = f.get("bond_family")
+        fam, ind = f.get("bond_family"), f.get("index")
         tk = f.get("ticker") or f.get("bond_name")
         if not tk or _ajena(fam) or _es_pata_sintetica(tk, fam):
             continue
         if not f.get("last_price") or not f.get("tir"):
             continue
-        etiquetas.setdefault(fam, f.get("bond_family_label") or fam)
-        papeles = por_familia.setdefault(fam, {})
+        # Sin indice no hay curva a la que pertenecer. Es raro, pero un papel
+        # suelto no puede hacer que reviente todo el armado.
+        if not ind:
+            continue
+        etiquetas.setdefault(ind, f.get("bond_family_label") or ind)
+        papeles = por_indice.setdefault(ind, {})
         anterior = papeles.get(tk)
         if anterior and (ORDEN_PLAZO.get(anterior.get("settlement"), 9)
                          <= ORDEN_PLAZO.get(f.get("settlement"), 9)):
@@ -556,15 +567,15 @@ def armar_pesos(crudo):
     def redondo(v, dec):
         return round(v, dec) if isinstance(v, (int, float)) else None
 
-    # Primero las conocidas en su orden; despues las que aparecieron solas.
-    orden = [k for k, _, _ in CURVAS_PESOS if k in por_familia]
-    orden += sorted(k for k in por_familia if k not in conocidas)
+    # Primero los conocidos en su orden; despues los que aparecieron solos.
+    orden = [k for k, _, _ in CURVAS_PESOS if k in por_indice]
+    orden += sorted((k for k in por_indice if k not in conocidos), key=str)
 
     salida = []
-    for fam in orden:
-        titulo, nota = conocidas.get(fam, (etiquetas.get(fam, fam), ""))
+    for ind in orden:
+        titulo, nota = conocidos.get(ind, (etiquetas.get(ind, ind), ""))
         filas = []
-        for tk, f in por_familia[fam].items():
+        for tk, f in por_indice[ind].items():
             # Un papel que ya vencio no tiene nada que hacer en una curva.
             if (f.get("days_to_finish") or 0) <= 0:
                 continue
@@ -586,7 +597,7 @@ def armar_pesos(crudo):
         if not filas:
             continue
         filas.sort(key=lambda x: (x["dias"] or 0, x["t"]))
-        salida.append({"clave": fam, "titulo": titulo, "nota": nota, "filas": filas})
+        salida.append({"clave": str(ind), "titulo": titulo, "nota": nota, "filas": filas})
     return salida
 
 

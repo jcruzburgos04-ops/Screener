@@ -977,25 +977,35 @@ La pestaña **Argentina** tiene cuatro pantallas: **Soberanos USD**, **Pesos**,
 
 | Qué | Cómo se resuelve | Qué NO se hace |
 |---|---|---|
-| Qué instrumentos hay en cada curva | El campo `bond_family` de bonistas | Una lista de tickers |
+| Qué instrumentos entran | El campo `bond_family` de bonistas | Una lista de tickers |
+| En qué curva va cada uno | Su campo `index` | Una tabla de tickers → curva |
 | Cómo se llama una curva nueva | Su `bond_family_label` | Que desaparezca en silencio |
 | Qué contratos de futuros hay | Los que devuelve A3 | Una lista de vencimientos |
 | Cuándo vence un futuro | Se **deduce del símbolo**: `DLR092026` → último día hábil de septiembre 2026 | Anotarlo |
 | Qué está vencido | Se compara contra hoy y se cae solo | Limpiarlo a mano |
 | Qué rueda usar | Se pide un **rango** y se toma la más nueva de cada contrato | Pedir "hoy", que falla todo feriado, sábado y antes del cierre |
 
-Verificado con datos reales: `BONO-TAMAR-USD` y `DUAL-CER-TAMAR-USD` aparecieron
-solas en una corrida sin estar declaradas en ningún lado.
+Verificado con datos reales: en la primera corrida aparecieron solas **cuatro**
+curvas que no estaban declaradas en ningún lado — Badlar, Bonos CER, Bonos
+Capitalizables y Bonos TAMAR — cada una con el nombre que le pone la fuente.
 
-#### Por familia, no por índice — costó un bug
+#### Dos campos, dos trabajos distintos — costó dos vueltas
 
-El primer corte fue por el campo `index` (`Fijo`, `CER`, `Tamar`, `USDL`…). Con
-datos reales eso metía la letra en pesos **S30S6** y su gemela en dólares
-**SS6D** en la misma curva: dos puntos al mismo plazo con rendimientos muy
-distintos (**TO26 25,6%** contra **TO26D 46,5%**). Son instrumentos distintos y
-la fuente ya los separa por familia. Además, las familias que terminan en
-`-USD` se excluyen de la pestaña de pesos por el sufijo de la familia — no por
-una lista.
+`bond_family` y `index` parecen redundantes y no lo son:
+
+- **`bond_family` decide QUÉ ENTRA.** Separa la letra en pesos **S30S6** de su
+  gemela en dólares **SS6D** (`LETRAS-FIJO` contra `LETRAS-FIJO-USD`) y marca
+  las patas sintéticas. Agrupar sólo por `index` metía las dos en la misma
+  curva: dos puntos al mismo plazo con rendimientos muy distintos (**TO26
+  25,6%** contra **TO26D 46,5%**).
+- **`index` decide EN QUÉ CURVA VA.** Una LECAP (`LETRAS-FIJO`) y un BONCAP
+  (`BONO-CAPITALIZABLE`) son familias distintas y la **misma** curva de tasa
+  fija, y quien opera las mira juntas. Agrupar sólo por familia las partía en
+  **nueve curvas donde el mercado ve cinco**.
+
+Filtrar por familia y **después** agrupar por índice da las dos cosas bien. Las
+familias que terminan en `-USD` se excluyen por el sufijo de la familia, no por
+una lista de tickers.
 
 #### El spot de los futuros: se deduce, no se adivina
 
