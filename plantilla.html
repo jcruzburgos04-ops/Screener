@@ -502,6 +502,36 @@ canvas{display:block;width:100%;cursor:crosshair}
 #avisoYahoo a{color:var(--ambar)}
 
 
+/* --------------------------------- bonos ----------------------------------
+   Misma logica de vista que panorama: se muestra u oculta con una clase en el
+   body, asi la tabla del screener no se desmonta y volver es instantaneo. */
+#bonos{display:none;flex:1;overflow:auto;padding:0 0 2rem}
+body.bonos #bonos{display:block}
+body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
+.bo-tarjeta{background:var(--panel);border:1px solid var(--borde);
+  border-radius:var(--r2);margin:0 1.6rem 1rem;padding:var(--e4) var(--e4) var(--e3)}
+.bo-tit{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .2rem;
+  font-size:var(--t4);font-weight:600}
+.bo-nota{color:var(--tenue);font-size:var(--t1);line-height:1.7;margin:0 0 var(--e4)}
+.bo-nota b{color:var(--hueso);font-weight:600}
+.bo-tabla{width:100%;border-collapse:separate;border-spacing:0;
+  font-family:var(--mono);font-size:var(--t3);font-variant-numeric:tabular-nums}
+.bo-tabla th{text-align:right;font-weight:500;color:var(--tenue);
+  font-size:var(--t0);letter-spacing:.085em;text-transform:uppercase;
+  padding:.5rem .6rem;border-bottom:1px solid var(--borde2);white-space:nowrap}
+.bo-tabla th:first-child,.bo-tabla td:first-child{text-align:left}
+.bo-tabla td{text-align:right;padding:.55rem .6rem;white-space:nowrap}
+.bo-tabla tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
+.bo-tabla tbody tr:hover td{background:var(--panel2)}
+.bo-tabla .tk{font-weight:600;font-family:var(--sans);font-size:var(--t2)}
+/* El aviso de lo que falta: no se disimula. Una tabla de bonos sin TIR es una
+   tabla incompleta y el que la mira tiene que saberlo. */
+.bo-falta{margin:var(--e4) 1.6rem 0;padding:var(--e3) var(--e4);
+  background:var(--ambar-t);border:1px solid rgba(232,163,61,.28);
+  border-radius:var(--r2);color:var(--tenue);font-size:var(--t1);line-height:1.7}
+.bo-falta b{color:var(--ambar)}
+.bo-vacio{padding:3rem 1.6rem;color:var(--tenue);text-align:center}
+
 /* ------------------------------- panorama ---------------------------------
    La vista de tarjetas: un vistazo al mercado sin leer una tabla. Cada tarjeta
    es un simbolo con su mini-grafico, la variacion, lo que marca el ASH y donde
@@ -1008,6 +1038,7 @@ body.cajon #velo{display:block}
     <div class="tf grupo-chips seg" id="segVista">
       <span class="chip on" id="chipTabla" title="La tabla del screener · tecla P">Tabla</span>
       <span class="chip" id="chipVista" title="Tarjetas de índices y sectores · tecla P">Panorama</span>
+      <span class="chip" id="chipBonos" title="Soberanos argentinos · tecla B">Bonos</span>
     </div>
     <div class="tf grupo-chips inter">
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
@@ -1064,6 +1095,7 @@ body.cajon #velo{display:block}
         <dt><kbd>F</kbd></dt><dd>marcar favorito</dd>
         <dt><kbd>G</kbd></dt><dd>mostrar u ocultar el gráfico</dd>
         <dt><kbd>P</kbd></dt><dd>alternar Tabla y Panorama</dd>
+        <dt><kbd>B</kbd></dt><dd>ver los bonos</dd>
         <dt><kbd>R</kbd></dt><dd>traer los precios de nuevo</dd>
         <dt><kbd>[</kbd></dt><dd>mostrar u ocultar el panel</dd>
         <dt><kbd>?</kbd></dt><dd>esta ayuda</dd>
@@ -1088,6 +1120,14 @@ body.cajon #velo{display:block}
     <button class="mini" id="btnVista2" title="Todo el estado dentro de la dirección">Copiar vista</button>
     <span class="sep"></span>
     <span class="nota" id="estado"></span>
+  </div>
+  <div id="bonos">
+    <div class="pan-hero">
+      <h2 class="pan-tit">Bonos</h2>
+      <p class="pan-sub">Los soberanos del canje 2020: a cuánto cotizan, qué dólar
+        sale por cada uno y qué se paga por la ley.</p>
+    </div>
+    <div id="bonosCuerpo"></div>
   </div>
   <div id="panorama">
     <div class="pan-hero">
@@ -3018,14 +3058,117 @@ function renderPanorama(){
     const s=porT.get(cv.dataset.mini);if(s)miniGrafico(cv,s,60);}));
 }
 
-function verPanorama(mostrar){
-  vistaPanorama=mostrar;
-  document.body.classList.toggle('panorama',mostrar);
-  // Las dos, siempre al reves una de la otra: es un interruptor de dos posiciones.
-  $('#chipVista').classList.toggle('on',mostrar);
-  $('#chipTabla').classList.toggle('on',!mostrar);
-  escribirLS('screener_ash_vista',mostrar?'p':'t');
-  if(mostrar)renderPanorama(); else render();
+/* EL INTERRUPTOR DE VISTAS. Eran dos posiciones (tabla / panorama) y ahora son
+   tres. Se generaliza en vez de agregar otro booleano: con dos banderas sueltas
+   se puede llegar a un estado imposible -- las dos prendidas -- que es
+   exactamente el problema que ya hubo con los chips.
+
+   verPanorama() se deja como envoltorio porque lo llaman la tecla P, el
+   arranque y las pruebas; asi nada de eso se entera del cambio. */
+function verVista(cual){
+  vistaPanorama = cual === 'p';
+  document.body.classList.toggle('panorama', cual === 'p');
+  document.body.classList.toggle('bonos',    cual === 'b');
+  $('#chipTabla').classList.toggle('on', cual === 't');
+  $('#chipVista').classList.toggle('on', cual === 'p');
+  $('#chipBonos').classList.toggle('on', cual === 'b');
+  escribirLS('screener_ash_vista', cual);
+  if(cual === 'p')      renderPanorama();
+  else if(cual === 'b') verBonos();
+  else                  render();
+}
+function verPanorama(mostrar){verVista(mostrar?'p':'t');}
+
+/* ---------- bonos ----------
+   El payload viaja aparte de los precios (bonos.json), asi que se baja la
+   primera vez que se entra a la vista y no al abrir la pagina: el que nunca
+   mira bonos no paga la descarga. */
+let BONOS=null, bajandoBonos=false;
+
+async function verBonos(){
+  const cuerpo=$('#bonosCuerpo');
+  if(BONOS){renderBonos();return;}
+  if(bajandoBonos)return;
+  bajandoBonos=true;
+  cuerpo.innerHTML='<p class="bo-vacio">Buscando los bonos…</p>';
+  try{
+    const r=await fetch('bonos.json?v='+Math.floor(Date.now()/120000),{cache:'no-cache'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    BONOS=await r.json();
+    renderBonos();
+  }catch(e){
+    /* Que falte el archivo no es un error del usuario: pasa si todavia no
+       corrio la actualizacion que lo publica. Se dice qué pasó, no "error". */
+    cuerpo.innerHTML='<p class="bo-vacio">Todavía no hay datos de bonos publicados.<br>'+
+      'Se arman en la misma actualización que los precios; probá de nuevo en un rato.</p>';
+  }finally{bajandoBonos=false;}
+}
+
+function renderBonos(){
+  const d=BONOS, cuerpo=$('#bonosCuerpo');
+  if(!d||!d.bonos||!d.bonos.length){
+    cuerpo.innerHTML='<p class="bo-vacio">No vino ningún bono con precio.</p>';return;}
+  const num=(v,dec)=>isFinite(v)?v.toLocaleString('es-AR',
+    {minimumFractionDigits:dec,maximumFractionDigits:dec}):'·';
+  const pc=v=>isFinite(v)?(v>0?'+':'')+ (v*100).toFixed(2)+'%':'·';
+  const col=v=>isFinite(v)?(v>0?'up':(v<0?'dn':'')):'';
+
+  const tabla=(titulo,nota,ley)=>{
+    const f=d.bonos.filter(b=>b.ley===ley);
+    if(!f.length)return '';
+    return `<div class="bo-tarjeta"><div class="bo-tit">${esc(titulo)}</div>
+      <p class="bo-nota">${nota}</p>
+      <table class="bo-tabla"><thead><tr>
+        <th>bono</th><th>vence</th><th>pesos</th><th>USD MEP</th>
+        <th>USD cable</th><th>var</th></tr></thead><tbody>`+
+      f.map(b=>`<tr>
+        <td class="tk">${esc(b.t)}</td>
+        <td>${b.vto}</td>
+        <td>${num(b.pesos,0)}</td>
+        <td>${num(b.usd_mep,2)}</td>
+        <td>${num(b.usd_cable,2)}</td>
+        <td class="${col(b.var/100)}">${isFinite(b.var)?(b.var>0?'+':'')+b.var.toFixed(2)+'%':'·'}</td>
+      </tr>`).join('')+'</tbody></table></div>';};
+
+  // El tipo de cambio implicito de cada bono, que es lo que se mira para saber
+  // por donde conviene salir a dolares.
+  const conTc=d.bonos.filter(b=>b.tc_mep&&b.tc_cable);
+  const tc=conTc.length?`<div class="bo-tarjeta"><div class="bo-tit">Tipo de cambio por bono</div>
+      <p class="bo-nota">Cuántos pesos por dólar sale comprar el bono en pesos y
+        venderlo en dólares. <b>MEP</b> liquida acá; <b>cable</b>, afuera.</p>
+      <table class="bo-tabla"><thead><tr>
+        <th>bono</th><th>MEP</th><th>cable</th><th>brecha</th></tr></thead><tbody>`+
+    conTc.map(b=>`<tr><td class="tk">${esc(b.t)}</td>
+        <td>$${num(b.tc_mep,0)}</td><td>$${num(b.tc_cable,0)}</td>
+        <td>${pc(b.brecha)}</td></tr>`).join('')+'</tbody></table></div>':'';
+
+  // El canje de leyes: arriba de 1 el de Nueva York cuesta mas caro.
+  const c=d.canje||[];
+  const med=c.length?[...c.map(x=>x.ratio)].sort((a,b)=>a-b)[Math.floor(c.length/2)]:NaN;
+  const canje=c.length?`<div class="bo-tarjeta"><div class="bo-tit">Canje de leyes</div>
+      <p class="bo-nota">Cuánto cuesta el ley Nueva York contra su gemelo argentino,
+        comparado en dólares para que el tipo de cambio no ensucie la relación.
+        Arriba de 1 quiere decir que <b>el tribunal de Nueva York se paga</b>:
+        hoy la mediana es <b>${num(med,4)}</b>, o sea
+        <b>${num((med-1)*100,1)}%</b> de más.</p>
+      <table class="bo-tabla"><thead><tr>
+        <th>par</th><th>vence</th><th>ratio</th><th>sobreprecio</th></tr></thead><tbody>`+
+    c.map(x=>`<tr><td class="tk">${esc(x.arg)} vs ${esc(x.ny)}</td>
+        <td>${x.vto}</td><td>${num(x.ratio,4)}</td>
+        <td>${num((x.ratio-1)*100,2)}%</td></tr>`).join('')+'</tbody></table></div>':'';
+
+  const falta=d.sin_cronograma?`<div class="bo-falta">
+      <b>Todavía sin TIR, paridad ni duration.</b> Los cuatro necesitan el
+      cronograma de cupones y amortización de cada bono, que es dato del
+      prospecto y no se deduce de un precio. Van a entrar cuando estén cargados
+      uno por uno con la fuente anotada: una TIR calculada sobre un cronograma
+      mal recordado se ve perfecta y está mal.</div>`:'';
+
+  cuerpo.innerHTML=
+    tabla('Ley Argentina','Se rigen por tribunales locales. Suelen cotizar más '+
+      'barato que su gemelo: es lo que el mercado descuenta por el fuero.','Argentina')+
+    tabla('Ley Nueva York','Mismo emisor, mismo flujo, otro tribunal.','Nueva York')+
+    tc+canje+falta;
 }
 
 /* ---------- chips ---------- */
@@ -3201,7 +3344,8 @@ function ponerValores(obj,desdeCero){
 /* Elegir filtros estando en Panorama no mostraba nada: el resultado se ve en
    la tabla, asi que habia que apretar Panorama de nuevo para verlo. Cualquier
    eleccion de filtros vuelve sola a la tabla. */
-function salirDePanorama(){if(vistaPanorama)verPanorama(false);}
+function salirDePanorama(){
+  if(vistaPanorama||document.body.classList.contains('bonos'))verVista('t');}
 
 function elegirPerfil(valor){
   if(!valor)return;
@@ -3971,8 +4115,9 @@ function iniciar(){
   $('#selPerfil').onchange=()=>elegirPerfil($('#selPerfil').value);
   $('#selRapido').onchange=()=>{elegirPerfil($('#selRapido').value);marcarPerfil();};
   $('#chipFav').onclick=()=>{ponerSoloFav(!soloFav);aplicar();guardarSesion();};
-  $('#chipVista').onclick=()=>verPanorama(true);
-  $('#chipTabla').onclick=()=>verPanorama(false);
+  $('#chipVista').onclick=()=>verVista('p');
+  $('#chipTabla').onclick=()=>verVista('t');
+  $('#chipBonos').onclick=()=>verVista('b');
   $('#buscarPan').addEventListener('input',()=>renderPanorama());
   $('#panTabs').onclick=e=>{const c=e.target.closest('.chip[data-panel]');if(!c)return;
     panelSel=+c.dataset.panel;renderPanorama();guardarSesion();};
@@ -4199,6 +4344,8 @@ function iniciar(){
     else if((e.key==='?'||(e.key==='/'&&e.shiftKey))&&!escribiendo){
       verAtajos();e.preventDefault();}
     else if((e.key==='p'||e.key==='P')&&!escribiendo){verPanorama(!vistaPanorama);}
+    else if((e.key==='b'||e.key==='B')&&!escribiendo){
+      verVista(document.body.classList.contains('bonos')?'t':'b');}
     else if((e.key==='r'||e.key==='R')&&!escribiendo){refrescarPrecios();}
     else if((e.key==='g'||e.key==='G')&&!escribiendo){
       verGrafico(document.body.classList.contains('sin-grafico'));}
@@ -4257,7 +4404,8 @@ function iniciar(){
   // el # de la barra la proxima recarga no encontraria nada que restaurar.
   if(vista){sucio=true;grabarSesion();}
   // la vista va al final: renderPanorama() necesita `filas` ya calculadas
-  if(leerLS('screener_ash_vista')==='p')verPanorama(true);
+  const guardada=leerLS('screener_ash_vista');
+  if(guardada==='p'||guardada==='b')verVista(guardada);
 }
 
 /* ---------- secuencia de arranque ----------

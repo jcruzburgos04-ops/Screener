@@ -124,6 +124,11 @@ jobs:
                 gh-pages )
           }
 
+          # Los bonos van al lado de los precios: misma corrida, mismo publicado.
+          # Si data912 no contesta NO se corta la vuelta -- las acciones son lo
+          # principal y no tienen por que caerse porque falle la renta fija.
+          bonos(){ python bonos.py --salida sitio || echo "      (bonos: no salio, sigo)"; }
+
           vuelta=0
           exitos=0
           while :; do
@@ -133,6 +138,7 @@ jobs:
             # y la de dentro de diez minutos puede andar perfecto. Solo se
             # devuelve error si no salio ninguna.
             if python actualizar_rapido.py --previo estado/datos.json --salida sitio; then
+              bonos
               publicar
               cp sitio/datos.json estado/datos.json
               exitos=$(( exitos + 1 ))

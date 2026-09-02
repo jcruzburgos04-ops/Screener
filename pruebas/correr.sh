@@ -62,6 +62,8 @@ echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
 echo; echo "== teclado =="
 node teclado.js
+echo; echo "== la vista de bonos =="
+node bonos.js
 echo; echo "== el desplegable de filtros dibujado a mano =="
 node selector.js
 echo; echo "== las columnas no dependen del filtro =="

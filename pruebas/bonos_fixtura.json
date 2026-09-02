@@ -1,0 +1,11 @@
+{"fecha":"2026-09-01 23:51","ts":1788306660,"sin_cronograma":true,
+"bonos":[
+{"t":"AL29","ley":"Argentina","vto":2029,"gemelo":"GD29","pesos":82750,"usd_mep":54.14,"usd_cable":52.08,"tc_mep":1528.0,"tc_cable":1589.0,"var":0.37,"volumen":1000,"brecha":0.0396},
+{"t":"AL30","ley":"Argentina","vto":2030,"gemelo":"GD30","pesos":85280,"usd_mep":55.64,"usd_cable":53.47,"tc_mep":1533.0,"tc_cable":1595.0,"var":0.32,"volumen":1000,"brecha":0.0406},
+{"t":"AE38","ley":"Argentina","vto":2038,"gemelo":"GD38","pesos":120180,"usd_mep":78.54,"usd_cable":75.50,"tc_mep":1530.0,"tc_cable":1592.0,"var":0.13,"volumen":1000,"brecha":0.0403},
+{"t":"GD29","ley":"Nueva York","vto":2029,"gemelo":"AL29","pesos":85600,"usd_mep":56.00,"usd_cable":53.56,"tc_mep":1529.0,"tc_cable":1598.0,"var":-0.10,"volumen":1000,"brecha":0.0456},
+{"t":"GD30","ley":"Nueva York","vto":2030,"gemelo":"AL30","pesos":88870,"usd_mep":57.94,"usd_cable":55.90,"tc_mep":1534.0,"tc_cable":1590.0,"var":0.20,"volumen":1000,"brecha":0.0365}],
+"canje":[
+{"arg":"AL29","ny":"GD29","vto":2029,"ratio":1.0344},
+{"arg":"AL30","ny":"GD30","vto":2030,"ratio":1.0413},
+{"arg":"AE38","ny":"GD38","vto":2038,"ratio":1.0632}]}
