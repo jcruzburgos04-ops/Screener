@@ -57,6 +57,8 @@ console.log('== el interruptor de tres posiciones ==');
  ok('y el body lo refleja',d.body.classList.contains('bonos')&&!d.body.classList.contains('panorama'));
  ok('la tabla del screener se esconde',
     w.getComputedStyle(d.querySelector('.tabla-wrap')).display==='none');
+ ok('las tres vistas viven en la navegacion del panel',
+    ['#chipTabla','#chipVista','#chipBonos'].every(s=>d.querySelector(s).closest('#navVistas')));
  clic('#chipVista');await esperar(300);
  ok('al ir a Panorama queda SOLO Panorama',prendidos().join()==='#chipVista',prendidos().join());
  ok('y sale de bonos',!d.body.classList.contains('bonos'));

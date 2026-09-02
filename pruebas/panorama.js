@@ -213,10 +213,11 @@ function abrir(payload,almacen){
   {
     const w4=await abrir(null,SIN_YAHOO);
     const d4=w4.document, q=s=>d4.querySelector(s);
-    const enc=()=>[...d4.querySelectorAll('#segVista .chip.on')].map(c=>c.id);
-    ok('la vista es un interruptor de dos posiciones',
-       q('#chipTabla')&&q('#chipVista')&&
-       q('#chipTabla').closest('.grupo-chips')===q('#chipVista').closest('.grupo-chips'));
+    const enc=()=>[...d4.querySelectorAll('#navVistas .nav-item.on')].map(c=>c.id);
+    ok('la vista es un interruptor de tres posiciones, en el panel',
+       q('#chipTabla')&&q('#chipVista')&&q('#chipBonos')&&
+       q('#chipTabla').closest('#navVistas')===q('#chipVista').closest('#navVistas')&&
+       q('#chipBonos').closest('#navVistas')===q('#chipVista').closest('#navVistas'));
     ok('arranca con Tabla encendida y sola',enc().join(',')==='chipTabla',enc().join(','));
     // el caso de la foto: favoritos prendido Y panorama prendido a la vez
     q('#chipFav').dispatchEvent(new w4.MouseEvent('click',{bubbles:true}));
@@ -224,8 +225,8 @@ function abrir(payload,almacen){
     await esperar(250);
     ok('con favoritos prendido, la vista sigue teniendo una sola encendida',
        enc().join(',')==='chipVista',enc().join(','));
-    ok('favoritos vive en otra capsula, no compite con la vista',
-       q('#chipFav').closest('.grupo-chips')!==q('#chipVista').closest('.grupo-chips'));
+    ok('favoritos vive en la barra, no compite con la vista',
+       q('#chipFav').closest('#navVistas')===null);
     ok('y se distingue porque su capsula es de interruptores',
        q('#chipFav').closest('.grupo-chips').classList.contains('inter'));
     ok('los menus tampoco se mezclan con la vista',

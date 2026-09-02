@@ -136,8 +136,12 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
     ok('la firma usa separadores y no puntos sueltos',
        $('#firma').querySelectorAll('.sep-v').length>=2,
        $('#firma').innerHTML.slice(0,120));
-    ok('los chips de arriba estan agrupados',
-       $('#chipVista').closest('.grupo-chips')!==null);
+    // Las vistas se mudaron al panel izquierdo: son el primer nivel de la
+    // pagina, no un control mas de la barra de arriba.
+    ok('las vistas viven en la navegacion del panel',
+       $('#chipVista').closest('#navVistas')!==null);
+    ok('y los chips de la barra siguen agrupados en capsulas',
+       $('#chipFav').closest('.grupo-chips')!==null);
   }
 
   console.log('\n== ordenar por todas las columnas ==');
