@@ -3515,6 +3515,7 @@ function filaBono(b,abierto){
     <td class="fuerte">${hay(b.tir)?bpc(b.tir):'·'}${prov}</td>
     <td>${hay(b.tna)?bpc(b.tna):'·'}</td>
     <td>${hay(b.paridad)?bpc(b.paridad,1):'·'}</td>
+    <td>${hay(b.duration_mac)?bnum(b.duration_mac,2):'·'}</td>
     <td>${hay(b.duration)?bnum(b.duration,2):'·'}</td>
     <td>${hay(b.dv01)?bnum(b.dv01,4):'·'}</td>
     <td>${hay(b.vivo)?bnum(b.vivo,0):'·'}</td>
@@ -3526,7 +3527,7 @@ function filaBono(b,abierto){
    la pregunta que hace el que arma una cartera para un cliente. */
 function detalleBono(b){
   const f=b.flujo||[];
-  if(!f.length)return `<tr class="bo-det"><td colspan="12"><div class="bo-det-caja">
+  if(!f.length)return `<tr class="bo-det"><td colspan="13"><div class="bo-det-caja">
     <p class="bo-nota">De este bono todavía no está cargado el cronograma.</p></div></td></tr>`;
   const renta=f.reduce((a,x)=>a+x.renta,0), amort=f.reduce((a,x)=>a+x.amort,0);
   const total=renta+amort;
@@ -3534,7 +3535,7 @@ function detalleBono(b){
      Importa: un bono que paga casi todo capital no "rinde" 10% en el sentido
      de un plazo fijo, te esta devolviendo lo tuyo. */
   const barra=`<div class="bo-mix"><i style="width:${(renta/total*100).toFixed(1)}%"></i></div>`;
-  return `<tr class="bo-det"><td colspan="12"><div class="bo-det-caja">
+  return `<tr class="bo-det"><td colspan="13"><div class="bo-det-caja">
     <div class="bo-det-cab">
       <div><span>Cobra en total</span><b>US$ ${bnum(total,2)}</b>
         <em>por cada 100 de valor nominal, si lo tenés hasta el final</em></div>
@@ -3590,6 +3591,9 @@ const pagoFecha=p=>!p?'·':`<span class="${p.ultimo?'bo-final':''}" title="${
           :'Proximo de varios; los que siguen no los publica la fuente'}">${
   bfecha(p.fecha)}</span>`;
 const pagoDias=p=>!p?'·':bnum(p.dias,0);
+/* La variacion del dia. Viene en tanto por uno y bsig espera puntos, asi que
+   se multiplica aca y no en cada columna. */
+const bvar=v=>hay(v)?`<span class="${bcol(v*100)}">${bsig(v*100)}</span>`:'·';
 const pagoMonto=p=>!p||!hay(p.monto)?'·'
   :bnum(p.monto,2)+(p.ultimo?'':'<span class="bo-mas">+</span>');
 
@@ -3609,6 +3613,7 @@ const COLS_PESOS=[
   {h:'TEM',    tit:'Tasa efectiva mensual: es como se mira este mercado', v:f=>bpc(f.tem)},
   {h:'durat.', v:f=>bnum(f.duration,2)},
   {h:'paridad',v:f=>bpc(f.paridad,1)},
+  {h:'var',    tit:'Cuánto se movió el precio hoy', v:f=>bvar(f.var)},
 ];
 
 function renderPesos(){
@@ -3880,6 +3885,7 @@ const COLS_ONS=[
   {h:'TIR',     cl:'fuerte', tit:'La calcula bonistas.com, no este programa', v:o=>bpc(o.tir)},
   {h:'durat.',  v:o=>bnum(o.duration,2)},
   {h:'paridad', v:o=>bpc(o.paridad,1)},
+  {h:'var',     tit:'Cuánto se movió el precio hoy', v:o=>bvar(o.var)},
 ];
 
 /* Ordenar es la razon de aplanarla: sin esto una tabla de 600 filas es peor
@@ -4024,7 +4030,8 @@ function renderBonos(){
         <th title="Tasa interna de retorno anual, en dólares, si lo tenés hasta el final">TIR</th>
         <th title="Tasa nominal anual equivalente, capitalizada cada seis meses. Es la que se compara contra un plazo fijo">TNA</th>
         <th title="Precio contra valor técnico. Abajo de 100% el bono cotiza con descuento sobre lo que contractualmente vale">paridad</th>
-        <th title="Duration modificada: cuánto cae el precio, en %, si la tasa sube un punto">durat.</th>
+        <th title="Duration de Macaulay: en cuántos años, en promedio, se cobra la plata">Mac</th>
+        <th title="Duration modificada: cuánto cae el precio, en %, si la tasa sube un punto">MD</th>
         <th title="Cuántos dólares se mueve el precio por cada punto básico de tasa">DV01</th>
         <th title="Cuánto del nominal original queda sin amortizar">vivo</th>
         <th>próx. pago</th></tr></thead><tbody>`+

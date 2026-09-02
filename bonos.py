@@ -342,6 +342,11 @@ def armar(crudo, cronogramas=None, hoy=None):
                     "paridad": round(mep / vt, 4) if vt else None,
                     "vivo": round(residual, 2),
                     "duration": round(mod, 3) if mod == mod else None,
+                    # La de Macaulay va aparte de la modificada, como en el
+                    # informe de referencia: la primera son los años promedio
+                    # en que se cobra la plata, la segunda cuanto cae el precio
+                    # por cada punto de tasa. Se venia calculando y tirando.
+                    "duration_mac": round(mac, 3) if mac == mac else None,
                     "dv01": round(dv, 5) if dv == dv else None,
                     "prox_pago": prox.isoformat(),
                     "pagos": len(flujo),
@@ -584,6 +589,7 @@ def armar_ons(crudo, hoy=None):
             "dias": dias,
             "precio": round(float(f["last_price"]), 2),
             "cupon": _tna(f),
+            "var": redondo(f.get("day_difference"), 6),
             # Cuando cobra el que la compra hoy, y cuanto. Es lo unico del
             # cronograma que publica la fuente, y para las que ya no tienen
             # mas servicios por delante ES el cronograma entero.
@@ -797,6 +803,11 @@ def armar_pesos(crudo, hoy=None):
                 "vto": vto or f.get("end_date"),
                 "dias": dias,
                 "pago": proximo_pago(f, hoy),
+                # Cuanto se movio hoy. Esta en todas las tablas del informe de
+                # referencia y no estaba en ninguna de las nuestras. Es
+                # `day_difference`, ya en tanto por uno: (ultimo - cierre
+                # anterior) / cierre anterior.
+                "var": redondo(f.get("day_difference"), 6),
                 "precio": round(float(f["last_price"]), 3),
                 "tir": redondo(f.get("tir"), 6),
                 "tna": redondo(f.get("tna"), 6),
