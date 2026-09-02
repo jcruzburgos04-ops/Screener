@@ -62,6 +62,8 @@ echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
 echo; echo "== teclado =="
 node teclado.js
+echo; echo "== Python: renta fija y los cronogramas de los soberanos =="
+python3 renta_fija.py
 echo; echo "== la vista de bonos =="
 node bonos.js
 echo; echo "== el desplegable de filtros dibujado a mano =="
