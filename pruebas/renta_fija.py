@@ -336,6 +336,17 @@ ok("su proximo pago es el 30/11/2026, no el vencimiento",
 ok("y son 88 dias, los que dice la fuente", p["TY30P"]["dias"] == 88)
 ok("al DICP tampoco", p["DICP"]["ultimo"] is False)
 
+# Cuando es el ultimo, el pago ES el vencimiento: se toma la MISMA fecha que
+# muestra la fila. Derivandola por separado desde los dias, las dos columnas
+# podian decir cosas distintas del mismo dia.
+ult = {"end_date": "2026-10-17", "days_to_finish": 47, "days_to_coupon": 47,
+       "settlement": "CI", "coupon": 7.75}
+v_ult, d_ult = bonos.vencimiento_y_dias(ult, HOY)
+p_ult = bonos.proximo_pago(ult, HOY)
+ok("el ultimo pago cae exactamente en el vencimiento de su fila",
+   (p_ult["fecha"], p_ult["dias"]) == (v_ult, d_ult), (p_ult, v_ult, d_ult))
+ok("y ese vencimiento es el lunes, no el sabado", p_ult["fecha"] == "2026-10-19")
+
 ok("sin days_to_coupon no hay proximo pago",
    bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100}, HOY) is None)
 # Un days_to_coupon mayor que el plazo al vencimiento es un dato roto, y en

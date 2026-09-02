@@ -591,6 +591,11 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 /* La fila de un papel que hoy no opero: se ve, se puede leer, pero queda
    apagada para que el ojo no la lea igual que a un precio de verdad. */
 .bo-tabla tr.bo-quieto td{opacity:.45;font-style:italic}
+/* El pago que cierra el instrumento: despues de este no queda nada, asi que
+   esa linea ES el cronograma completo. Se distingue del proximo-de-varios,
+   que lleva un + al lado del importe para que no se lea como el total. */
+.bo-final{color:var(--ambar);font-weight:600}
+.bo-mas{color:var(--tenue);margin-left:.15rem;font-size:var(--t0)}
 /* ---------- grafico de futuros ---------- */
 /* La barra del spread es el carry dibujado: gris y atras, para que las dos
    lineas sigan siendo lo que se lee primero. */
@@ -3568,10 +3573,36 @@ function tablaSimple(filas,cols,clase,filaCl){
 }
 
 /* ---------- curvas en pesos ---------- */
+/* ---------- el proximo pago ----------
+   Lo que se cobra, cuando y cuanto. Va en TODAS las tablas de renta fija
+   porque es la pregunta que se le hace a un bono antes que cualquier otra.
+
+   Los dos casos NO son lo mismo y la pantalla los distingue:
+     - `ultimo` = despues de este pago no queda nada, o sea que esta linea ES
+       el cronograma completo del instrumento. Es el caso de las letras que
+       capitalizan y de todo lo que ya entro en su ultimo tramo.
+     - si no, es el PROXIMO de varios, y los que siguen no los publica la
+       fuente. Se marca con un signo de mas para que no se lea como el total.
+   Confundir las dos cosas seria mostrar un cobro parcial como si fuera todo
+   lo que queda por cobrar. */
+const pagoFecha=p=>!p?'·':`<span class="${p.ultimo?'bo-final':''}" title="${
+  p.ultimo?'Ultimo pago: despues de este no queda nada'
+          :'Proximo de varios; los que siguen no los publica la fuente'}">${
+  bfecha(p.fecha)}</span>`;
+const pagoDias=p=>!p?'·':bnum(p.dias,0);
+const pagoMonto=p=>!p||!hay(p.monto)?'·'
+  :bnum(p.monto,2)+(p.ultimo?'':'<span class="bo-mas">+</span>');
+
 const COLS_PESOS=[
   {h:'ticker', cl:'tk', v:f=>esc(f.t)},
   {h:'vence',  v:f=>bfecha(f.vto)},
   {h:'días',   v:f=>bnum(f.dias,0)},
+  {h:'próx. pago', tit:'Cuándo cobra el que la compra hoy',
+   v:f=>pagoFecha(f.pago)},
+  {h:'en',     tit:'Días hasta ese pago, contados desde la liquidación',
+   v:f=>pagoDias(f.pago)},
+  {h:'cobra',  tit:'Importe de ese pago cada 100 nominales. El + marca que faltan más pagos después',
+   v:f=>pagoMonto(f.pago)},
   {h:'precio', v:f=>bnum(f.precio,2)},
   {h:'TNA',    tit:'Tasa nominal anual', v:f=>bpc(f.tna)},
   {h:'TIR',    tit:'Tasa efectiva anual', cl:'fuerte', v:f=>bpc(f.tir)},
@@ -3839,6 +3870,12 @@ const COLS_ONS=[
   {h:'días',    v:o=>bnum(o.dias,0)},
   {h:'cupón',   tit:'Tasa nominal anual del cupón. Vacío si es step-up: ahí no hay una sola tasa',
    v:o=>hay(o.cupon)?bnum(o.cupon,2)+'%':'·'},
+  {h:'próx. pago', tit:'Cuándo cobra el que la compra hoy',
+   v:o=>pagoFecha(o.pago)},
+  {h:'en',      tit:'Días hasta ese pago, contados desde la liquidación',
+   v:o=>pagoDias(o.pago)},
+  {h:'cobra',   tit:'Importe de ese pago cada 100 nominales. El + marca que faltan más pagos después',
+   v:o=>pagoMonto(o.pago)},
   {h:'precio',  v:o=>bnum(o.precio,2)},
   {h:'TIR',     cl:'fuerte', tit:'La calcula bonistas.com, no este programa', v:o=>bpc(o.tir)},
   {h:'durat.',  v:o=>bnum(o.duration,2)},

@@ -529,21 +529,33 @@ def proximo_pago(fila, hoy):
     if dc is None or dc < 0 or (dv is not None and dc > dv):
         return None
     liq = liquidacion(hoy, fila.get("settlement"))
-    f = habil_siguiente(liq + timedelta(days=dc))
+    ultimo = dv is not None and dc == dv
+    venc, dias_venc = vencimiento_y_dias(fila, hoy)
+    if ultimo and venc:
+        # Si es el ultimo, el pago ES el vencimiento: se toma la misma fecha
+        # que muestra la fila en vez de reconstruirla desde los dias. Asi la
+        # columna "vence" y la columna "proximo pago" no pueden decir cosas
+        # distintas del mismo dia, que es lo que pasaba cuando las dos se
+        # derivaban por caminos separados.
+        f, d = date.fromisoformat(venc), dias_venc
+    else:
+        f = habil_siguiente(liq + timedelta(days=dc))
+        d = (f - liq).days
     monto = fila.get("coupon")
     rinde = fila.get("coupon_yield")
     return {
         "fecha": f.isoformat(),
-        "dias": (f - liq).days,
+        "dias": d,
         "monto": round(monto, 4) if isinstance(monto, (int, float)) else None,
         # Sobre el valor tecnico, no sobre el precio. Lo publica la fuente.
         "sobre_vt": (round(rinde, 6)
                      if isinstance(rinde, (int, float)) and rinde else None),
-        "ultimo": dv is not None and dc == dv,
+        "ultimo": ultimo,
     }
 
 
-def armar_ons(crudo):
+def armar_ons(crudo, hoy=None):
+    hoy = hoy or fecha_de_la_fuente(crudo)
     por = {}
     for f in crudo:
         if f.get("bond_family") not in FAMILIAS_ON:
@@ -560,23 +572,31 @@ def armar_ons(crudo):
     def redondo(v, dec):
         return round(v, dec) if isinstance(v, (int, float)) else None
 
-    return [{
-        "t": tk,
-        "emisor": f.get("emisor") or "—",
-        "ley": "Nueva York" if f.get("bond_law") == "LNY" else "Argentina",
-        "cable": f.get("bond_family") == "ONS-CABLE",
-        "vto": f.get("end_date"),
-        "emitido": f.get("start_date"),
-        "dias": f.get("days_to_finish"),
-        "precio": round(float(f["last_price"]), 2),
-        "cupon": _tna(f),
-        # Los tres de abajo los calcula bonistas, no este programa. La pantalla
-        # lo dice en la tarjeta.
-        "tir": redondo(f.get("tir"), 6),
-        "duration": redondo(f.get("modified_duration"), 3),
-        "paridad": redondo(f.get("parity"), 4),
-        "resumen": f.get("short_description") or "",
-    } for tk, f in sorted(por.items())]
+    def fila(tk, f):
+        vto, dias = vencimiento_y_dias(f, hoy)
+        return {
+            "t": tk,
+            "emisor": f.get("emisor") or "—",
+            "ley": "Nueva York" if f.get("bond_law") == "LNY" else "Argentina",
+            "cable": f.get("bond_family") == "ONS-CABLE",
+            "vto": vto or f.get("end_date"),
+            "emitido": f.get("start_date"),
+            "dias": dias,
+            "precio": round(float(f["last_price"]), 2),
+            "cupon": _tna(f),
+            # Cuando cobra el que la compra hoy, y cuanto. Es lo unico del
+            # cronograma que publica la fuente, y para las que ya no tienen
+            # mas servicios por delante ES el cronograma entero.
+            "pago": proximo_pago(f, hoy),
+            # Los tres de abajo los calcula bonistas, no este programa. La
+            # pantalla lo dice en la tarjeta.
+            "tir": redondo(f.get("tir"), 6),
+            "duration": redondo(f.get("modified_duration"), 3),
+            "paridad": redondo(f.get("parity"), 4),
+            "resumen": f.get("short_description") or "",
+        }
+
+    return [fila(tk, f) for tk, f in sorted(por.items())]
 
 
 def emisores(ons):
@@ -726,12 +746,13 @@ def _ajena(familia):
             or any(f == p or f.startswith(p) for p in PREFIJOS_AJENOS))
 
 
-def armar_pesos(crudo):
+def armar_pesos(crudo, hoy=None):
     """
     Una curva por indice, con lo que este cotizando hoy. Se descarta lo que no
     tiene precio o no tiene rendimiento: una fila con todo en cero no dice nada
     y ensucia la curva.
     """
+    hoy = hoy or fecha_de_la_fuente(crudo)
     conocidos = {k: (t, n) for k, t, n in CURVAS_PESOS}
     etiquetas, por_indice = {}, {}
     for f in crudo:
@@ -765,13 +786,17 @@ def armar_pesos(crudo):
         titulo, nota = conocidos.get(ind, (etiquetas.get(ind, ind), ""))
         filas = []
         for tk, f in por_indice[ind].items():
-            # Un papel que ya vencio no tiene nada que hacer en una curva.
-            if (f.get("days_to_finish") or 0) <= 0:
+            vto, dias = vencimiento_y_dias(f, hoy)
+            # Un papel que ya vencio no tiene nada que hacer en una curva. Se
+            # mide contra la LIQUIDACION: uno que vence manana ya no se puede
+            # comprar hoy a 24hs, porque recien se recibe cuando ya vencio.
+            if (dias or 0) <= 0:
                 continue
             filas.append({
                 "t": tk,
-                "vto": f.get("end_date"),
-                "dias": f.get("days_to_finish"),
+                "vto": vto or f.get("end_date"),
+                "dias": dias,
+                "pago": proximo_pago(f, hoy),
                 "precio": round(float(f["last_price"]), 3),
                 "tir": redondo(f.get("tir"), 6),
                 "tna": redondo(f.get("tna"), 6),
