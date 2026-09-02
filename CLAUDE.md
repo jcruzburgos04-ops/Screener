@@ -1058,6 +1058,52 @@ La tasa directa es `precio_futuro / spot − 1`, así que un spot malo corrompe
 
 El payload lleva `spot_fuente` y **la pantalla dice cuál de las tres se usó**.
 
+#### Cómo se dibuja una curva (contra el informe de referencia)
+
+El usuario mandó el **informe diario de renta fija de IEB** como referencia.
+Sus gráficos tienen tres cosas que acá se hacían distinto, y las tres importan:
+
+**1. El eje X es la DURATION, no los días al vencimiento.** No es una cuestión
+de gusto. Con días, el `TY30P` a 1365 estiraba el eje cinco veces y dejaba a los
+otros diez papeles de tasa fija apilados contra el margen izquierdo, con los
+tickers encimados hasta ser ilegibles (`S3N0O6E7` en la captura del usuario). En
+duration ese mismo papel está en **2,05 contra 0,64** del `T30J7` —tres veces,
+no cinco— y la nube se abre sola. Y además es lo correcto: un bono que amortiza
+temprano devuelve la plata mucho antes de lo que su vencimiento sugiere. **Los
+días siguen en la tabla**, que es donde se los busca.
+
+**2. Es una NUBE con una tendencia punteada, no una quebrada.** `cvAjuste()`
+ajusta `y = a + b·ln(x)` por mínimos cuadrados, que es la forma de una curva de
+rendimientos: sube rápido en el tramo corto y se aplana en el largo. Unir punto
+a punto daba un zigzag que se lee **como si el mercado tuviera saltos donde sólo
+hay dispersión** entre papeles parecidos. Con menos de tres puntos no se ajusta
+nada —una recta por dos puntos no es una tendencia, es la recta que los une— y
+**no se extrapola** fuera del tramo que los papeles cubren.
+
+**3. El gráfico va al COSTADO de la tabla, y la tabla primero.** Apilados, una
+familia sola ocupaba dos pantallas y había que subir y bajar entre la curva y
+los números del mismo papel. Abajo de 1100 px se apilan, porque en un teléfono
+lado a lado no entra ninguno de los dos.
+
+> El `minmax(0,…)` del grid **es necesario**: sin él la tabla ancha estira su
+> columna y le come el ancho al gráfico en vez de desplazarse ella.
+
+#### Los rótulos de la curva no se pisan nunca
+
+Era la queja concreta sobre una captura de producción. Se colocan uno por uno
+llevando la lista de los que ya se pusieron, probando **cuatro lugares por
+punto** —arriba, abajo, derecha, izquierda— con aire alrededor. Si no entra en
+ninguno **no se dibuja**: un ticker pisado es peor que ausente, se lee mal y se
+confunde con otro; el punto queda igual, con su nombre en el globito y en la
+tabla de al lado.
+
+> **La prueba usa los ONCE papeles REALES de la captura, no la fixtura**, que
+> tiene pocos por curva y no reproduce el amontonamiento. Y mide teniendo en
+> cuenta el **ancla** de cada rótulo: uno con `text-anchor="start"` crece hacia
+> la derecha de su `x`, no alrededor, y medirlos todos como centrados daba
+> choques que no existían —me pasó, y me hizo perseguir un bug que no estaba—.
+> Hoy: once de once rotulados, cero superpuestos.
+
 #### Un punto muy lejos del resto no se dibuja (pero sí se lista)
 
 Había un dólar linked cotizando con **139% de TIR** — una cotización vieja de
