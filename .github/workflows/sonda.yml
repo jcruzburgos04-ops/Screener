@@ -1,0 +1,48 @@
+name: Sonda de fuentes
+on: {workflow_dispatch: {}}
+permissions: {contents: read}
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Leer el catalogo de data912 y probar BYMA
+        run: |
+          python - <<'PY'
+          import json,urllib.request
+          H={"User-Agent":"Mozilla/5.0"}
+          def get(u,datos=None,metodo=None):
+              req=urllib.request.Request(u,headers=H,data=datos,method=metodo)
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  return r.status, r.read()
+
+          print("="*70)
+          print("CATALOGO COMPLETO DE data912")
+          print("="*70)
+          s,b=get("https://data912.com/openapi.json")
+          spec=json.loads(b)
+          for ruta,ops in sorted(spec.get("paths",{}).items()):
+              for m,o in ops.items():
+                  print(f"  {m.upper():<5} {ruta:<45} {o.get('summary','')}")
+          PY
+      - name: BYMA con POST
+        run: |
+          python - <<'PY'
+          import json,urllib.request,ssl
+          ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+          H={"User-Agent":"Mozilla/5.0","Content-Type":"application/json"}
+          base="https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/"
+          for ep in ("bnown/seriehistorica/history","public-bonds","government-bonds",
+                     "corporate-bonds","negotiable-obligations","cedears","leading-equity"):
+              try:
+                  req=urllib.request.Request(base+ep,headers=H,
+                      data=json.dumps({"excludeZeroPxAndQty":True,"T2":True}).encode(),method="POST")
+                  with urllib.request.urlopen(req,timeout=25,context=ctx) as r:
+                      c=r.read()
+                  print(f"  200  {len(c):>8}  {ep}")
+                  print(f"        {c[:260].decode('utf-8','replace')}")
+              except Exception as e:
+                  print(f"  ERR         -  {ep}  {type(e).__name__}: {str(e)[:70]}")
+          PY
