@@ -531,6 +531,14 @@ icono, ese número es lo único que avisa que la tabla **no** está mostrando to
 Pastilla de **frescura** · desplegable de filtros guardados · tres cápsulas de
 chips · nada más.
 
+**La firma dice sólo la fecha de cierre** (más el aviso rojo si el archivo
+quedó viejo de verdad). Antes repetía la configuración del ASH y la cantidad de
+símbolos: la configuración ya está en el panel de Indicadores, que es donde se
+la toca, y la cantidad está en los KPIs. Repetirlas arriba de todo era ruido
+permanente en la línea que más se mira. **No las devuelvas.** La prueba del
+debounce comparaba el texto de la firma para saber si había recalculado; ahora
+compara el contenido de la tabla, que es lo que de verdad importa.
+
 La pastilla es lo primero que se mira y por eso está antes que todo lo demás:
 **verde** = se actualizó hace menos de 75 minutos, **ámbar** = es el cierre de la
 última rueda (lo correcto con el mercado cerrado), **rojo** = el archivo quedó

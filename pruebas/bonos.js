@@ -219,8 +219,8 @@ console.log('== el interruptor de tres posiciones ==');
  // El texto viene con saltos de linea del template, asi que se compara plano.
  const plano=tp.replace(/\s+/g,' ');
  ok('la pantalla dice cuantos dejo afuera y por que',
-    /quedó fuera del gráfico/.test(plano)&&/porque hoy no operaron/.test(plano),
-    plano.slice(plano.indexOf('quedó')-20,plano.indexOf('quedó')+120));
+    /1 papel no operó hoy: fuera del gráfico/.test(plano)&&/punta/.test(plano),
+    plano.slice(plano.indexOf('no operó')-30,plano.indexOf('no operó')+120));
  ok('y cuenta cuantos operaron en el titulo de la familia',
     tp.indexOf(dibujable(cer).length+' operaron hoy')>=0);
  /* Los dos casos en que NO se puede dibujar: uno solo opero (un punto sobre

@@ -3617,10 +3617,9 @@ function renderPesos(){
             p.length?'hoy operó un solo papel de esta familia'
                     :'hoy no operó ninguno de estos papeles'}.</p>`}
          ${quietos?`<p class="bo-nota bo-raros">${quietos===1
-            ?'1 papel quedó fuera del gráfico'
-            :quietos+' papeles quedaron fuera del gráfico'} porque hoy no
-            operaron: lo que muestran no es un precio, es una punta que puede
-            ser de hace días. <b>Están igual en la tabla</b>, en gris.</p>`:''}
+            ?'1 papel no operó hoy':quietos+' papeles no operaron hoy'}: fuera
+            del gráfico, porque su precio es una punta que puede ser de hace
+            días. <b>En la tabla están</b>, en gris.</p>`:''}
          ${tablaSimple(c.filas,COLS_PESOS,'bo-grande',f=>f.opero===false?'bo-quieto':'')}</div>`;
     }).join('')+
     `<div class="bo-falta"><b>La TIR, la TNA y la TEM de estas tablas las calcula
@@ -3727,7 +3726,7 @@ function graficoFuturos(futs, fija){
       mirarlo con eso en la cabeza.${sinPesos?` <b>${sinPesos} contrato${sinPesos>1?'s':''}
       sin línea de pesos</b>: vence${sinPesos>1?'n':''} más lejos que la letra más larga
       y la curva no se extrapola.`:''}</p>
-    <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
+    <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet" style="max-height:${Math.round(H*1.15)}px">
       ${ejes}${barras}
       <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${base}" y2="${base}"/>
       <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${base}"/>
