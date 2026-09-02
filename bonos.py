@@ -52,6 +52,8 @@ import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import futuros
+
 FUENTE = "https://data912.com/live/arg_bonds"
 
 # Las obligaciones negociables salen de otra fuente, porque data912 publica sus
@@ -318,6 +320,12 @@ def armar(crudo, cronogramas=None, hoy=None):
         # Sobre el precio en pesos daria una TIR en pesos, que no significa
         # nada para un bono que paga dolares.
         pagos = cronogramas.get(tk)
+        # Un bono cuyo cronograma ya se agoto vencio: se va solo, sin lista que
+        # mantener. En la practica deja de cotizar y ni siquiera llega hasta
+        # aca, pero si el panel lo arrastrara un dia mas no puede quedar una
+        # fila muerta con precio y sin rendimiento.
+        if pagos and not [x for x in pagos if x["fecha"] > hoy]:
+            continue
         if pagos and mep:
             flujo, residual = flujos(pagos, hoy)
             if flujo:
@@ -454,6 +462,98 @@ def emisores(ons):
     return salida
 
 
+# ---------------------------------------------------------------------------
+# CURVAS EN PESOS: tasa fija, CER, TAMAR, dolar linked y duales
+#
+# NO HAY NINGUNA LISTA DE TICKERS ACA, Y ES A PROPOSITO. El pedido fue
+# explicito: que no haya que venir a tocar codigo cada vez que vence una letra
+# o se emite una nueva. Por eso el agrupamiento sale del campo `index` que ya
+# trae bonistas -- Fijo, CER, Tamar, USDL, Dual, DualCER --, que ES la curva a
+# la que pertenece cada papel. Si mañana el Tesoro emite una LECAP nueva
+# aparece sola; cuando vence, desaparece sola.
+#
+# Los rendimientos tampoco se calculan aca: bonistas ya publica `tir`
+# (efectiva anual), `tna` y `mtir` (la efectiva MENSUAL, que es la TEM con la
+# que se mira este mercado). Se muestran atribuidos, igual que en las ONs.
+# ---------------------------------------------------------------------------
+
+# El campo `index` -> como se llama la curva en la pantalla, y en que orden va.
+CURVAS_PESOS = [
+    ("Fijo",    "Tasa fija",    "LECAP y BONCAP: capitalizan una tasa fija en pesos."),
+    ("CER",     "CER",          "Ajustan por inflación. Su rendimiento es REAL: es lo que "
+                                "rinden POR ENCIMA de la inflación."),
+    ("Tamar",   "TAMAR",        "Pagan la tasa mayorista de plazo fijo más un margen."),
+    ("Dual",    "Duales",       "Pagan lo que resulte mayor entre dos patas: tasa fija o "
+                                "TAMAR. El precio incluye esa opción."),
+    ("DualCER", "Duales CER",   "Lo mismo, pero la otra pata ajusta por inflación."),
+    ("USDL",    "Dólar linked", "Siguen al dólar oficial. Su rendimiento es EN DÓLARES: "
+                                "lo que rinden por encima de la devaluación."),
+]
+
+
+def _es_pata_sintetica(tk):
+    """
+    Las patas sueltas de un bono dual (TXMJ8_CER, TTS26_CAP, BPOA8_PUT) no son
+    especies que se puedan comprar: son la descomposicion que hace bonistas
+    para valuar la opcion. Vienen con precio 0 o con TIR absurda -- el
+    TTS26_CAP daba -95% -- y en una tabla se leen como oportunidades que no
+    existen.
+    """
+    return "_" in str(tk or "")
+
+
+def armar_pesos(crudo):
+    """
+    Una curva por cada valor de `index`, con lo que este cotizando hoy. Se
+    descarta lo que no tiene precio o no tiene rendimiento: una fila con todo
+    en cero no dice nada y ensucia la curva.
+    """
+    por_indice = {}
+    for f in crudo:
+        tk = f.get("ticker") or f.get("bond_name")
+        if not tk or _es_pata_sintetica(tk):
+            continue
+        if not f.get("last_price") or not f.get("tir"):
+            continue
+        papeles = por_indice.setdefault(f.get("index"), {})
+        anterior = papeles.get(tk)
+        if anterior and (ORDEN_PLAZO.get(anterior.get("settlement"), 9)
+                         <= ORDEN_PLAZO.get(f.get("settlement"), 9)):
+            continue
+        papeles[tk] = f
+
+    def redondo(v, dec):
+        return round(v, dec) if isinstance(v, (int, float)) else None
+
+    salida = []
+    for clave, titulo, nota in CURVAS_PESOS:
+        filas = []
+        for tk, f in por_indice.get(clave, {}).items():
+            # Un papel que ya vencio no tiene nada que hacer en una curva.
+            if (f.get("days_to_finish") or 0) <= 0:
+                continue
+            filas.append({
+                "t": tk,
+                "vto": f.get("end_date"),
+                "dias": f.get("days_to_finish"),
+                "precio": round(float(f["last_price"]), 3),
+                "tir": redondo(f.get("tir"), 6),
+                "tna": redondo(f.get("tna"), 6),
+                # `mtir` es la efectiva MENSUAL: la TEM con la que se mira este
+                # mercado. No se recalcula, se pasa.
+                "tem": redondo(f.get("mtir"), 6),
+                "duration": redondo(f.get("modified_duration"), 3),
+                "paridad": redondo(f.get("parity"), 4),
+                "volumen": redondo(f.get("volume"), 2),
+                "resumen": f.get("short_description") or "",
+            })
+        if not filas:
+            continue
+        filas.sort(key=lambda x: (x["dias"] or 0, x["t"]))
+        salida.append({"clave": clave, "titulo": titulo, "nota": nota, "filas": filas})
+    return salida
+
+
 def canje_de_leyes(filas):
     """
     Cuanto cuesta el ley argentina contra su gemelo de Nueva York, por par.
@@ -489,13 +589,14 @@ def main():
                     help="cuantos minutos vale el cache de ONs")
     args = ap.parse_args()
 
-    print(f"[1/3] Bajando {FUENTE}")
+    print(f"[1/4] Bajando {FUENTE}")
     try:
         crudo = bajar(FUENTE)
     except Exception as e:
         sys.exit(f"[X] No pude bajar los bonos: {e}")
     print(f"      {len(crudo)} especies en el panel")
 
+    hoy_real = date.today()
     cron = leer_cronogramas()
     print(f"      cronogramas cargados: {', '.join(sorted(cron)) or 'ninguno'}")
     filas = armar(crudo, cron)
@@ -511,14 +612,35 @@ def main():
     # Las ONs van aparte y NO son motivo para no publicar: si bonistas no
     # contesta, los soberanos igual salen. Una seccion menos es mejor que la
     # pantalla entera vacia, y la renta fija no puede tirar abajo las acciones.
-    print(f"[2/3] Bajando {FUENTE_ONS}")
-    ons, emis = [], []
+    # Un solo pedido a bonistas alcanza para las ONs Y para las curvas en
+    # pesos: es el mismo panel. Bajarlo dos veces seria castigar a la fuente
+    # por como esta organizado este programa.
+    print(f"[2/4] Bajando {FUENTE_ONS}")
+    ons, emis, pesos = [], [], []
     try:
-        ons = armar_ons(bajar_con_cache(FUENTE_ONS, args.cache_ons, args.ons_minutos))
+        panel = bajar_con_cache(FUENTE_ONS, args.cache_ons, args.ons_minutos)
+        ons = armar_ons(panel)
         emis = emisores(ons)
+        pesos = armar_pesos(panel)
         print(f"      {len(ons)} obligaciones negociables de {len(emis)} emisores")
+        for c in pesos:
+            print(f"      curva {c['titulo']:<14} {len(c['filas'])} papeles")
     except Exception as e:
-        print(f"      [!] no pude bajar las ONs ({e}); la seccion va a salir vacia")
+        print(f"      [!] no pude bajar bonistas ({e}); esas secciones salen vacias")
+
+    # Los futuros son otra fuente (A3) y otra caida posible: si no contestan,
+    # todo lo demas sale igual.
+    print(f"[3/4] Bajando futuros de {futuros.FUENTE}")
+    futs, spot, spot_fuente = [], None, None
+    try:
+        ruedas = futuros.bajar_ruedas(hoy=hoy_real)
+        valor, fecha_a3500 = futuros.a3500(hoy_real)
+        futs, spot, spot_fuente = futuros.armar(
+            ruedas, hoy_real, valor,
+            f"A3500 del {fecha_a3500[:10]}" if valor else None)
+        print(f"      {len(futs)} contratos vivos · spot {spot} ({spot_fuente})")
+    except Exception as e:
+        print(f"      [!] no pude bajar los futuros ({e}); la seccion sale vacia")
 
     ahora = datetime.now(timezone.utc)
     payload = {
@@ -533,13 +655,19 @@ def main():
         "verificados": sum(1 for f in filas if f.get("verificado")),
         "ons": ons,
         "emisores": emis,
+        "pesos": pesos,
+        "futuros": futs,
+        "spot": spot,
+        # De donde salio el spot. La pantalla lo dice: no es lo mismo el A3500
+        # oficial que una aproximacion con el contrato mas corto.
+        "spot_fuente": spot_fuente,
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)
     (out / "bonos.json").write_text(
         json.dumps(payload, separators=(",", ":"), allow_nan=False),
         encoding="utf-8")
-    print(f"[3/3] Listo -> {out}/bonos.json")
+    print(f"[4/4] Listo -> {out}/bonos.json")
 
 
 if __name__ == "__main__":

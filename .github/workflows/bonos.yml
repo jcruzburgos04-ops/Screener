@@ -17,6 +17,8 @@ jobs:
         with: {python-version: "3.12"}
       - name: La cuenta y los cronogramas, contra la referencia
         run: python pruebas/renta_fija.py
+      - name: Los futuros, solos (A3 + BCRA)
+        run: python futuros.py
       - name: Armar el payload con datos de verdad
         run: |
           python bonos.py --salida /tmp/sitio
@@ -47,6 +49,21 @@ jobs:
           print("canje de leyes (NY / ARG, en dolares MEP):")
           for pr in d['canje']:
               print(f"  {pr['arg']} vs {pr['ny']}  ({pr['vto']}):  {pr['ratio']}")
+          print()
+          print("curvas en pesos (agrupadas por el campo `index` de la fuente):")
+          for c in d.get('pesos', []):
+              print(f"  {c['titulo']} ({len(c['filas'])}):")
+              print(f"    {'ticker':<9}{'vto':<12}{'dias':>6}{'precio':>12}"
+                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}")
+              for x in c['filas'][:8]:
+                  print(f"    {x['t']:<9}{x['vto']:<12}{x['dias']:>6}{x['precio']:>12,.2f}"
+                        f"{(x['tna'] or 0)*100:>7.2f}%{(x['tir'] or 0)*100:>7.2f}%"
+                        f"{(x['tem'] or 0)*100:>7.2f}%")
+              if len(c['filas']) > 8:
+                  print(f"    ... y {len(c['filas'])-8} mas")
+          print()
+          print(f"futuros: {len(d.get('futuros',[]))} contratos · spot {d.get('spot')} "
+                f"({d.get('spot_fuente')})")
           print()
           print("obligaciones negociables por emisor (TIR de bonistas, no propia):")
           for e in d.get('emisores', [])[:25]:

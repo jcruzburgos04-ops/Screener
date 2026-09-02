@@ -628,19 +628,24 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .cv-eje{fill:var(--tenue);font-size:15px}
 .cv-rot{fill:var(--tenue);font-size:15px;letter-spacing:.08em}
 .cv-linea{fill:none;stroke-width:2}
-.cv-linea.pt-arg{stroke:var(--ambar)}
-.cv-linea.pt-ny{stroke:#5FA8D3}
+.cv-linea.pt-a{stroke:var(--ambar)}
+.cv-linea.pt-b{stroke:#5FA8D3}
+.cv-linea.pt-c{stroke:#7FB77E}
+.cv-linea.pt-d{stroke:#C08BC0}
 .cv-pt{cursor:pointer}
 .cv-pt circle{stroke:var(--fondo);stroke-width:2}
 .cv-pt text{font-size:16px;font-weight:600}
-.cv-pt.pt-arg circle{fill:var(--ambar)} .cv-pt.pt-arg text{fill:var(--ambar)}
-.cv-pt.pt-ny  circle{fill:#5FA8D3}      .cv-pt.pt-ny  text{fill:#5FA8D3}
+.cv-pt.pt-a circle{fill:var(--ambar)} .cv-pt.pt-a text{fill:var(--ambar)}
+.cv-pt.pt-b circle{fill:#5FA8D3}      .cv-pt.pt-b text{fill:#5FA8D3}
+.cv-pt.pt-c circle{fill:#7FB77E}      .cv-pt.pt-c text{fill:#7FB77E}
+.cv-pt.pt-d circle{fill:#C08BC0}      .cv-pt.pt-d text{fill:#C08BC0}
 .cv-pt:hover circle{r:8}
 .bo-leyenda{margin-left:auto;font-family:var(--mono);font-size:var(--t1);
   color:var(--tenue);font-weight:400;display:flex;align-items:center;gap:.4rem}
 .bo-leyenda i{width:9px;height:9px;border-radius:50%;display:inline-block;
   margin-left:.7rem}
-.bo-leyenda i.pt-arg{background:var(--ambar)} .bo-leyenda i.pt-ny{background:#5FA8D3}
+.bo-leyenda i.pt-a{background:var(--ambar)} .bo-leyenda i.pt-b{background:#5FA8D3}
+.bo-leyenda i.pt-c{background:#7FB77E}      .bo-leyenda i.pt-d{background:#C08BC0}
 
 /* ------------------------------- panorama ---------------------------------
    La vista de tarjetas: un vistazo al mercado sin leer una tabla. Cada tarjeta
@@ -3331,72 +3336,93 @@ function bfecha(iso){
   return (+p[2])+' '+(MESES[(+p[1])-1]||'?')+' '+p[0].slice(2);
 }
 
-/* ---------- la curva de rendimientos ----------
-   TIR contra duration, que es como la mira el mercado: la duration dice cuanta
-   plata esta expuesta a la tasa, y es lo unico que hace comparables a un bono
-   que vence en 2029 y a uno que vence en 2046. Contra el año de vencimiento la
-   curva sale deformada, porque un bono que amortiza temprano tiene mucha menos
-   duration que lo que su vencimiento sugiere.
+/* ---------- la curva, una sola para todas ----------
+   Nacio para los soberanos y ahora la usan tambien la curva en pesos, la CER,
+   la TAMAR, la dolar linked y la de futuros. Es la misma figura: puntos
+   etiquetados sobre dos ejes, una linea por serie. Tenerla dos veces era
+   garantia de que una se arregle y la otra no.
 
-   Se dibuja en SVG y no en canvas: escala sola con el ancho, se puede leer con
-   el inspector (o con jsdom, que es como se prueba acá) y no hace falta
-   redibujarla cuando cambia el tamaño de la ventana. */
-function curvaBonos(filas){
-  const p=filas.filter(b=>hay(b.tir)&&hay(b.duration));
+   Recibe: [{x, y, t, serie}] y no sabe nada de bonos. El que la llama decide
+   que va en cada eje -- duration contra TIR en los soberanos, dias contra TEM
+   en las letras -- y como se rotula.
+
+   SVG y no canvas: escala sola con el ancho, se lee con el inspector (y con
+   jsdom, que es como se prueba esto) y no hay que redibujar al cambiar de
+   tamaño la ventana. */
+const CV_COLORES=['pt-a','pt-b','pt-c','pt-d'];
+
+/* Las marcas del eje caen en numeros redondos: una grilla en 8,3333 no se lee. */
+function cvPaso(rango,cuantas){
+  const bruto=rango/Math.max(1,cuantas);
+  if(!(bruto>0))return 1;
+  const exp=Math.pow(10,Math.floor(Math.log10(bruto)));
+  return ([1,2,2.5,5,10].find(m=>bruto<=m*exp)||10)*exp;
+}
+
+function curvaXY(puntos,op){
+  op=op||{};
+  const p=puntos.filter(q=>hay(q.x)&&hay(q.y));
   if(p.length<2)return '';
-  const W=1000,H=400,ml=64,mr=96,mt=24,mb=52;
-  const xs=p.map(b=>b.duration), ys=p.map(b=>b.tir*100);
-  let x0=0, x1=Math.max(...xs)*1.12;
+  const W=1000,H=op.alto||380,ml=68,mr=80,mt=26,mb=54;
+  const xs=p.map(q=>q.x), ys=p.map(q=>q.y);
+  let x0=op.desdeCero===false?Math.min(...xs):0, x1=Math.max(...xs);
+  if(x1<=x0)x1=x0+1;
+  const padX=(x1-x0)*0.08; x1+=padX; if(op.desdeCero===false)x0-=padX;
   let y0=Math.min(...ys), y1=Math.max(...ys);
-  const pad=Math.max((y1-y0)*0.28,0.4); y0-=pad; y1+=pad;
+  const padY=Math.max((y1-y0)*0.3,Math.abs(y1||1)*0.02); y0-=padY; y1+=padY;
   const X=v=>ml+(v-x0)/(x1-x0)*(W-ml-mr);
   const Y=v=>mt+(y1-v)/(y1-y0)*(H-mt-mb);
+  const dec=v=>v<1?(v<0.1?2:1):0;
 
-  /* Las marcas del eje se eligen para que caigan en numeros redondos: una
-     grilla en 8,3333 no se lee. */
-  const pasoLindo=(rango,cuantas)=>{
-    const bruto=rango/cuantas, exp=Math.pow(10,Math.floor(Math.log10(bruto)));
-    return [1,2,2.5,5,10].find(m=>bruto<=m*exp)*exp;
-  };
-  const py=pasoLindo(y1-y0,5), px=pasoLindo(x1-x0,6);
+  const py=cvPaso(y1-y0,5), px=cvPaso(x1-x0,6);
   let ejes='';
-  for(let v=Math.ceil(y0/py)*py; v<=y1+1e-9; v+=py){
+  for(let v=Math.ceil(y0/py)*py; v<=y1+1e-9; v+=py)
     ejes+=`<line class="cv-grid" x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`+
-      `<text class="cv-eje" x="${ml-10}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${v.toFixed(py<1?1:0)}%</text>`;
-  }
-  for(let v=Math.ceil(x0/px)*px; v<=x1+1e-9; v+=px){
+      `<text class="cv-eje" x="${ml-10}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${v.toFixed(dec(py))}${op.sufijoY||'%'}</text>`;
+  for(let v=Math.ceil(x0/px)*px; v<=x1+1e-9; v+=px)
     ejes+=`<line class="cv-grid" y1="${mt}" y2="${H-mb}" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}"/>`+
-      `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${v.toFixed(px<1?1:0)}</text>`;
-  }
+      `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${v.toFixed(dec(px))}</text>`;
 
-  /* Una linea por ley: la distancia entre las dos ES el canje, dibujado. */
-  const serie=(ley,clase)=>{
-    const s=p.filter(b=>b.ley===ley).sort((a,b)=>a.duration-b.duration);
-    if(!s.length)return '';
-    const d=s.map((b,i)=>(i?'L':'M')+X(b.duration).toFixed(1)+' '+Y(b.tir*100).toFixed(1)).join(' ');
+  const nombres=[...new Set(p.map(q=>q.serie||''))];
+  const dibujo=nombres.map((n,i)=>{
+    const clase=CV_COLORES[i%CV_COLORES.length];
+    const s=p.filter(q=>(q.serie||'')===n).sort((a,b)=>a.x-b.x);
+    const d=s.map((q,j)=>(j?'L':'M')+X(q.x).toFixed(1)+' '+Y(q.y).toFixed(1)).join(' ');
     return `<path class="cv-linea ${clase}" d="${d}"/>`+
-      s.map(b=>`<g class="cv-pt ${clase}" data-t="${esc(b.t)}">`+
-        `<circle cx="${X(b.duration).toFixed(1)}" cy="${Y(b.tir*100).toFixed(1)}" r="6"/>`+
-        `<text x="${X(b.duration).toFixed(1)}" y="${(Y(b.tir*100)-13).toFixed(1)}" text-anchor="middle">${esc(b.t)}</text>`+
-        `<title>${esc(b.t)} · TIR ${(b.tir*100).toFixed(2)}% · duration ${b.duration.toFixed(2)} años</title>`+
+      s.map(q=>`<g class="cv-pt ${clase}" data-t="${esc(q.t||'')}">`+
+        `<circle cx="${X(q.x).toFixed(1)}" cy="${Y(q.y).toFixed(1)}" r="5.5"/>`+
+        `<text x="${X(q.x).toFixed(1)}" y="${(Y(q.y)-12).toFixed(1)}" text-anchor="middle">${esc(q.t||'')}</text>`+
+        `<title>${esc(q.t||'')}${n?' · '+esc(n):''} · ${q.y.toFixed(2)}${op.sufijoY||'%'} · ${esc(op.rotuloX||'x')} ${q.x.toFixed(2)}</title>`+
         `</g>`).join('');
-  };
+  }).join('');
+
+  const leyenda=nombres.length>1&&nombres[0]!==''
+    ? `<span class="bo-leyenda">${nombres.map((n,i)=>
+        `<i class="${CV_COLORES[i%CV_COLORES.length]}"></i>${esc(n)}`).join('')}</span>`:'';
 
   return `<div class="bo-tarjeta">
-    <div class="bo-tit">Curva de rendimientos
-      <span class="bo-leyenda"><i class="pt-arg"></i>ley Argentina<i class="pt-ny"></i>ley Nueva York</span></div>
-    <p class="bo-nota">Cada punto es un bono: a la derecha, más plazo expuesto a la tasa
-      (<b>duration</b>); arriba, más rendimiento (<b>TIR</b> anual en dólares). Se usa la
-      duration y no el año de vencimiento porque un bono que amortiza temprano devuelve
-      la plata mucho antes de lo que su vencimiento sugiere.
-      <b>La distancia vertical entre las dos líneas es el canje de leyes</b>.</p>
+    <div class="bo-tit">${esc(op.titulo||'Curva')}${leyenda}</div>
+    ${op.nota?`<p class="bo-nota">${op.nota}</p>`:''}
     <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
       ${ejes}
       <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${H-mb}" y2="${H-mb}"/>
       <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${H-mb}"/>
-      ${serie('Argentina','pt-arg')}${serie('Nueva York','pt-ny')}
-      <text class="cv-rot" x="${(ml+W-mr)/2}" y="${H-8}" text-anchor="middle">duration modificada · años</text>
+      ${dibujo}
+      <text class="cv-rot" x="${(ml+W-mr)/2}" y="${H-8}" text-anchor="middle">${esc(op.rotuloX||'')}</text>
     </svg></div></div>`;
+}
+
+/* La de los soberanos queda como un caso de la general. */
+function curvaBonos(filas){
+  return curvaXY(filas.filter(b=>hay(b.tir)&&hay(b.duration))
+      .map(b=>({x:b.duration, y:b.tir*100, t:b.t, serie:'ley '+b.ley})),{
+    titulo:'Curva de rendimientos',
+    rotuloX:'duration modificada · años',
+    nota:'Cada punto es un bono: a la derecha, más plazo expuesto a la tasa '+
+      '(<b>duration</b>); arriba, más rendimiento (<b>TIR</b> anual en dólares). Se usa '+
+      'la duration y no el año de vencimiento porque un bono que amortiza temprano '+
+      'devuelve la plata mucho antes de lo que su vencimiento sugiere. '+
+      '<b>La distancia vertical entre las dos líneas es el canje de leyes</b>.'});
 }
 
 /* ---------- la tabla grande ---------- */
