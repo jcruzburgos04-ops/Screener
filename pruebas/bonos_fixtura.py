@@ -48,6 +48,44 @@ def panel():
     return filas
 
 
+# Un puñado de ONs con la forma exacta que devuelve bonistas: varias del mismo
+# emisor, la misma especie repetida en dos plazos de liquidacion (que armar_ons
+# tiene que deduplicar), una step-up sin tasa unica y una sin precio.
+CRUDO_ONS = [
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "YMCJD", "emisor": "YPF S.A.",
+     "end_date": "2031-01-15", "start_date": "2024-01-15", "days_to_finish": 1596,
+     "last_price": 101.5, "tir": 0.0812, "modified_duration": 3.55, "parity": 1.012,
+     "settlement": "24hs", "short_description": "Bono USD Ley Arg. - 8.50% - vto. 01/2031",
+     "description": "**Cupón:**\n- Tasa nominal anual (TNA): 8.50%"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "YMCJD", "emisor": "YPF S.A.",
+     "end_date": "2031-01-15", "start_date": "2024-01-15", "days_to_finish": 1596,
+     "last_price": 99.9, "tir": 0.09, "modified_duration": 3.55, "parity": 1.0,
+     "settlement": "CI", "short_description": "x", "description": "x"},
+    {"bond_family": "ONS-CABLE", "bond_law": "LNY", "ticker": "YMCIC", "emisor": "YPF S.A.",
+     "end_date": "2029-06-30", "start_date": "2021-02-12", "days_to_finish": 1034,
+     "last_price": 89.95, "tir": 0.0677, "modified_duration": 1.43, "parity": 1.033,
+     "settlement": "24hs", "short_description": "Bono USD Ley NY - vto. 06/2029",
+     "description": "**Cupón:**\nCupones con tasas crecientes:\n"
+                    "  - Cupones 1-3: 2.50% TNA\n  - Cupones 4-17: 9.00% TNA"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "PN36D",
+     "emisor": "Pan American Energy", "end_date": "2031-11-13",
+     "start_date": "2024-11-13", "days_to_finish": 1898, "last_price": 109.3,
+     "tir": 0.0574, "modified_duration": 4.24, "parity": 1.069, "settlement": "24hs",
+     "short_description": "Bono USD Ley Arg. - 7.25% - vto. 11/2031",
+     "description": "**Cupón:**\n- Tasa nominal anual (TNA): 7.25%"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "TLC5D", "emisor": "Telecom",
+     "end_date": "2028-03-01", "start_date": "2023-03-01", "days_to_finish": 546,
+     "last_price": 104.0, "tir": 0.0721, "modified_duration": 1.38, "parity": 1.03,
+     "settlement": "24hs", "short_description": "Bono USD Ley Arg. - 9.50% - vto. 03/2028",
+     "description": "**Cupón:**\n- Tasa nominal anual (TNA): 9.50%"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "XXXXD", "emisor": "Fantasma",
+     "end_date": "2030-01-01", "last_price": None, "settlement": "24hs"},
+    {"bond_family": "BONO-USD-LPA", "bond_law": "LA", "ticker": "AL30",
+     "emisor": "Argentino", "end_date": "2030-07-09", "last_price": 55.64,
+     "settlement": "24hs"},
+]
+
+
 def main():
     raiz = Path(__file__).resolve().parent.parent
     cron = bonos.leer_cronogramas(raiz / "bonos_cronograma.csv")
@@ -62,6 +100,8 @@ def main():
         "canje": bonos.canje_de_leyes(filas),
         "con_tir": sum(1 for f in filas if f.get("tir") is not None),
         "verificados": sum(1 for f in filas if f.get("verificado")),
+        "ons": bonos.armar_ons(CRUDO_ONS),
+        "emisores": bonos.emisores(bonos.armar_ons(CRUDO_ONS)),
     }
     salida = Path(__file__).resolve().parent / "bonos_fixtura.json"
     salida.write_text(json.dumps(payload, separators=(",", ":"), allow_nan=False),
@@ -73,6 +113,7 @@ def main():
             print(f"      {f['t']:<5} TIR {f['tir']*100:6.2f}%  TNA {f['tna']*100:6.2f}%  "
                   f"paridad {f['paridad']*100:5.1f}%  dur {f['duration']:.2f}  "
                   f"DV01 {f['dv01']:.4f}  vivo {f['vivo']:.0f}  pagos {f['pagos']}")
+    print(f"      {len(payload['ons'])} ONs de {len(payload['emisores'])} emisores")
     print(f"      -> {salida.name}")
 
 

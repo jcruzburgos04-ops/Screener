@@ -46,12 +46,19 @@ corporate-bonds y negotiable-obligations dan 401). Por eso van a mano.
 
 import argparse
 import json
+import re
 import sys
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 FUENTE = "https://data912.com/live/arg_bonds"
+
+# Las obligaciones negociables salen de otra fuente, porque data912 publica sus
+# PRECIOS (/live/arg_corp) pero no dice de quien es cada papel ni cuando vence,
+# y una tabla de ONs sin emisor ni vencimiento no sirve para nada. bonistas.com
+# publica emisor, vencimiento, ley, cupon y las condiciones de emision.
+FUENTE_ONS = "https://bonistas.com/api/bonds"
 CABECERA = {"User-Agent": "Mozilla/5.0"}
 
 # Los soberanos del canje 2020. La letra del medio dice la ley:
@@ -234,6 +241,38 @@ def bajar(url):
         return json.loads(r.read().decode("utf-8"))
 
 
+def bajar_con_cache(url, cache, minutos):
+    """
+    Igual que bajar(), pero reusa lo ultimo bajado si tiene menos de `minutos`.
+
+    Existe por educacion con la fuente: intradia.yml publica cada diez minutos
+    durante toda la rueda y el panel de ONs pesa 1,6 MB. Bajarlo cinco veces por
+    hora es castigar gratis a un servicio ajeno cuando los precios de la deuda
+    corporativa no se mueven a ese ritmo. Con media hora de cache cada
+    publicacion sigue saliendo COMPLETA -- no se cae la seccion en las vueltas
+    intermedias -- y los pedidos bajan a dos por hora.
+    """
+    if cache:
+        c = Path(cache)
+        if c.exists():
+            edad = (datetime.now(timezone.utc).timestamp() - c.stat().st_mtime) / 60
+            if edad < minutos:
+                try:
+                    print(f"      (uso el cache de las ONs, {edad:.0f} min)")
+                    return json.loads(c.read_text(encoding="utf-8"))
+                except Exception:
+                    pass  # cache roto: se baja de nuevo, no se cae nada
+    datos = bajar(url)
+    if cache:
+        try:
+            c = Path(cache)
+            c.parent.mkdir(parents=True, exist_ok=True)
+            c.write_text(json.dumps(datos, separators=(",", ":")), encoding="utf-8")
+        except Exception as e:
+            print(f"      (no pude guardar el cache de ONs: {e})")
+    return datos
+
+
 def precio(fila):
     """El ultimo operado; si no hubo, el punto medio de la punta."""
     if not fila:
@@ -310,6 +349,111 @@ def armar(crudo, cronogramas=None, hoy=None):
     return salida
 
 
+# ---------------------------------------------------------------------------
+# OBLIGACIONES NEGOCIABLES
+#
+# ACA EL RENDIMIENTO NO ES PROPIO Y HAY QUE DECIRLO. Para los soberanos el
+# cronograma esta cargado y verificado, asi que la TIR se calcula aca y se
+# puede auditar. Para las ONs no: son cientos de emisiones, cada una con sus
+# condiciones, y no hay ninguna fuente publica con los flujos. Lo que se
+# muestra es la TIR que publica bonistas, ATRIBUIDA, no presentada como propia.
+#
+# Que NO se toma de ahi: el campo de amortizacion. Dice "bullet (100% al
+# vencimiento)" hasta para los soberanos del canje, que amortizan en cuotas
+# desde 2024. Si esta mal en los que se pueden verificar, no se usa en los que
+# no.
+# ---------------------------------------------------------------------------
+
+FAMILIAS_ON = ("ONS", "ONS-CABLE")
+
+# Cada emision cotiza en varios plazos de liquidacion. Se prefiere 24hs, que es
+# donde se opera de verdad.
+ORDEN_PLAZO = {"24hs": 0, "CI": 1}
+
+
+def _tna(fila):
+    """
+    La tasa del cupon, sacada del texto de las condiciones.
+
+    NO se usa el campo `coupon`: ese es OTRA cosa -- el importe del proximo
+    pago -- y confundirlos es justamente lo que destrabo los cronogramas de los
+    soberanos. Una ON step-up no tiene UNA tasa: ahi devuelve None y la
+    pantalla muestra un punto, que es lo honesto.
+    """
+    for texto in (fila.get("description") or "", fila.get("short_description") or ""):
+        m = (re.search(r"TNA\)?:?\s*([\d.,]+)\s*%", texto)
+             or re.search(r"-\s*([\d.,]+)%\s*-\s*vto", texto))
+        if m:
+            try:
+                return float(m.group(1).replace(",", "."))
+            except ValueError:
+                pass
+    return None
+
+
+def armar_ons(crudo):
+    por = {}
+    for f in crudo:
+        if f.get("bond_family") not in FAMILIAS_ON:
+            continue
+        tk = f.get("ticker") or f.get("bond_name")
+        if not tk or not f.get("last_price"):
+            continue
+        anterior = por.get(tk)
+        if anterior and (ORDEN_PLAZO.get(anterior.get("settlement"), 9)
+                         <= ORDEN_PLAZO.get(f.get("settlement"), 9)):
+            continue
+        por[tk] = f
+
+    def redondo(v, dec):
+        return round(v, dec) if isinstance(v, (int, float)) else None
+
+    return [{
+        "t": tk,
+        "emisor": f.get("emisor") or "—",
+        "ley": "Nueva York" if f.get("bond_law") == "LNY" else "Argentina",
+        "cable": f.get("bond_family") == "ONS-CABLE",
+        "vto": f.get("end_date"),
+        "emitido": f.get("start_date"),
+        "dias": f.get("days_to_finish"),
+        "precio": round(float(f["last_price"]), 2),
+        "cupon": _tna(f),
+        # Los tres de abajo los calcula bonistas, no este programa. La pantalla
+        # lo dice en la tarjeta.
+        "tir": redondo(f.get("tir"), 6),
+        "duration": redondo(f.get("modified_duration"), 3),
+        "paridad": redondo(f.get("parity"), 4),
+        "resumen": f.get("short_description") or "",
+    } for tk, f in sorted(por.items())]
+
+
+def emisores(ons):
+    """
+    Agrupa por emisor: es como mira esto el que arma una cartera para un
+    cliente -- primero decide A QUIEN le presta y despues a que plazo. YPF a
+    2029 y YPF a 2031 son la misma decision de credito.
+    """
+    por = {}
+    for o in ons:
+        por.setdefault(o["emisor"], []).append(o)
+    salida = []
+    for nombre, papeles in por.items():
+        tirs = sorted(p["tir"] for p in papeles if p["tir"] is not None)
+        # La mediana y no el promedio: una emision corta y rara mueve el
+        # promedio y no dice nada del riesgo del emisor. Con cantidad par se
+        # promedian las dos del medio, que es la mediana de verdad; quedarse
+        # con la de arriba le sube la tasa a todo emisor con dos papeles.
+        if tirs:
+            m = len(tirs) // 2
+            med = tirs[m] if len(tirs) % 2 else (tirs[m - 1] + tirs[m]) / 2
+        else:
+            med = None
+        salida.append({"emisor": nombre, "papeles": len(papeles),
+                       "tir_med": round(med, 6) if med is not None else None})
+    salida.sort(key=lambda x: (x["tir_med"] is None, -(x["tir_med"] or 0)))
+    return salida
+
+
 def canje_de_leyes(filas):
     """
     Cuanto cuesta el ley argentina contra su gemelo de Nueva York, por par.
@@ -339,9 +483,13 @@ def main():
     ap.add_argument("--salida", default="sitio")
     ap.add_argument("--minimo", type=int, default=6,
                     help="si vienen menos bonos que esto, no se escribe")
+    ap.add_argument("--cache-ons", default="",
+                    help="archivo donde guardar el panel de ONs entre corridas")
+    ap.add_argument("--ons-minutos", type=int, default=30,
+                    help="cuantos minutos vale el cache de ONs")
     args = ap.parse_args()
 
-    print(f"[1/2] Bajando {FUENTE}")
+    print(f"[1/3] Bajando {FUENTE}")
     try:
         crudo = bajar(FUENTE)
     except Exception as e:
@@ -360,6 +508,18 @@ def main():
     if len(filas) < args.minimo:
         sys.exit(f"[X] Solo {len(filas)} bonos con precio: no escribo nada.")
 
+    # Las ONs van aparte y NO son motivo para no publicar: si bonistas no
+    # contesta, los soberanos igual salen. Una seccion menos es mejor que la
+    # pantalla entera vacia, y la renta fija no puede tirar abajo las acciones.
+    print(f"[2/3] Bajando {FUENTE_ONS}")
+    ons, emis = [], []
+    try:
+        ons = armar_ons(bajar_con_cache(FUENTE_ONS, args.cache_ons, args.ons_minutos))
+        emis = emisores(ons)
+        print(f"      {len(ons)} obligaciones negociables de {len(emis)} emisores")
+    except Exception as e:
+        print(f"      [!] no pude bajar las ONs ({e}); la seccion va a salir vacia")
+
     ahora = datetime.now(timezone.utc)
     payload = {
         "fecha": ahora.strftime("%Y-%m-%d %H:%M"),
@@ -371,13 +531,15 @@ def main():
         # cuantos tienen rendimiento y cuantos de esos estan verificados
         "con_tir": sum(1 for f in filas if f.get("tir") is not None),
         "verificados": sum(1 for f in filas if f.get("verificado")),
+        "ons": ons,
+        "emisores": emis,
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)
     (out / "bonos.json").write_text(
         json.dumps(payload, separators=(",", ":"), allow_nan=False),
         encoding="utf-8")
-    print(f"[2/2] Listo -> {out}/bonos.json")
+    print(f"[3/3] Listo -> {out}/bonos.json")
 
 
 if __name__ == "__main__":

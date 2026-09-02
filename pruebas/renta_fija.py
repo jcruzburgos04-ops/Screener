@@ -141,6 +141,52 @@ for b, pagos in sorted(cron.items()):
     ok(f"{b}: el ultimo pago deja el bono en cero",
        cerca(det[-1]["vivo"], 0.0, 1e-4), det[-1]["vivo"])
 
+print("\n== obligaciones negociables ==")
+CRUDO = [
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "AAA1D", "emisor": "Uno",
+     "end_date": "2030-01-01", "last_price": 100.0, "tir": 0.08,
+     "modified_duration": 3.0, "parity": 1.0, "settlement": "24hs",
+     "description": "**Cupón:**\\n- Tasa nominal anual (TNA): 8.75%"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "AAA1D", "emisor": "Uno",
+     "end_date": "2030-01-01", "last_price": 99.0, "tir": 0.09,
+     "modified_duration": 3.0, "parity": 1.0, "settlement": "CI",
+     "description": "x"},
+    {"bond_family": "ONS-CABLE", "bond_law": "LNY", "ticker": "BBB1C", "emisor": "Uno",
+     "end_date": "2029-01-01", "last_price": 90.0, "tir": 0.10,
+     "modified_duration": 2.0, "parity": 0.9, "settlement": "24hs",
+     "short_description": "Bono USD Ley NY - 6.25% - vto. 01/2029"},
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "CCC1D", "emisor": "Dos",
+     "end_date": "2028-01-01", "last_price": 101.0, "tir": 0.05,
+     "modified_duration": 1.0, "parity": 1.0, "settlement": "24hs",
+     "description": "sin tasa en ningun lado"},
+    {"bond_family": "ONS", "ticker": "SINPX", "emisor": "Tres", "last_price": None},
+    {"bond_family": "BONO-USD-LPA", "ticker": "AL30", "emisor": "Argentino",
+     "last_price": 55.0, "settlement": "24hs"},
+]
+o = bonos.armar_ons(CRUDO)
+tk = [x["t"] for x in o]
+ok("se queda con una fila por especie", tk == ["AAA1D", "BBB1C", "CCC1D"], tk)
+ok("y con el plazo que se opera (24hs), no el contado inmediato",
+   o[0]["precio"] == 100.0, o[0]["precio"])
+ok("saltea las que no tienen precio", "SINPX" not in tk)
+ok("y lo que no es una ON", "AL30" not in tk)
+ok("lee la tasa del texto de las condiciones", o[0]["cupon"] == 8.75, o[0]["cupon"])
+ok("o del resumen cuando no esta en el texto", o[1]["cupon"] == 6.25, o[1]["cupon"])
+# Una ON step-up no tiene UNA tasa. Poner un numero ahi seria inventarlo.
+ok("y deja el cupon vacio si no lo dice en ningun lado, en vez de inventarlo",
+   o[2]["cupon"] is None, o[2]["cupon"])
+ok("marca las que liquidan afuera", o[1]["cable"] is True and o[0]["cable"] is False)
+ok("traduce la ley", o[1]["ley"] == "Nueva York" and o[0]["ley"] == "Argentina")
+
+e = bonos.emisores(o)
+ok("agrupa por emisor", [x["emisor"] for x in e] == ["Uno", "Dos"],
+   [x["emisor"] for x in e])
+ok("cuenta los papeles", e[0]["papeles"] == 2, e[0]["papeles"])
+ok("la mediana de un emisor con dos papeles es el promedio de los dos",
+   cerca(e[0]["tir_med"], 0.09, 1e-9), e[0]["tir_med"])
+ok("y los ordena por lo que el mercado les cobra",
+   e[0]["tir_med"] > e[1]["tir_med"])
+
 print("\n== una linea rota del CSV se saltea, no rompe el archivo ==")
 with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as f:
     f.write("# comentario\nZZ99,2027-01-09,1.0,10,1\nZZ99,ROTA\n"
