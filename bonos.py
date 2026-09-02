@@ -519,6 +519,51 @@ PREFIJOS_AJENOS = ("ONS", "BONO-USD-", "BOPREAL")
 SUFIJO_EN_DOLARES = "-USD"
 
 
+# Un papel que no opero hoy no tiene precio: tiene una PUNTA, que puede ser de
+# hace dias. En el panel del 2/9/2026 habia 15 de 54 asi, y CUATRO DE LOS SEIS
+# dolar linked estaban en ese grupo -- por eso esa curva salia con 0,8% y 10,8%
+# mezclados sin nada en el medio: no era el mercado, eran cotizaciones rancias.
+#
+# Las dos condiciones son RELATIVAS a proposito, para que no quede un umbral
+# que envejezca cuando cambien los volumenes del mercado:
+#   1. que haya operado algo (volumen > 0), que no necesita umbral ninguno; y
+#   2. que ese algo no sea una miga contra lo que opera el resto de SU curva.
+# La segunda es la que saca al TY30P: negocio 0,01 contra una mediana de 7,72
+# y el solo estiraba el eje de 300 a 1365 dias, aplastando los diez papeles
+# que si se operan contra el margen izquierdo.
+#
+# No se los borra: se los marca. Siguen en la tabla, con su precio, y el
+# grafico dice cuantos dejo afuera.
+FRACCION_MEDIANA = 0.01
+
+# La condicion relativa necesita una muestra para tener contra que comparar.
+# Con dos papeles la "mediana" ES el mas grande y el otro queda afuera por
+# nada. Debajo de esto se aplica solo la primera condicion, que no necesita
+# muestra: opero o no opero.
+MINIMO_PARA_RELATIVO = 5
+
+
+def marcar_operados(filas):
+    """
+    Marca cada fila con `opero`: si su precio es de una rueda de verdad o es
+    una punta vieja. Si la fuente no manda volumen para NINGUNA fila de la
+    curva, no hay con que juzgar y pasan todas -- callarse media curva por un
+    campo que no vino seria peor que el problema que esto arregla.
+    """
+    vols = sorted(f["volumen"] for f in filas
+                  if isinstance(f.get("volumen"), (int, float)))
+    if not vols:
+        for f in filas:
+            f["opero"] = True
+        return filas
+    piso = (vols[len(vols) // 2] * FRACCION_MEDIANA
+            if len(vols) >= MINIMO_PARA_RELATIVO else 0)
+    for f in filas:
+        v = f.get("volumen")
+        f["opero"] = bool(isinstance(v, (int, float)) and v > 0 and v >= piso)
+    return filas
+
+
 def _es_pata_sintetica(tk, familia):
     """
     Las patas sueltas de un dual (TXMJ8_CER, TTS26_CAP, BPOA8_PUT) no son
@@ -597,7 +642,10 @@ def armar_pesos(crudo):
         if not filas:
             continue
         filas.sort(key=lambda x: (x["dias"] or 0, x["t"]))
-        salida.append({"clave": str(ind), "titulo": titulo, "nota": nota, "filas": filas})
+        marcar_operados(filas)
+        salida.append({"clave": str(ind), "titulo": titulo, "nota": nota,
+                       "filas": filas,
+                       "operados": sum(1 for f in filas if f["opero"])})
     return salida
 
 

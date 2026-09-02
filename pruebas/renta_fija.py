@@ -266,6 +266,60 @@ ok("LECAP y BONCAP caen en la MISMA curva de tasa fija",
    len(j) == 1 and sorted(f["t"] for f in j[0]["filas"]) == ["S30S6", "TO26"],
    [(x["clave"], [f["t"] for f in x["filas"]]) for x in j])
 
+print("\n== los que distorsionan el grafico: no operaron ==")
+# Los volumenes son los REALES del panel del 2/9/2026, sacados de la corrida
+# del workflow. Es el caso que hay que arreglar, no uno inventado: cuatro de
+# los seis dolar linked no operaron nada y la curva salia con 0,8% y 10,8%
+# mezclados; el TY30P negocio 0,01 contra una mediana de 7,72 y el solo
+# estiraba el eje de 300 a 1365 dias.
+def _p(t, dias, tem, vol, ind="Fijo", fam="LETRAS-FIJO"):
+    return {"ticker": t, "bond_family": fam, "index": ind,
+            "end_date": "2027-01-01", "days_to_finish": dias, "last_price": 100.0,
+            "tir": tem * 12, "tna": tem * 12, "mtir": tem, "volume": vol,
+            "settlement": "24hs"}
+
+FIJA = [_p("S15S6", 12, 0.0201, 69.24), _p("S30S6", 27, 0.0192, 116.28),
+        _p("TO26", 46, 0.0185, 1.13),   _p("S30O6", 57, 0.0190, 114.41),
+        _p("S13N6", 71, 0.0202, 7.72),  _p("S30N6", 88, 0.0208, 148.60),
+        _p("T15E7", 134, 0.0202, 8.94), _p("T30A7", 239, 0.0213, 6.76),
+        _p("T31Y7", 270, 0.0216, 7.05), _p("T30J7", 300, 0.0211, 4.90),
+        _p("TY30P", 1365, 0.0217, 0.01)]
+f = {x["t"]: x for x in bonos.armar_pesos(FIJA)[0]["filas"]}
+ok("el que negocio una miga contra su curva queda marcado",
+   f["TY30P"]["opero"] is False, f["TY30P"]["volumen"])
+ok("y los que operaron de verdad pasan", all(f[t]["opero"] for t in
+   ("S15S6", "S30S6", "S30O6", "S13N6", "S30N6")))
+# 1,13 contra una mediana de 7,72 es poco, pero es una operacion de verdad:
+# el filtro apunta a las puntas rancias, no a los papeles flacos.
+ok("un papel poco operado NO es lo mismo que uno sin operar",
+   f["TO26"]["opero"] is True, f["TO26"]["volumen"])
+
+USDL = [_p("D30S6", 27, 0.0045, 0.0, "USDL", "DOLAR-LINKED"),
+        _p("D31M7", 209, 0.0040, 0.0, "USDL", "DOLAR-LINKED"),
+        _p("D10Y7", 249, 0.0007, 0.0, "USDL", "DOLAR-LINKED"),
+        _p("TZV27", 300, 0.0020, 0.0, "USDL", "DOLAR-LINKED"),
+        _p("TZV28", 666, 0.0085, 1.97, "USDL", "DOLAR-LINKED"),
+        _p("TZVD8", 834, 0.0086, 2.79, "USDL", "DOLAR-LINKED")]
+u = bonos.armar_pesos(USDL)[0]
+ok("de los seis dolar linked reales, quedan los dos que operaron",
+   u["operados"] == 2, u["operados"])
+ok("pero los seis siguen en la tabla", len(u["filas"]) == 6, len(u["filas"]))
+ok("los que quedan son justamente los que tenian volumen",
+   sorted(x["t"] for x in u["filas"] if x["opero"]) == ["TZV28", "TZVD8"])
+
+# Si la fuente deja de mandar el volumen, callarse media curva seria peor que
+# el problema que esto arregla. Sin dato, pasan todos.
+SIN_VOL = [{k: v for k, v in x.items() if k != "volume"} for x in FIJA]
+ok("sin el campo volumen no se filtra nada",
+   all(x["opero"] for x in bonos.armar_pesos(SIN_VOL)[0]["filas"]))
+ok("un cero explicito si filtra",
+   bonos.marcar_operados([{"volumen": 0.0}, {"volumen": 5.0}])[0]["opero"] is False)
+# Con dos papeles la "mediana" es el mas grande y el chico quedaba afuera por
+# nada. Debajo de cinco vale solo la condicion que no necesita muestra.
+ok("con pocos papeles no se aplica el piso relativo",
+   [x["opero"] for x in bonos.marcar_operados(
+       [{"volumen": 157.3}, {"volumen": 33385.4}])] == [True, True])
+
 print("\n== futuros: el vencimiento sale del simbolo, no de una lista ==")
 import futuros  # noqa: E402
 ok("DLR092026 vence el ultimo dia habil de septiembre",

@@ -50,30 +50,29 @@ jobs:
           for pr in d['canje']:
               print(f"  {pr['arg']} vs {pr['ny']}  ({pr['vto']}):  {pr['ratio']}")
           print()
-          print("curvas en pesos, con VOLUMEN para ver que papeles son de verdad:")
+          # La columna que importa es la ultima: `dib` dice si el papel entra al
+          # grafico. Lo decide bonos.py por volumen, asi que esta consola y la
+          # pagina dicen exactamente lo mismo -- si alguna vez discrepan, es
+          # que alguien duplico la regla en el frontend.
+          print("curvas en pesos (dib = entra al grafico; el resto no opero hoy):")
           for c in d.get('pesos', []):
-              print(f"  {c['titulo']} ({len(c['filas'])}):")
+              print(f"  {c['titulo']} ({len(c['filas'])} papeles, "
+                    f"{c.get('operados', 0)} operaron):")
               print(f"    {'ticker':<9}{'vto':<12}{'dias':>6}{'precio':>12}"
-                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}{'volumen':>12}")
+                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}{'volumen':>12}  dib")
               for x in c['filas']:
                   print(f"    {x['t']:<9}{x['vto']:<12}{x['dias']:>6}{x['precio']:>12,.2f}"
                         f"{(x['tna'] or 0)*100:>7.2f}%{(x['tir'] or 0)*100:>7.2f}%"
-                        f"{(x['tem'] or 0)*100:>7.2f}%{(x['volumen'] or 0):>12,.2f}")
-          # Los que se salen de la curva: se listan aparte con su volumen, que
-          # es lo que dice si el precio es real o una punta vieja.
+                        f"{(x['tem'] or 0)*100:>7.2f}%{(x['volumen'] or 0):>12,.2f}"
+                        f"  {'si' if x.get('opero') else '--'}")
           print()
-          print("los que mas se alejan de su curva:")
-          for c in d.get('pesos', []):
-              tems = sorted(x['tem'] for x in c['filas'] if x['tem'] is not None)
-              if len(tems) < 5: continue
-              q1, q3 = tems[len(tems)//4], tems[3*len(tems)//4]
-              ric = q3 - q1
-              for x in c['filas']:
-                  if x['tem'] is None or ric <= 0: continue
-                  if x['tem'] < q1 - 3*ric or x['tem'] > q3 + 3*ric:
-                      print(f"  {c['titulo']:<14} {x['t']:<8} TEM {x['tem']*100:7.2f}% "
-                            f"(mediana {tems[len(tems)//2]*100:.2f}%) "
-                            f"volumen {(x['volumen'] or 0):,.2f} dias {x['dias']}")
+          quietos = [(c['titulo'], x) for c in d.get('pesos', [])
+                     for x in c['filas'] if not x.get('opero')]
+          print(f"sin operar hoy: {quietos and len(quietos) or 0} de "
+                f"{sum(len(c['filas']) for c in d.get('pesos', []))}")
+          for t, x in quietos:
+              print(f"  {t:<14} {x['t']:<8} TEM {(x['tem'] or 0)*100:7.2f}% "
+                    f"dias {x['dias']:>5}  volumen {(x['volumen'] or 0):,.2f}")
           print()
           print(f"futuros: {len(d.get('futuros',[]))} contratos · spot {d.get('spot')} "
                 f"({d.get('spot_fuente')})")

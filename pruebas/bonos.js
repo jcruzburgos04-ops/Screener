@@ -172,7 +172,8 @@ console.log('== el interruptor de tres posiciones ==');
     rotulos de cincuenta papeles se pisan, y sobre todo las escalas no son
     comparables -- un CER rinde 0,3% mensual REAL y una LECAP 2,1% NOMINAL, asi
     que en el mismo eje parece que una paga siete veces mas que la otra. */
- const conCurva=curvas.filter(c=>c.filas.filter(f=>f.tem!=null&&f.dias!=null).length>=2);
+ const dibujable=c=>c.filas.filter(f=>f.opero!==false&&f.tem!=null&&f.dias!=null);
+ const conCurva=curvas.filter(c=>dibujable(c).length>=2);
  const svgs=d.querySelectorAll('#bonosCuerpo svg.cv');
  ok('una curva por familia con dos papeles o mas, y ninguna que las mezcle',
     svgs.length===conCurva.length,svgs.length+' vs '+conCurva.length);
@@ -194,6 +195,43 @@ console.log('== el interruptor de tres posiciones ==');
  const s30=curvas[0].filas.find(x=>x.t==='S30S6');
  ok('la TEM que muestra es la del payload',
     tp.indexOf((s30.tem*100).toFixed(2))>=0,(s30.tem*100).toFixed(2));
+
+ /* Los papeles que hoy no operaron. Su "precio" es una punta que puede ser de
+    hace dias, y uno solo abre el eje de toda la curva: en el panel real un
+    dolar linked sin operar hacia que la familia entera saliera con 0,8% y
+    10,8% mezclados. Se sacan DEL DIBUJO y se dejan en la tabla, apagados.
+    Quien decide es bonos.py, no esta pantalla: la regla es una sola. */
+ const cer=curvas.find(c=>c.clave==='CER');
+ const quieto=cer.filas.find(f=>f.opero===false);
+ ok('la fuente marca el papel que no opero',!!quieto&&quieto.volumen===0,
+    quieto&&quieto.volumen);
+ const svgCer=[...svgs].find(g=>g.closest('.bo-tarjeta')
+   .querySelector('.bo-tit').textContent.trim().indexOf('CER')===0);
+ ok('no lo dibuja',
+    svgCer.textContent.indexOf(quieto.t)<0,svgCer.textContent.slice(0,90));
+ ok('pero dibuja a los que si operaron',
+    svgCer.querySelectorAll('.cv-pt').length===dibujable(cer).length,
+    svgCer.querySelectorAll('.cv-pt').length+' vs '+dibujable(cer).length);
+ const trQ=[...d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr')]
+   .find(tr=>tr.textContent.indexOf(quieto.t)>=0);
+ ok('sigue en la tabla',!!trQ,quieto.t);
+ ok('y ahi se ve apagado',trQ.className.indexOf('bo-quieto')>=0,trQ.className);
+ // El texto viene con saltos de linea del template, asi que se compara plano.
+ const plano=tp.replace(/\s+/g,' ');
+ ok('la pantalla dice cuantos dejo afuera y por que',
+    /quedó fuera del gráfico/.test(plano)&&/porque hoy no operaron/.test(plano),
+    plano.slice(plano.indexOf('quedó')-20,plano.indexOf('quedó')+120));
+ ok('y cuenta cuantos operaron en el titulo de la familia',
+    tp.indexOf(dibujable(cer).length+' operaron hoy')>=0);
+ /* Los dos casos en que NO se puede dibujar: uno solo opero (un punto sobre
+    dos ejes no es una curva) y no opero ninguno. Las dos veces la pantalla lo
+    dice, en vez de dejar un hueco que se lee como que fallo algo. */
+ ok('con un solo papel operado lo dice en vez de dejar el hueco',
+    /operó un solo papel/.test(plano),plano.slice(0,60));
+ const badlar=curvas.find(c=>c.clave==='Badlar');
+ ok('hay una familia donde no opero nadie',badlar&&badlar.operados===0);
+ ok('y ahi tambien lo dice',/no operó ninguno de estos papeles/.test(plano));
+ ok('pero el papel sigue estando',tp.indexOf(badlar.filas[0].t)>=0);
 
  console.log('\n== futuros de dolar ==');
  await irA('fut');
@@ -250,7 +288,7 @@ console.log('== el interruptor de tres posiciones ==');
     que interpolar al plazo del contrato. Pero MAS ALLA de la letra mas larga
     no se inventa nada, que es lo que haria una extrapolacion. */
  const fijaF=(pay.pesos.find(c=>c.clave==='Fijo')||{filas:[]}).filas
-   .filter(x=>x.tna!=null&&x.dias!=null).sort((a,b)=>a.dias-b.dias);
+   .filter(x=>x.opero!==false&&x.tna!=null&&x.dias!=null).sort((a,b)=>a.dias-b.dias);
  const masLarga=fijaF.length?fijaF[fijaF.length-1].dias:0;
  const dentro=futs.filter(x=>x.tna!=null&&x.dias>0&&x.dias<=masLarga&&x.dias>=fijaF[0].dias);
  ok('la linea de pesos llega hasta donde llega la curva, y no mas',

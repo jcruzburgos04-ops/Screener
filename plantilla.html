@@ -553,24 +553,24 @@ canvas{display:block;width:100%;cursor:crosshair}
 body.bonos #bonos{display:block}
 body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-tarjeta{background:var(--panel);border:1px solid var(--borde);
-  border-radius:var(--r2);margin:0 1.6rem 1rem;padding:var(--e4) var(--e4) var(--e3)}
-.bo-tit{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .2rem;
+  border-radius:var(--r2);margin:0 1.1rem .7rem;padding:var(--e3) var(--e3) var(--e2)}
+.bo-tit{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .15rem;
   font-size:var(--t4);font-weight:600}
-.bo-nota{color:var(--tenue);font-size:var(--t1);line-height:1.7;margin:0 0 var(--e4)}
+.bo-nota{color:var(--tenue);font-size:var(--t1);line-height:1.5;margin:0 0 var(--e2)}
 .bo-nota b{color:var(--hueso);font-weight:600}
 .bo-tabla{width:100%;border-collapse:separate;border-spacing:0;
   font-family:var(--mono);font-size:var(--t3);font-variant-numeric:tabular-nums}
 .bo-tabla th{text-align:right;font-weight:500;color:var(--tenue);
   font-size:var(--t0);letter-spacing:.085em;text-transform:uppercase;
-  padding:.5rem .6rem;border-bottom:1px solid var(--borde2);white-space:nowrap}
+  padding:.34rem .55rem;border-bottom:1px solid var(--borde2);white-space:nowrap}
 .bo-tabla th:first-child,.bo-tabla td:first-child{text-align:left}
-.bo-tabla td{text-align:right;padding:.55rem .6rem;white-space:nowrap}
+.bo-tabla td{text-align:right;padding:.3rem .55rem;white-space:nowrap}
 .bo-tabla tbody tr:nth-child(even) td{background:rgba(255,255,255,.022)}
 .bo-tabla tbody tr:hover td{background:var(--panel2)}
 .bo-tabla .tk{font-weight:600;font-family:var(--sans);font-size:var(--t2)}
 /* El aviso de lo que falta: no se disimula. Una tabla de bonos sin TIR es una
    tabla incompleta y el que la mira tiene que saberlo. */
-.bo-falta{margin:var(--e4) 1.6rem 0;padding:var(--e3) var(--e4);
+.bo-falta{margin:var(--e3) 1.1rem 0;padding:var(--e2) var(--e3);
   background:var(--ambar-t);border:1px solid rgba(232,163,61,.28);
   border-radius:var(--r2);color:var(--tenue);font-size:var(--t1);line-height:1.7}
 .bo-falta b{color:var(--ambar)}
@@ -578,7 +578,7 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-scroll{overflow-x:auto}
 /* Las dos pestañas de la vista de bonos. Botones y no chips: son navegacion,
    no filtros, y confundir las dos cosas ya paso con los chips de vistas. */
-.bo-pest{display:flex;gap:.3rem;margin:0 1.6rem 1rem;border-bottom:1px solid var(--borde)}
+.bo-pest{display:flex;gap:.3rem;margin:0 1.1rem .7rem;border-bottom:1px solid var(--borde)}
 .bo-pest button{background:none;border:0;border-bottom:2px solid transparent;
   color:var(--tenue);font-family:var(--sans);font-size:var(--t2);font-weight:500;
   padding:.55rem .9rem;cursor:pointer;margin-bottom:-1px;letter-spacing:.01em}
@@ -588,6 +588,9 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
   background:var(--panel2);border-radius:3px;padding:.05rem .3rem;font-weight:500}
 .bo-pest button.on b{color:var(--ambar);background:var(--ambar-t)}
 .bo-raros{color:var(--ambar);opacity:.85}
+/* La fila de un papel que hoy no opero: se ve, se puede leer, pero queda
+   apagada para que el ojo no la lea igual que a un precio de verdad. */
+.bo-tabla tr.bo-quieto td{opacity:.45;font-style:italic}
 /* ---------- grafico de futuros ---------- */
 /* La barra del spread es el carry dibujado: gris y atras, para que las dos
    lineas sigan siendo lo que se lee primero. */
@@ -648,8 +651,13 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-flujo tr.amortiza td:first-child{box-shadow:inset 2px 0 0 var(--ambar)}
 
 /* ---------- la curva ---------- */
-.cv-caja{width:100%;overflow:hidden}
-.cv{width:100%;height:auto;display:block;font-family:var(--mono)}
+/* El svg tiene viewBox y `height:auto`, asi que su alto SALE DEL ANCHO: en una
+   pantalla de 1500px un grafico pensado para 230 se dibujaba a 345 y la tabla
+   de abajo quedaba fuera de la pantalla. El tope lo deja en el alto para el
+   que se diseño; el `meet` lo centra y sobra un margen a los costados, que es
+   mucho mas barato que perder la tabla. */
+.cv-caja{width:100%;overflow:hidden;text-align:center}
+.cv{width:100%;height:auto;display:block;font-family:var(--mono);margin:0 auto}
 .cv-grid{stroke:var(--borde2);stroke-width:1}
 .cv-marco{stroke:var(--borde);stroke-width:1}
 .cv-eje{fill:var(--tenue);font-size:15px}
@@ -3463,7 +3471,7 @@ function curvaXY(puntos,op){
      ya tiene la tabla. Asi el grafico y los numeros del mismo instrumento
      quedan juntos y entran en una pantalla, en vez de una tarjeta por cada
      cosa y tener que ir y volver. */
-  const svg=`<div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
+  const svg=`<div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet" style="max-height:${Math.round(H*1.15)}px">
       ${ejes}
       <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${H-mb}" y2="${H-mb}"/>
       <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${H-mb}"/>
@@ -3548,11 +3556,11 @@ function detalleBono(b){
    Las cinco curvas en pesos, los futuros y las ONs son la misma tabla con
    otras columnas. Se declara que columna saca que del dato y listo; tener seis
    funciones que arman <tr> a mano era garantia de que una quede vieja. */
-function tablaSimple(filas,cols,clase){
+function tablaSimple(filas,cols,clase,filaCl){
   return `<div class="bo-scroll"><table class="bo-tabla ${clase||''}"><thead><tr>`+
     cols.map(c=>`<th${c.tit?` title="${esc(c.tit)}"`:''}>${esc(c.h)}</th>`).join('')+
     '</tr></thead><tbody>'+
-    filas.map(f=>'<tr>'+cols.map(c=>{
+    filas.map(f=>`<tr class="${filaCl?filaCl(f):''}">`+cols.map(c=>{
       const v=c.v(f);
       return `<td class="${c.cl||''}">${v===undefined||v===null?'·':v}</td>`;
     }).join('')+'</tr>').join('')+
@@ -3593,13 +3601,27 @@ function renderPesos(){
      que se pueda mirar el grafico y buscar el papel sin desplazarse. */
   cuerpo.innerHTML=pestanas()+
     curvas.map(c=>{
-      const p=c.filas.filter(f=>hay(f.tem)&&hay(f.dias))
+      /* Solo se DIBUJAN los que operaron. `opero` lo decide bonos.py mirando
+         el volumen del dia contra el de su propia curva, asi la regla es una
+         sola y el diagnostico de consola dice lo mismo que la pagina. */
+      const vivos=c.filas.filter(f=>f.opero!==false);
+      const p=vivos.filter(f=>hay(f.tem)&&hay(f.dias))
         .map(f=>({x:f.dias,y:f.tem*100,t:f.t}));
+      const quietos=c.filas.length-vivos.length;
+      const g=curvaXY(p,{rotuloX:'días al vencimiento',alto:230,desnuda:1});
       return `<div class="bo-tarjeta"><div class="bo-tit">${esc(c.titulo)}
-          <span class="bo-leyenda">${c.filas.length} papeles</span></div>
+          <span class="bo-leyenda">${c.filas.length} papeles${
+            quietos?' · '+vivos.length+' operaron hoy':''}</span></div>
          <p class="bo-nota">${c.nota}</p>
-         ${curvaXY(p,{rotuloX:'días al vencimiento',alto:230,desnuda:1})}
-         ${tablaSimple(c.filas,COLS_PESOS,'bo-grande')}</div>`;
+         ${g||`<p class="bo-nota bo-raros">Sin curva: ${
+            p.length?'hoy operó un solo papel de esta familia'
+                    :'hoy no operó ninguno de estos papeles'}.</p>`}
+         ${quietos?`<p class="bo-nota bo-raros">${quietos===1
+            ?'1 papel quedó fuera del gráfico'
+            :quietos+' papeles quedaron fuera del gráfico'} porque hoy no
+            operaron: lo que muestran no es un precio, es una punta que puede
+            ser de hace días. <b>Están igual en la tabla</b>, en gris.</p>`:''}
+         ${tablaSimple(c.filas,COLS_PESOS,'bo-grande',f=>f.opero===false?'bo-quieto':'')}</div>`;
     }).join('')+
     `<div class="bo-falta"><b>La TIR, la TNA y la TEM de estas tablas las calcula
       bonistas.com, no este programa.</b> Los soberanos en dólares son distintos:
@@ -3777,7 +3799,11 @@ function renderFuturos(){
   /* La clave es el indice de la fuente ('Fijo'), no la familia: buscar por la
      vieja dejaba el grafico sin la linea de pesos y por lo tanto sin carry,
      que es justamente lo unico que este grafico existe para mostrar. */
-  const fija=((d.pesos||[]).find(c=>c.clave==='Fijo')||{filas:[]}).filas;
+  /* La linea de tasa fija se interpola sobre los papeles QUE OPERARON. Meter
+     una punta rancia ahi seria peor que en su propia curva: aca esa linea es
+     contra lo que se compara el carry de cada contrato. */
+  const fija=((d.pesos||[]).find(c=>c.clave==='Fijo')||{filas:[]})
+    .filas.filter(x=>x.opero!==false);
 
   cuerpo.innerHTML=pestanas()+
     `<div class="bo-tarjeta"><div class="bo-tit">Tipos de cambio

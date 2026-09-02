@@ -108,10 +108,28 @@ CRUDO_PESOS = [
      "last_price": 89.89, "tir": 0.0978, "tna": 0.0937, "mtir": 0.0078,
      "modified_duration": 2.336, "parity": 0.7872, "volume": 14.3,
      "settlement": "24hs", "short_description": "Bono CER - vto. 03/2029"},
+    # El caso real que rompia el grafico: un papel que NO OPERO (volumen 0) y
+    # que igual publica precio. Su TEM es negativa y sola le abria el eje a
+    # toda la curva CER. Tiene que quedar en la tabla y fuera del dibujo.
+    {"ticker": "X30S6", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2026-09-30", "days_to_finish": 27,
+     "last_price": 115.6, "tir": -0.0139, "tna": -0.014, "mtir": -0.0012,
+     "modified_duration": 0.07, "parity": 1.0, "volume": 0.0,
+     "settlement": "24hs", "short_description": "Bono CER - vto. 09/2026"},
+    {"ticker": "TZXM8", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2028-03-31", "days_to_finish": 575,
+     "last_price": 98.6, "tir": 0.0977, "tna": 0.0936, "mtir": 0.0078,
+     "modified_duration": 1.5, "parity": 0.95, "volume": 9291.8,
+     "settlement": "24hs", "short_description": "Bono CER - vto. 03/2028"},
     {"ticker": "TZV27", "bond_family": "DOLAR-LINKED", "index": "USDL", "end_date": "2027-06-30", "days_to_finish": 300,
      "last_price": 147790, "tir": 0.026, "tna": 0.0257, "mtir": 0.0021,
      "modified_duration": 0.801, "parity": 0.979, "volume": 0.078,
      "settlement": "24hs", "short_description": "Bono DL (sin cupón) - vto. 06/2027"},
+    # Una familia entera sin una sola operacion, como la BADLAR del panel real:
+    # no se puede dibujar nada y la pantalla lo tiene que decir, no quedarse
+    # muda ni inventar una curva de un punto.
+    {"ticker": "BDC28", "bond_family": "BONO-BADLAR", "index": "Badlar", "end_date": "2028-02-22", "days_to_finish": 537,
+     "last_price": 100.9, "tir": 0.3014, "tna": 0.2664, "mtir": 0.0222,
+     "modified_duration": 1.2, "parity": 1.0, "volume": 0.0,
+     "settlement": "24hs", "short_description": "Bono BADLAR - vto. 02/2028"},
     {"ticker": "TTS26", "bond_family": "DUAL", "index": "Dual", "end_date": "2026-09-15", "days_to_finish": 12,
      "last_price": 168.8, "tir": 0.3123, "tna": 0.2749, "mtir": 0.0229,
      "modified_duration": 0.025, "parity": 0.9996, "volume": 10568.7,

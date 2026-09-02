@@ -937,7 +937,8 @@ con una pastilla **prov.** al lado.
 
 ### Qué muestra la pantalla
 
-Dos pestañas dentro de la vista Argentina.
+Cuatro pestañas dentro de la vista Argentina: **Soberanos**, **Pesos**,
+**Futuros** y **Corporativos**.
 
 **Soberanos:** curva de rendimientos (TIR contra **duration**, no contra año de
 vencimiento — un bono que amortiza temprano devuelve la plata mucho antes de lo
@@ -949,9 +950,11 @@ fracción de lo que se cobra es renta y cuánta es devolución de capital propio
 (un bono que paga casi todo capital no "rinde" como un plazo fijo, te está
 devolviendo lo tuyo).
 
-**Obligaciones negociables:** agrupadas **por emisor**, ordenadas por TIR
-mediana. No es una tabla plana de seiscientas filas porque no se lee, y porque
-el que arma una cartera decide primero *a quién le presta*.
+**Obligaciones negociables:** una tabla **plana**, ordenable por cualquier
+columna y con buscador. Estuvo agrupada por emisor y el usuario pidió lo
+contrario: al comparar una ON contra otra el emisor es una columna más, no una
+carpeta que hay que abrir. El agrupado por emisor sigue viajando en el payload
+(`emisores`) porque el diagnóstico de consola lo usa.
 
 > **La TIR, la duration y la paridad de las ONs las calcula bonistas, no este
 > programa, y la pantalla lo dice.** Para los soberanos el cronograma está
@@ -1055,6 +1058,46 @@ aplastados en una línea. `cvSinRaros()` los saca **del dibujo**, nunca de la
 tabla, con un corte contra la mediana y el rango intercuartil (que no se mueven
 por tener un outlier adentro, un promedio sí), y **la tarjeta dice cuántos y
 cuáles quedaron afuera**.
+
+#### Los que distorsionaban la curva no eran falsos: no habían operado
+
+Es la causa de fondo del punto anterior, y el corte por outlier era el síntoma.
+Medido sobre el panel del **2/9/2026**: de 54 papeles en pesos, **15 tenían
+volumen exactamente 0**. Cuatro de los seis dólar linked estaban en ese grupo,
+y por eso esa familia salía con rendimientos de 0,8% y 10,8% mezclados sin nada
+en el medio — no era el mercado, eran cotizaciones rancias. La fuente publica
+la última punta aunque sea de hace días, sin decir que lo es.
+
+`marcar_operados()` en `bonos.py` le pone un campo `opero` a cada fila. **Las
+dos condiciones son relativas a propósito, para que no quede un umbral que
+envejezca** cuando cambien los volúmenes del mercado:
+
+1. que haya operado algo (`volumen > 0`), que no necesita umbral ninguno; y
+2. que ese algo no sea una miga contra **la mediana de su propia curva**
+   (`FRACCION_MEDIANA = 0.01`). Ésta es la que saca al `TY30P`: negoció 0,01
+   contra una mediana de 7,72 y él solo estiraba el eje de 300 a 1365 días,
+   aplastando contra el margen izquierdo a los diez papeles que sí se operan.
+
+Tres detalles que ya se pisaron:
+
+- **La segunda condición no se aplica con menos de 5 papeles**
+  (`MINIMO_PARA_RELATIVO`). Con dos, la "mediana" *es* el más grande y el otro
+  quedaba afuera por nada.
+- **Si la fuente no manda `volume` para ninguna fila de la curva, pasan todas.**
+  Callarse media curva por un campo que no vino sería peor que el problema.
+- **Un papel poco operado no es lo mismo que uno sin operar.** El `TO26` negoció
+  1,13 contra una mediana de 7,72 y entra: el filtro apunta a las puntas
+  rancias, no a los papeles flacos.
+
+Nada de esto borra nada: **los papeles siguen en la tabla**, en gris y en
+bastardilla, y la tarjeta dice cuántos dejó afuera y por qué. Si de una familia
+no operó ninguno (la BADLAR del panel real, un solo papel con volumen 0) no se
+dibuja una curva de un punto: se dice que no operó ninguno.
+
+> La regla vive **sólo en `bonos.py`**. El frontend lee `opero` y no vuelve a
+> decidir, así el diagnóstico de `bonos.yml` (que imprime una columna `dib`) y
+> la página dicen exactamente lo mismo. Si alguna vez discrepan, es que alguien
+> duplicó la regla en el JS.
 
 #### Las patas sintéticas de los duales no son especies
 
