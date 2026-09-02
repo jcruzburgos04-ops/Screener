@@ -1,4 +1,4 @@
-name: Sonda de fuentes
+name: Sonda de velocidad
 on: {workflow_dispatch: {}}
 permissions: {contents: read}
 jobs:
@@ -9,5 +9,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - name: Buscar cronogramas, campos de data912 y variantes de BYMA
-        run: python sonda_fuentes.py || true
+      - name: Medir cobertura y tiempo de cada fuente
+        run: python sonda_velocidad.py || true
