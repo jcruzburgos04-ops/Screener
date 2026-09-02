@@ -1469,9 +1469,17 @@ necesitan internet.
    después**: guardar en `localStorage` detrás de una capa fina. Cuentas y login
    son **imposibles** en GitHub Pages, que es estático; eso hay que decirlo
    cuando se retome.
-8. **Letras y acciones argentinas.** `data912` ya las publica
-   (`/live/arg_notes`, `/live/arg_stocks`); falta el parser y la pantalla. Ahí
-   los filtros del screener vuelven a tener sentido y se muestran de nuevo.
+8. **Acciones argentinas.** `data912` las publica en `/live/arg_stocks`; falta
+   el parser y la pantalla. Ahí los filtros del screener vuelven a tener sentido
+   y se muestran de nuevo (hoy sólo aparecen en la vista Tabla).
+9. **FCI**: sin fuente. CAFCI devuelve 403 y no se encontró otra. No es que
+   falte hacerlo, es que no hay de dónde.
+10. **Calificación de riesgo de las ONs**: tampoco hay fuente abierta. La
+    pantalla lo dice en vez de omitirlo.
+11. **El A3500 del BCRA no contestó en ninguna corrida.** Hoy el spot de los
+    futuros se despeja de las tasas implícitas de A3, que da a 0,3% del oficial,
+    pero conviene encontrar el endpoint bueno: la tasa directa es
+    `precio/spot − 1`, así que el spot decide todas las tasas de esa tabla.
 
 ### Medio
 
