@@ -229,6 +229,16 @@ ok("una familia desconocida aparece sola y con su nombre",
 ok("descarta las patas sinteticas de los duales", "TTS26_CAP" not in str(por))
 ok("un papel vencido se cae solo", "VIEJO" not in str(por))
 ok("y uno sin precio tampoco entra", "SINPX" not in str(por))
+# La misma letra liquidada en dolares es OTRO papel: S30S6 vale 115 y SS6D 0,07.
+# En una pestaña que se llama "Pesos" no va, y mezclarlas mete dos puntos al
+# mismo plazo con rendimientos muy distintos.
+DOLAR = PESOS + [
+    {"ticker": "SS6D", "bond_family": "LETRAS-FIJO-USD", "index": "Fijo",
+     "end_date": "2026-09-30", "days_to_finish": 27, "last_price": 0.068,
+     "tir": 0.35, "tna": 0.30, "mtir": 0.025, "settlement": "24hs"},
+]
+ok("las familias en dolares no entran a la curva en pesos",
+   "SS6D" not in str([f["t"] for x in bonos.armar_pesos(DOLAR) for f in x["filas"]]))
 ok("se queda con el plazo que se opera (24hs)",
    c[0]["filas"][0]["precio"] == 115.4, c[0]["filas"][0]["precio"])
 ok("pasa la TEM tal cual la publica la fuente",

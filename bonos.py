@@ -503,6 +503,14 @@ CURVAS_PESOS = [
 # con cronograma verificado, las ONs la suya, y los BOPREAL son otra cosa.
 PREFIJOS_AJENOS = ("ONS", "BONO-USD-", "BOPREAL")
 
+# Y las que terminan en -USD son la MISMA letra liquidada en dolares: la S30S6
+# y la SS6D son el mismo papel, con precio 115 y 0,07 respectivamente. En una
+# pestaña que se llama "Pesos" no van, y mezclarlas ademas mete dos puntos al
+# mismo plazo con rendimientos distintos. La fuente ya las separa por familia
+# (LETRAS-FIJO contra LETRAS-FIJO-USD), asi que el corte es por el sufijo de la
+# familia y no por una lista de tickers: se sigue manteniendo solo.
+SUFIJO_EN_DOLARES = "-USD"
+
 
 def _es_pata_sintetica(tk, familia):
     """
@@ -518,7 +526,8 @@ def _es_pata_sintetica(tk, familia):
 
 def _ajena(familia):
     f = str(familia or "")
-    return any(f == p or f.startswith(p) for p in PREFIJOS_AJENOS)
+    return (f.endswith(SUFIJO_EN_DOLARES)
+            or any(f == p or f.startswith(p) for p in PREFIJOS_AJENOS))
 
 
 def armar_pesos(crudo):
