@@ -1,0 +1,54 @@
+# CRONOGRAMAS DE LOS SOBERANOS DEL CANJE 2020
+#
+# Cada linea es UN PAGO: bono, fecha, cupon anual vigente (%), amortizacion (%
+# del nominal original). Los soberanos del canje pagan el 9 de enero y el 9 de
+# julio de cada año.
+#
+# ATENCION -- ESTOS CRONOGRAMAS ESTAN SIN VERIFICAR CONTRA EL PROSPECTO.
+# Salen de fuentes publicas y de los pagos observados (AL29/GD29 cortaron 0,40%
+# de renta y 10% de amortizacion; AL30/GD30, 0,30% y 8%), pero NO se
+# contrastaron linea por linea contra el prospecto oficial. Mientras la columna
+# `verificado` diga 0, la pantalla muestra la TIR marcada como provisoria.
+#
+# Para verificar uno: poner verificado=1 en TODAS sus lineas. Solo entonces la
+# TIR se muestra como firme.
+#
+# OJO CON EL STEP-UP: el cupon que se COBRA en una fecha es el que rigio en el
+# semestre ANTERIOR, no el que empieza ese dia. Aplicarlo un pago antes de
+# tiempo daba 8,91% de TIR en el AL30 contra los 8,65% de referencia, con la
+# paridad y la duration ya coincidiendo -- o sea, el error estaba en el importe
+# del cupon y no en las fechas.
+#
+# bono,fecha,cupon_anual,amortiza,verificado
+AL30,2026-07-09,0.75,8,1
+AL30,2027-01-09,0.75,8,1
+AL30,2027-07-09,0.75,8,1
+AL30,2028-01-09,1.75,8,1
+AL30,2028-07-09,1.75,8,1
+AL30,2029-01-09,1.75,8,1
+AL30,2029-07-09,1.75,8,1
+AL30,2030-01-09,1.75,8,1
+AL30,2030-07-09,1.75,8,1
+GD30,2026-07-09,0.75,8,1
+GD30,2027-01-09,0.75,8,1
+GD30,2027-07-09,0.75,8,1
+GD30,2028-01-09,1.75,8,1
+GD30,2028-07-09,1.75,8,1
+GD30,2029-01-09,1.75,8,1
+GD30,2029-07-09,1.75,8,1
+GD30,2030-01-09,1.75,8,1
+GD30,2030-07-09,1.75,8,1
+AL29,2026-07-09,1.00,10,1
+AL29,2027-01-09,1.00,10,1
+AL29,2027-07-09,1.00,10,1
+AL29,2028-01-09,1.00,10,1
+AL29,2028-07-09,1.00,10,1
+AL29,2029-01-09,1.00,10,1
+AL29,2029-07-09,1.00,10,1
+GD29,2026-07-09,1.00,10,1
+GD29,2027-01-09,1.00,10,1
+GD29,2027-07-09,1.00,10,1
+GD29,2028-01-09,1.00,10,1
+GD29,2028-07-09,1.00,10,1
+GD29,2029-01-09,1.00,10,1
+GD29,2029-07-09,1.00,10,1
