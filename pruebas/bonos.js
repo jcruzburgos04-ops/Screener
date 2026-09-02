@@ -172,7 +172,11 @@ console.log('== el interruptor de tres posiciones ==');
     rotulos de cincuenta papeles se pisan, y sobre todo las escalas no son
     comparables -- un CER rinde 0,3% mensual REAL y una LECAP 2,1% NOMINAL, asi
     que en el mismo eje parece que una paga siete veces mas que la otra. */
- const dibujable=c=>c.filas.filter(f=>f.opero!==false&&f.tem!=null&&f.dias!=null);
+ /* El eje X es la DURATION, no los dias: con dias, un papel largo estiraba el
+    eje y apilaba a los cortos contra el margen. El predicado tiene que ser el
+    mismo que usa la pantalla o el test cuenta puntos que no se dibujan. */
+ const dibujable=c=>c.filas.filter(
+   f=>f.opero!==false&&f.tem!=null&&f.duration>0);
  const conCurva=curvas.filter(c=>dibujable(c).length>=2);
  const svgs=d.querySelectorAll('#bonosCuerpo svg.cv');
  ok('una curva por familia con dos papeles o mas, y ninguna que las mezcle',
@@ -180,6 +184,60 @@ console.log('== el interruptor de tres posiciones ==');
  ok('pero la TABLA sale igual aunque la familia tenga un solo papel',
     curvas.length>conCurva.length&&
     tp.indexOf(curvas.find(c=>!conCurva.includes(c)).filas[0].t)>=0);
+ /* LOS ROTULOS NO SE PUEDEN PISAR. Es la queja concreta del usuario sobre una
+    captura de produccion: con once papeles de tasa fija los tickers salian
+    encimados hasta quedar ilegibles ("S3N0O6E7").
+
+    Se prueba con los ONCE REALES de esa captura -- su duration y su TEM de
+    verdad -- porque la fixtura tiene pocos por curva y no reproduce el
+    amontonamiento. Se mide sobre el SVG que sale, teniendo en cuenta el ancla
+    de cada rotulo: uno con text-anchor=start crece hacia la derecha de su x,
+    no alrededor, y medirlos todos como centrados da choques que no existen. */
+ const REAL=[['S15S6',0.03,1.82],['S30S6',0.06,1.94],['TO26',0.11,1.98],
+   ['S30O6',0.12,1.96],['S13N6',0.15,2.07],['S30N6',0.19,2.08],
+   ['T15E7',0.29,2.07],['T30A7',0.51,2.14],['T31Y7',0.57,2.17],
+   ['T30J7',0.64,2.15],['TY30P',2.05,2.20]];
+ {
+  const svgTxt=w.curvaXY(REAL.map(([t,x,y])=>({x,y,t})),
+                         {rotuloX:'duration · años',alto:300,desnuda:1});
+  const doc=new JSDOM('<div>'+svgTxt+'</div>').window.document;
+  const AN=7.8, AL=14;                    // mono a 13px, el tamaño real
+  const cajas=[...doc.querySelectorAll('.cv-pt text')].map(t=>{
+    const x=+t.getAttribute('x'), y=+t.getAttribute('y');
+    const an=t.textContent.length*AN, a=t.getAttribute('text-anchor');
+    const x1=a==='start'?x:(a==='end'?x-an:x-an/2);
+    return {t:t.textContent,x1,x2:x1+an,y1:y-AL,y2:y};});
+  const pisados=[];
+  for(let i=0;i<cajas.length;i++)for(let j=i+1;j<cajas.length;j++){
+    const a=cajas[i],b=cajas[j];
+    if(!(a.x2<b.x1||a.x1>b.x2||a.y2<b.y1||a.y1>b.y2))
+      pisados.push(a.t+'/'+b.t);}
+  ok('con los once papeles reales, ningun rotulo pisa a otro',
+     pisados.length===0, pisados.join(' '));
+  ok('y los once quedan rotulados', cajas.length===REAL.length,
+     cajas.length+' de '+REAL.length);
+  /* Y ninguno se sale del lienzo, que es el otro modo de quedar ilegible. */
+  const vb=(doc.querySelector('svg').getAttribute('viewBox')||'').split(' ').map(Number);
+  ok('ni se sale del lienzo',
+     cajas.every(c=>c.x1>=0&&c.x2<=vb[2]&&c.y1>=0&&c.y2<=vb[3]));
+  /* La tendencia se AJUSTA, no une los puntos: unirlos daba un zigzag que se
+     lee como saltos del mercado donde solo hay dispersion. */
+  ok('hay una linea de tendencia punteada y no una quebrada',
+     doc.querySelectorAll('.cv-ajuste').length===1&&
+     !doc.querySelector('.cv-linea'),
+     doc.querySelectorAll('.cv-ajuste').length+'/'+doc.querySelectorAll('.cv-linea').length);
+ }
+
+ /* El grafico va AL LADO de la tabla, no arriba: apilados, una familia sola
+    ocupaba dos pantallas. Y la tabla va primero, como en el informe. */
+ ok('cada familia tiene la tabla y el grafico lado a lado',
+    d.querySelectorAll('#bonosCuerpo .bo-par').length===curvas.length,
+    d.querySelectorAll('#bonosCuerpo .bo-par').length+' vs '+curvas.length);
+ ok('con la tabla a la izquierda y la curva a la derecha',
+    [...d.querySelector('#bonosCuerpo .bo-par').children]
+      .map(c=>c.className).join('|')==='bo-par-t|bo-par-g',
+    [...d.querySelector('#bonosCuerpo .bo-par').children].map(c=>c.className).join('|'));
+
  /* El grafico y su tabla van en la MISMA tarjeta: si no, hay que ir y volver
     entre la curva y los numeros del mismo instrumento. */
  ok('cada curva vive en la misma tarjeta que su tabla',

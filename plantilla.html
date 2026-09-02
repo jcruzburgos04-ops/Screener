@@ -591,6 +591,15 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 /* La fila de un papel que hoy no opero: se ve, se puede leer, pero queda
    apagada para que el ojo no la lea igual que a un precio de verdad. */
 .bo-tabla tr.bo-quieto td{opacity:.45;font-style:italic}
+/* La curva al lado de su tabla. Apiladas, una familia sola se comia dos
+   pantallas y habia que subir y bajar entre el grafico y los numeros del
+   mismo papel. `minmax(0,...)` es necesario: sin el, la tabla ancha estira
+   su columna y le come el ancho al grafico en vez de desplazarse ella. */
+.bo-par{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);
+  gap:var(--e3);align-items:start}
+.bo-par-g{min-width:0}
+.bo-par-t{min-width:0}
+@media (max-width:1100px){.bo-par{grid-template-columns:1fr}}
 /* El pago que cierra el instrumento: despues de este no queda nada, asi que
    esa linea ES el cronograma completo. Se distingue del proximo-de-varios,
    que lleva un + al lado del importe para que no se lea como el total. */
@@ -668,13 +677,17 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .cv-eje{fill:var(--tenue);font-size:15px}
 .cv-rot{fill:var(--tenue);font-size:15px;letter-spacing:.08em}
 .cv-linea{fill:none;stroke-width:2}
+/* La tendencia ajustada, punteada, como en el informe de referencia. NO une
+   los puntos: los resume. Unirlos daba un zigzag que se leia como si el
+   mercado tuviera saltos donde solo hay dispersion. */
+.cv-ajuste{fill:none;stroke-width:1.6;stroke-dasharray:5 5;opacity:.7}
 .cv-linea.pt-a{stroke:var(--ambar)}
 .cv-linea.pt-b{stroke:#5FA8D3}
 .cv-linea.pt-c{stroke:#7FB77E}
 .cv-linea.pt-d{stroke:#C08BC0}
 .cv-pt{cursor:pointer}
-.cv-pt circle{stroke:var(--fondo);stroke-width:2}
-.cv-pt text{font-size:16px;font-weight:600}
+.cv-pt circle{stroke:var(--fondo);stroke-width:1.5}
+.cv-pt text{font-size:13px;font-weight:600}
 .cv-pt.pt-a circle{fill:var(--ambar)} .cv-pt.pt-a text{fill:var(--ambar)}
 .cv-pt.pt-b circle{fill:#5FA8D3}      .cv-pt.pt-b text{fill:#5FA8D3}
 .cv-pt.pt-c circle{fill:#7FB77E}      .cv-pt.pt-c text{fill:#7FB77E}
@@ -3422,6 +3435,25 @@ function cvSinRaros(p){
   return [dentro, p.filter(q=>q.y<bajo||q.y>alto)];
 }
 
+/* La linea de tendencia del informe de referencia. NO une los puntos: los
+   resume con un ajuste. Unirlos daba un zigzag que se lee como si el mercado
+   tuviera saltos donde en realidad hay dispersion entre papeles parecidos.
+
+   El ajuste es `y = a + b·ln(x)` por minimos cuadrados, que es la forma que
+   tiene una curva de rendimientos: sube rapido en el tramo corto y se aplana
+   en el largo. Con menos de tres puntos no se ajusta nada -- una recta por
+   dos puntos no es una tendencia, es la recta que los une. */
+function cvAjuste(p){
+  const q=p.filter(o=>o.x>0);
+  if(q.length<3)return null;
+  let sx=0,sy=0,sxx=0,sxy=0;
+  for(const o of q){const L=Math.log(o.x);sx+=L;sy+=o.y;sxx+=L*L;sxy+=L*o.y;}
+  const n=q.length, den=n*sxx-sx*sx;
+  if(!(Math.abs(den)>1e-12))return null;
+  const b=(n*sxy-sx*sy)/den, a=(sy-b*sx)/n;
+  return x=>a+b*Math.log(x);
+}
+
 function curvaXY(puntos,op){
   op=op||{};
   let p=puntos.filter(q=>hay(q.x)&&hay(q.y));
@@ -3448,15 +3480,68 @@ function curvaXY(puntos,op){
     ejes+=`<line class="cv-grid" y1="${mt}" y2="${H-mb}" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}"/>`+
       `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${v.toFixed(dec(px))}</text>`;
 
+  /* LOS ROTULOS NO SE PUEDEN PISAR. En la curva de tasa fija hay diez papeles
+     abajo de 300 dias y uno a 1365: los diez primeros caen amontonados sobre
+     el margen izquierdo y sus tickers se superponian hasta quedar ilegibles
+     ("S3N0O6E7"). Un ticker tapado es peor que no ponerlo: se lee mal y se
+     confunde con otro.
+
+     Se colocan uno por uno llevando la lista de los que ya se pusieron:
+     primero se prueba arriba del punto, si choca se prueba abajo, y si sigue
+     chocando NO SE DIBUJA. El punto queda igual, con su nombre en el globito
+     y en la tabla de al lado, que es donde se lee el detalle. */
+  const puestos=[];
+  const ANCHO_CHAR=7.8, ALTO_ROT=14;      // mono a 13px en unidades del viewBox
+  function rotulo(q){
+    const w=Math.max(1,(q.t||'').length)*ANCHO_CHAR, cx=X(q.x), cy=Y(q.y);
+    /* Cuatro lugares por punto, en orden de preferencia: arriba, abajo, a la
+       derecha y a la izquierda. Con solo arriba/abajo, dos papeles al mismo
+       plazo y casi la misma tasa -- el TO26 y el S30O6 estan en 0,11 y 0,12 de
+       duration -- se quedaban con un rotulo solo. */
+    const sitios=[[0,-9,'middle'], [0,20,'middle'],
+                  [9,4,'start'],   [-9,4,'end']];
+    for(const [dx,dy,anc] of sitios){
+      const x=cx+dx;
+      const x1=anc==='middle'?x-w/2:(anc==='start'?x:x-w);
+      const AIRE=3;
+      const caja={x1:x1-AIRE, x2:x1+w+AIRE,
+                  y1:cy+dy-ALTO_ROT-AIRE, y2:cy+dy+AIRE};
+      // Ni fuera del panel ni pisando a otro que ya se puso.
+      if(caja.y1<mt-2||caja.y2>H-mb+2||caja.x1<2||caja.x2>W-2)continue;
+      if(puestos.some(o=>!(caja.x2<o.x1||caja.x1>o.x2||
+                           caja.y2<o.y1||caja.y1>o.y2)))continue;
+      puestos.push(caja);
+      return `<text x="${x.toFixed(1)}" y="${(cy+dy).toFixed(1)}" `+
+             `text-anchor="${anc}">${esc(q.t||'')}</text>`;
+    }
+    /* Si no entra en ninguno, NO se dibuja. Un ticker pisado es peor que
+       ausente: se lee mal y se confunde con otro. El punto queda, con su
+       nombre en el globito y en la tabla de al lado. */
+    return '';
+  }
+
   const nombres=[...new Set(p.map(q=>q.serie||''))];
   const dibujo=nombres.map((n,i)=>{
     const clase=CV_COLORES[i%CV_COLORES.length];
     const s=p.filter(q=>(q.serie||'')===n).sort((a,b)=>a.x-b.x);
-    const d=s.map((q,j)=>(j?'L':'M')+X(q.x).toFixed(1)+' '+Y(q.y).toFixed(1)).join(' ');
-    return `<path class="cv-linea ${clase}" d="${d}"/>`+
+    // La tendencia se ajusta sobre los puntos de ESTA serie y se dibuja solo
+    // dentro del tramo que ella cubre: extrapolarla seria inventar el tramo
+    // que no cotiza.
+    const f=cvAjuste(s);
+    let d='';
+    if(f){
+      const xa=Math.min(...s.map(q=>q.x)), xb=Math.max(...s.map(q=>q.x));
+      const paso=(xb-xa)/40;
+      for(let k=0;k<=40;k++){
+        const x=xa+paso*k, y=f(x);
+        if(!isFinite(y))continue;
+        d+=(d?'L':'M')+X(x).toFixed(1)+' '+Y(Math.max(y0,Math.min(y1,y))).toFixed(1)+' ';
+      }
+    }
+    return (d?`<path class="cv-ajuste ${clase}" d="${d}"/>`:'')+
       s.map(q=>`<g class="cv-pt ${clase}" data-t="${esc(q.t||'')}">`+
-        `<circle cx="${X(q.x).toFixed(1)}" cy="${Y(q.y).toFixed(1)}" r="5.5"/>`+
-        `<text x="${X(q.x).toFixed(1)}" y="${(Y(q.y)-12).toFixed(1)}" text-anchor="middle">${esc(q.t||'')}</text>`+
+        `<circle cx="${X(q.x).toFixed(1)}" cy="${Y(q.y).toFixed(1)}" r="4"/>`+
+        rotulo(q)+
         `<title>${esc(q.t||'')}${n?' · '+esc(n):''} · ${q.y.toFixed(2)}${op.sufijoY||'%'} · ${esc(op.rotuloX||'x')} ${q.x.toFixed(2)}</title>`+
         `</g>`).join('');
   }).join('');
@@ -3641,22 +3726,41 @@ function renderPesos(){
          el volumen del dia contra el de su propia curva, asi la regla es una
          sola y el diagnostico de consola dice lo mismo que la pagina. */
       const vivos=c.filas.filter(f=>f.opero!==false);
-      const p=vivos.filter(f=>hay(f.tem)&&hay(f.dias))
-        .map(f=>({x:f.dias,y:f.tem*100,t:f.t}));
+      /* EL EJE X ES LA DURATION, no los dias. Es lo que usa el informe de
+         referencia y no es un detalle de gusto: con dias, el TY30P a 1365
+         estiraba el eje cinco veces y dejaba a los otros diez apilados contra
+         el margen izquierdo, con los tickers uno encima del otro. En duration
+         ese mismo papel esta en 1,80 contra 0,82 del T30J7 -- el doble, no
+         cinco veces -- y la nube se abre sola.
+
+         Ademas es lo correcto: un bono que amortiza temprano devuelve la plata
+         mucho antes de lo que su vencimiento sugiere, y la duration es lo que
+         mide eso. Los dias siguen en la tabla, que es donde se los busca. */
+      const p=vivos.filter(f=>hay(f.tem)&&hay(f.duration)&&f.duration>0)
+        .map(f=>({x:f.duration,y:f.tem*100,t:f.t}));
       const quietos=c.filas.length-vivos.length;
-      const g=curvaXY(p,{rotuloX:'días al vencimiento',alto:230,desnuda:1});
+      /* EL GRAFICO VA AL COSTADO DE LA TABLA, no arriba. Apilados, una familia
+         sola ocupaba dos pantallas y para mirar la curva y buscar el papel
+         habia que subir y bajar. Al costado entran los dos de una: la curva
+         mide lo mismo que la tabla de al lado. Abajo de 1100px se apilan,
+         porque en un telefono lado a lado no entra ninguno de los dos. */
+      const g=curvaXY(p,{rotuloX:'duration · años',alto:300,desnuda:1});
+      const avisos=(g?'':`<p class="bo-nota bo-raros">Sin curva: ${
+            p.length?'hoy operó un solo papel de esta familia'
+                    :'hoy no operó ninguno de estos papeles'}.</p>`)+
+        (quietos?`<p class="bo-nota bo-raros">${quietos===1
+            ?'1 papel no operó hoy':quietos+' papeles no operaron hoy'}: fuera
+            del gráfico, porque su precio es una punta que puede ser de hace
+            días. <b>En la tabla están</b>, en gris.</p>`:'');
       return `<div class="bo-tarjeta"><div class="bo-tit">${esc(c.titulo)}
           <span class="bo-leyenda">${c.filas.length} papeles${
             quietos?' · '+vivos.length+' operaron hoy':''}</span></div>
          <p class="bo-nota">${c.nota}</p>
-         ${g||`<p class="bo-nota bo-raros">Sin curva: ${
-            p.length?'hoy operó un solo papel de esta familia'
-                    :'hoy no operó ninguno de estos papeles'}.</p>`}
-         ${quietos?`<p class="bo-nota bo-raros">${quietos===1
-            ?'1 papel no operó hoy':quietos+' papeles no operaron hoy'}: fuera
-            del gráfico, porque su precio es una punta que puede ser de hace
-            días. <b>En la tabla están</b>, en gris.</p>`:''}
-         ${tablaSimple(c.filas,COLS_PESOS,'bo-grande',f=>f.opero===false?'bo-quieto':'')}</div>`;
+         <div class="bo-par">
+           <div class="bo-par-t">${tablaSimple(c.filas,COLS_PESOS,'bo-grande',
+              f=>f.opero===false?'bo-quieto':'')}</div>
+           <div class="bo-par-g">${g}${avisos}</div>
+         </div></div>`;
     }).join('')+
     `<div class="bo-falta"><b>La TIR, la TNA y la TEM de estas tablas las calcula
       bonistas.com, no este programa.</b> Los soberanos en dólares son distintos:
