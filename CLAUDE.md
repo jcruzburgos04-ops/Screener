@@ -1067,6 +1067,67 @@ tabla, con un corte contra la mediana y el rango intercuartil (que no se mueven
 por tener un outlier adentro, un promedio sí), y **la tarjeta dice cuántos y
 cuáles quedaron afuera**.
 
+#### El próximo pago: lo único del cronograma que publica la fuente
+
+El pedido fue «que todo lo que sea renta fija me aparezca cuáles son sus pagos,
+también en las ONs». Los soberanos ya lo tenían —cronograma completo, cargado y
+verificado en `bonos_cronograma.csv`—; los pesos y las ONs no.
+
+Una sonda al panel de bonistas (909 filas, todas las claves con su conteo)
+encontró dos campos que no se estaban usando y que están en **881 de 909**:
+
+- **`days_to_coupon`** — días hasta el próximo servicio.
+- **`coupon`** — su **importe** cada 100 nominales. **Es un importe, no una
+  tasa**: es la misma confusión que ya se pagó cara con los soberanos. El TO26
+  paga 15,50% anual sobre 100 de residual y el campo trae **7,75**.
+
+No hay ningún array de flujos: **el cronograma completo sigue sin existir en
+ninguna fuente abierta**, y eso ya está verificado (§ *Fuentes*).
+
+**La distinción que hace útil a esto, y que no es cosmética:** cuando
+`days_to_coupon` **coincide** con `days_to_finish` no queda ningún servicio
+entre ese pago y el vencimiento, o sea que **ES EL ÚLTIMO**. Una letra que
+capitaliza y paga todo junto queda entonces con su **cronograma completo, de
+una sola línea**, y eso es un dato firme. Cuando difieren, lo que se muestra es
+un cobro parcial y el importe lleva un **`+`** al lado: los que siguen no los
+publica nadie gratis, y mostrar un cupón suelto como si fuera todo lo que queda
+por cobrar sería peor que no mostrarlo. La tarjeta lo dice con todas las letras.
+
+Verificado en los dos sentidos con datos reales: el `S15S6` da 12 = 12 → último;
+el `TY30P` da 88 contra 1365, su próximo pago cae el **30/11/2026** —que es su
+cupón— y **no** se marca como último.
+
+> **Cuando es el último, la fecha se toma del vencimiento de la MISMA fila**, no
+> se reconstruye desde los días. Derivándolas por caminos separados, las
+> columnas «vence» y «próximo pago» podían decir días distintos del mismo evento.
+
+#### Los días NO estaban mal, aunque lo parecían
+
+Vale la pena dejarlo escrito porque la evidencia era convincente y la conclusión
+era falsa. Contra el informe de cierre del 01/09/2026, nuestros días daban **uno
+menos en los once papeles de tasa fija, sin una sola excepción** — la pinta
+clásica de un error de convención.
+
+No lo era. **Ese informe es el cierre del 01-09 y liquida el 02-09; nuestro dato
+es del 02-09 y liquida el 03-09.** Un día más fresco, no un día mal contado.
+
+Verificado contra los datos crudos: para las tres formas —24hs sobre día hábil,
+contado inmediato, y un vencimiento que cae sábado— el `days_to_finish` que
+publica la fuente es **exactamente** el vencimiento hábil menos la liquidación
+de ese plazo. Ya cuenta desde la liquidación y ya corre los fines de semana.
+`pruebas/renta_fija.py` lo deja clavado con las filas crudas, **para que nadie
+vuelva a "arreglar" un día que no está roto**.
+
+**Lo que sí estaba mal era la FECHA.** La fuente publica el vencimiento
+*nominal*: el `TO26` figura venciendo el **17/10/2026, que es sábado**, cuando
+lo que se cobra —y contra lo que ella misma descuenta— es el lunes 19/10. Ahora
+`vencimiento_y_dias()` corrige la fecha al hábil siguiente, así la columna dice
+lo mismo que la cuenta.
+
+> **La fecha del panel sale de `estimation_date`, no del reloj.** El workflow
+> corre en UTC y a las 02:00 UTC ya es otro día que en Buenos Aires, así que
+> `date.today()` correría todos los plazos una vez por noche.
+
 #### Los que distorsionaban la curva no eran falsos: no habían operado
 
 Es la causa de fondo del punto anterior, y el corte por outlier era el síntoma.

@@ -65,12 +65,18 @@ jobs:
               print(f"  {c['titulo']} ({len(c['filas'])} papeles, "
                     f"{c.get('operados', 0)} operaron):")
               print(f"    {'ticker':<9}{'vto':<12}{'dias':>6}{'precio':>12}"
-                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}{'volumen':>12}  dib")
+                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}{'volumen':>12}  dib"
+                    f"  {'prox pago':<12}{'en':>6}{'cobra':>11}  ULT/+")
               for x in c['filas']:
+                  pg = x.get('pago') or {}
                   print(f"    {x['t']:<9}{x['vto']:<12}{x['dias']:>6}{x['precio']:>12,.2f}"
                         f"{(x['tna'] or 0)*100:>7.2f}%{(x['tir'] or 0)*100:>7.2f}%"
                         f"{(x['tem'] or 0)*100:>7.2f}%{(x['volumen'] or 0):>12,.2f}"
-                        f"  {'si' if x.get('opero') else '--'}")
+                        f"  {'si' if x.get('opero') else '--'}"
+                        f"  {pg.get('fecha') or '-':<12}"
+                        f"{(pg.get('dias') if pg else None) or 0:>6}"
+                        f"{pg.get('monto') or 0:>11,.2f}"
+                        f"  {'ULT' if pg.get('ultimo') else ('+' if pg else '')}")
           print()
           quietos = [(c['titulo'], x) for c in d.get('pesos', [])
                      for x in c['filas'] if not x.get('opero')]
@@ -82,6 +88,21 @@ jobs:
           print()
           print(f"futuros: {len(d.get('futuros',[]))} contratos · spot {d.get('spot')} "
                 f"({d.get('spot_fuente')})")
+          print()
+          # El proximo pago de las ONs: ULT marca las que ya entraron en su
+          # ultimo tramo, o sea las que quedan con el cronograma COMPLETO.
+          ons = d.get('ons', [])
+          conp = [o for o in ons if o.get('pago')]
+          ult = [o for o in conp if o['pago'].get('ultimo')]
+          print(f"ONs: {len(ons)} especies · {len(conp)} con proximo pago · "
+                f"{len(ult)} en su ultimo tramo")
+          print(f"  {'especie':<9}{'vence':<12}{'dias':>6}  {'prox pago':<12}"
+                f"{'en':>6}{'cobra':>11}  ULT/+")
+          for o in sorted(conp, key=lambda x: x['pago']['dias'])[:15]:
+              p = o['pago']
+              print(f"  {o['t']:<9}{o['vto'] or '-':<12}{o['dias'] or 0:>6}  "
+                    f"{p['fecha']:<12}{p['dias']:>6}{p.get('monto') or 0:>11,.2f}"
+                    f"  {'ULT' if p['ultimo'] else '+'}")
           print()
           print("obligaciones negociables por emisor (TIR de bonistas, no propia):")
           for e in d.get('emisores', [])[:25]:
