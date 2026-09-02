@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SONDA TEMPORAL (2) -- se borra cuando conteste.
+SONDA TEMPORAL (3) -- la ultima. Se borra cuando conteste.
 
-La primera sonda encontro la punta: bonistas.com/api/bonds contesta 200 con
-1,6 MB y la primera fila ya trae `bond_family: ONS / Obligaciones Negociables`,
-`bond_law`, `coupon` y `coupon_yield`. O sea que ahi hay soberanos Y
-obligaciones negociables, con cupon.
+La sonda 2 encontro las dos mitades del cronograma, en dos fuentes distintas:
 
-Falta saber dos cosas:
-  1. Si ademas del cupon publica el CRONOGRAMA (fechas y amortizaciones). Es lo
-     unico que le falta al screener para tener TIR en los once soberanos.
-  2. Que campos trae en total, para saber que se puede mostrar de las ONs
-     (calificacion de riesgo, emisor, vencimiento).
+  CUPONES -> bonistas.com/api/bonds, campo `description`, que enumera el
+  step-up entero ("Cupon 1: 0.12% TNA / Cupones 2-3: 1.12% / ..."). Se verifico
+  contra los dos bonos que ya estaban cargados a mano: para el AL30 dice
+  0,50% -> 0,75% -> 1,75% en los mismos tramos que el CSV, y para el AL29 dice
+  1,00% plano. Coincide.
 
-Se prueba tambien Rava, que en la pagina de perfil de cada especie muestra el
-flujo de fondos: si lo trae incrustado en el HTML se puede leer.
+  AMORTIZACION -> bonistas NO sirve: dice "bullet (100% al vencimiento)" para
+  TODOS, y eso es falso en los bonos del canje (el AL30 viene amortizando desde
+  2024). Rava, en cambio, publica el texto del prospecto: "La amortizacion se
+  efectuara en TRECE (13) cuotas semestrales, siendo la primera representativa
+  del 4% del capital, y las restantes doce equivalentes al 8% cada una".
+
+Esta sonda saca los dos textos para los once soberanos, para poder cargar los
+siete que faltan con la fuente anotada en vez de de memoria.
 """
 import json
 import re
@@ -30,10 +33,11 @@ H = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
                     "(KHTML, like Gecko) Chrome/126 Safari/537.36"),
      "Accept": "application/json, text/plain, */*"}
 
+BONOS = ["AL29", "AL30", "AL35", "AE38", "AL41",
+         "GD29", "GD30", "GD35", "GD38", "GD41", "GD46"]
 
-def pedir(u, reintentos=2):
-    """Reintenta: en la sonda anterior varios ERR fueron el DNS del runner
-    fallando un momento, no el servidor."""
+
+def pedir(u, reintentos=3):
     ultimo = ""
     for _ in range(reintentos):
         try:
@@ -52,75 +56,63 @@ def titulo(t):
 
 
 # ---------------------------------------------------------------------------
-titulo("1. bonistas.com/api/bonds -- QUE TRAE EXACTAMENTE")
+titulo("1. CUPONES: el campo `description` de bonistas, uno por bono")
 e, b = pedir("https://bonistas.com/api/bonds")
-print(f"[{e}] {len(b)} bytes")
-datos = None
 if e == 200:
-    datos = json.loads(b)
-    print(f"{len(datos)} filas")
-    print("\nCAMPOS:")
-    for k in sorted(datos[0]):
-        print(f"   {k}")
-    familias = {}
-    for f in datos:
-        familias.setdefault(f.get("bond_family_label") or f.get("bond_family"), []).append(f)
-    print("\nFAMILIAS:")
-    for fam, fs in sorted(familias.items(), key=lambda x: -len(x[1])):
-        print(f"   {len(fs):>4}  {fam}")
-    print("\nUNA FILA COMPLETA DE CADA FAMILIA:")
-    for fam, fs in sorted(familias.items()):
-        print(f"\n--- {fam} ---")
-        print(json.dumps(fs[0], ensure_ascii=False, indent=1)[:1800])
-    print("\nLOS SOBERANOS DEL CANJE:")
-    for f in datos:
-        n = str(f.get("bond_name") or "")
-        if n in ("AL29", "AL30", "AL35", "AE38", "AL41",
-                 "GD29", "GD30", "GD35", "GD38", "GD41", "GD46"):
-            print("  " + json.dumps(f, ensure_ascii=False)[:900])
+    todos = json.loads(b)
+    vistos = {}
+    for f in todos:
+        n = f.get("bond_name")
+        if n in BONOS and n not in vistos:
+            vistos[n] = f
+    for n in BONOS:
+        f = vistos.get(n)
+        print(f"\n--- {n} ---")
+        if not f:
+            print("   no esta en el panel")
+            continue
+        print(f"   vence {f.get('end_date')} · emitido {f.get('start_date')}")
+        print(f"   TIR bonistas {f.get('tir')} · duration {f.get('modified_duration')} "
+              f"· paridad {f.get('parity')} · precio {f.get('last_price')}")
+        print("   " + str(f.get("description", "")).replace("\\n", "\n   "))
+else:
+    print(f"[{e}] no contesto")
 
 # ---------------------------------------------------------------------------
-titulo("2. bonistas: ¿hay endpoint de flujo de fondos?")
-e, b = pedir("https://bonistas.com/")
-print(f"[{e}] home {len(b)} bytes")
-if e == 200:
-    txt = b.decode("utf-8", "replace")
-    rutas = sorted(set(re.findall(r'["\'](/api/[a-zA-Z0-9_\-/\[\]{}.]{2,60})["\']', txt)))
-    print(f"rutas /api/ en el HTML: {rutas}")
-    # Next.js publica sus rutas en el build manifest
-    for m in sorted(set(re.findall(r'/_next/static/[^"\']+_buildManifest\.js', txt)))[:2]:
-        e2, b2 = pedir("https://bonistas.com" + m)
-        print(f"\n[{e2}] {m}")
-        if e2 == 200:
-            paginas = sorted(set(re.findall(r'"(/[a-zA-Z0-9_\-/\[\]]{1,50})"',
-                                            b2.decode("utf-8", "replace"))))
-            print(f"  paginas: {paginas[:60]}")
-
-for u in ("https://bonistas.com/api/bonds/AL30",
-          "https://bonistas.com/api/bond/AL30",
-          "https://bonistas.com/api/cashflow/AL30",
-          "https://bonistas.com/api/cashflows",
-          "https://bonistas.com/api/flows/AL30",
-          "https://bonistas.com/api/payments/AL30",
-          "https://bonistas.com/api/curve",
-          "https://bonistas.com/api/soberanos",
-          "https://bonistas.com/api/ons"):
-    e, b = pedir(u)
-    marca = "OK " if e == 200 else "   "
-    print(f"  {marca}{e:<4} {len(b):>8}  {u}")
-    if e == 200 and len(b) < 400000:
-        print(f"        {b[:300].decode('utf-8','replace')}")
-
-# ---------------------------------------------------------------------------
-titulo("3. Rava: el flujo de fondos, ¿viene incrustado en el HTML?")
-e, b = pedir("https://www.rava.com/perfil/AL30")
+titulo("2. ¿api/bond/<X> trae el flujo de fondos? (55 KB para el AL30)")
+e, b = pedir("https://bonistas.com/api/bond/AL30")
 print(f"[{e}] {len(b)} bytes")
 if e == 200:
+    d = json.loads(b)
+    print(f"claves de primer nivel: {sorted(d)}")
+    for k, v in d.items():
+        if isinstance(v, list):
+            print(f"\n  '{k}' es una lista de {len(v)}")
+            if v and isinstance(v[0], dict):
+                print(f"    campos: {sorted(v[0])}")
+                for x in v[:4]:
+                    print(f"    {json.dumps(x, ensure_ascii=False)[:300]}")
+        elif isinstance(v, dict):
+            print(f"\n  '{k}' es un dict con {sorted(v)[:30]}")
+
+# ---------------------------------------------------------------------------
+titulo("3. AMORTIZACION: el texto del prospecto en Rava")
+for n in BONOS:
+    e, b = pedir(f"https://www.rava.com/perfil/{n}")
+    print(f"\n--- {n} --- [{e}] {len(b)} bytes")
+    if e != 200:
+        continue
     txt = b.decode("utf-8", "replace")
-    for palabra in ("flujo", "amortiz", "cupon", "cronograma", "renta"):
-        i = txt.lower().find(palabra)
-        print(f"  '{palabra}': {'no aparece' if i < 0 else f'pos {i} -> ' + txt[max(0,i-120):i+260]!r}"[:460])
-    rutas = sorted(set(re.findall(r'["\'](/[a-zA-Z0-9_\-/]*(?:flujo|api|perfil)[a-zA-Z0-9_\-/]{0,40})["\']', txt)))
-    print(f"  rutas candidatas: {rutas[:40]}")
+    # el bloque del prospecto: arranca en "Forma de amortizacion" o en la
+    # enumeracion romana de los cupones
+    i = txt.lower().find("amortiz")
+    if i < 0:
+        print("   no aparece 'amortiz'")
+        continue
+    bloque = txt[max(0, i - 1400):i + 700]
+    bloque = re.sub(r"<[^>]+>", " ", bloque)
+    bloque = re.sub(r"\\r\\n|\\n", "\n", bloque)
+    bloque = re.sub(r"[ \t]+", " ", bloque)
+    print("   " + bloque.strip().replace("\n", "\n   "))
 
 print("\n[fin]")
