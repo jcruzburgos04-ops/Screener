@@ -54,17 +54,34 @@ def titulo(t):
     print("\n" + "=" * 78 + f"\n{t}\n" + "=" * 78)
 
 
-# --- el universo, para medir cobertura de verdad ---
-uni = []
+# --- el universo REAL, resuelto igual que lo hace screener.py ---
+# 401 de las 471 lineas son .BA y hay que pasarlas por cedears.csv: sin eso la
+# sonda medía 65 simbolos en vez de 465 y la cobertura salia absurda.
+mapa = {}
+for linea in Path("cedears.csv").read_text(encoding="utf-8").splitlines():
+    linea = linea.strip()
+    if not linea or linea.startswith("#"): continue
+    q = [x.strip() for x in linea.split(",")]
+    if len(q) < 2 or not q[1] or q[0].lower() == "local": continue
+    mapa[q[0].upper()] = q[1].upper()
+
+uni, sin_mapear = [], []
 for linea in Path("universo.csv").read_text(encoding="utf-8").splitlines():
     linea = linea.strip()
     if not linea or linea.startswith("#"): continue
-    p = [x.strip() for x in linea.split(",")]
-    if p[0].lower() == "ticker": continue
-    # el que se analiza es el subyacente cuando el ticker es un CEDEAR .BA
-    uni.append(p[2] if len(p) > 2 and p[2] else p[0])
-uni = sorted({u for u in uni if u and not u.endswith(".BA")})
-print(f"universo: {len(uni)} simbolos a cubrir")
+    q = [x.strip() for x in linea.split(",")]
+    if q[0].lower() == "ticker": continue
+    tk = q[0].upper()
+    if len(q) > 2 and q[2]:
+        uni.append(q[2].upper())
+    elif tk.endswith(".BA"):
+        base = tk[:-3]
+        if base in mapa: uni.append(mapa[base])
+        else: sin_mapear.append(tk)
+    else:
+        uni.append(tk)
+uni = sorted(set(uni))
+print(f"universo: {len(uni)} simbolos a cubrir  ({len(sin_mapear)} .BA sin mapear)")
 
 titulo("1. COBERTURA Y TIEMPO DE CADA FUENTE, EN UN SOLO PEDIDO")
 fuentes = [

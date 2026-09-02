@@ -95,6 +95,13 @@ aside .interior{width:calc(var(--panel-ancho) - var(--barra-sc))}
    en vez de sólo coloreado. */
 .nav-lat{padding:var(--e3) var(--e2);display:flex;flex-direction:column;gap:2px;
   border-bottom:1px solid var(--borde)}
+/* El empujon que manda el engranaje al pie. Es de la PAGINA y no una vista
+   mas: separado abajo se lee como lo que es, en la fila de arriba se leia como
+   una cuarta pantalla. */
+.nav-esp{flex:1;min-height:var(--e4)}
+#chipAjustes{margin-top:var(--e2);border-top:1px solid var(--borde);
+  border-radius:0 0 var(--r) var(--r);padding-top:.7rem}
+#secAjustes{padding-top:var(--e2)}
 .nav-item{display:flex;align-items:center;gap:.65rem;padding:.55rem .7rem;
   border-radius:var(--r);font-size:var(--t2);font-weight:500;color:var(--tenue);
   cursor:pointer;user-select:none;white-space:nowrap;
@@ -342,6 +349,24 @@ body.sin-grafico .detalle{display:none}
   background:var(--panel);border:1px solid var(--borde2);border-radius:var(--r2);
   padding:var(--e4);box-shadow:var(--sombra)}
 .desplegable.abierto{display:block}
+/* Los de filtros e indicadores llevan secciones enteras adentro, no una lista:
+   con 400px las dos columnas de cada filtro no entraban. */
+.desplegable.ancho{width:min(560px,calc(100vw - 2rem))}
+.desplegable.ancho details{border:0;margin:0}
+.desplegable.ancho summary{padding-left:0}
+/* Un chip con icono. El texto queda: un icono solo obliga a adivinar, y esta
+   barra la mira alguien que entra una vez por dia. */
+.chip.ico{display:inline-flex;align-items:center;gap:.4rem}
+.chip.ico svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:1.6;stroke-linecap:round}
+.chip.ico circle{fill:var(--panel);stroke:currentColor}
+/* Con los filtros escondidos detras del icono, el numero de filtros puestos es
+   lo unico que avisa que la tabla NO esta mostrando todo. */
+.chip.ico.puesto{color:var(--ambar);border-color:rgba(232,163,61,.4);
+  background:var(--ambar-t)}
+.chip.ico b{font-family:var(--mono);font-size:var(--t0);
+  background:var(--ambar);color:#12161C;border-radius:3px;padding:.02rem .28rem}
+.chip.ico b:empty{display:none}
 .dcab{display:flex;align-items:center;gap:.45rem;padding-bottom:var(--e3);
   border-bottom:1px solid var(--borde);margin-bottom:var(--e3);flex-wrap:wrap}
 .dcab b{flex:1;font-size:var(--t2);letter-spacing:.005em;
@@ -784,28 +809,156 @@ body.cajon #velo{display:block}
 <body>
 <div id="velo"></div>
 
-<aside><div class="interior">
+<aside class="ctrl-host"><div class="interior">
   <div class="cabecera-panel">
     <h1>Screener ASH</h1>
     <button class="icono" id="btnCerrar" title="Ocultar el panel  ·  tecla [">‹</button>
   </div>
 
-  <!-- La navegacion va arriba del panel, no en la barra: las vistas son el
-       primer nivel —donde estoy parado— y los filtros son un ajuste de la
-       vista tabla. Mezclados en la misma barra se leian como controles del
-       mismo rango. Se conservan los IDs de los chips para no tocar la logica
-       ni las pruebas. -->
+  <!-- La navegacion es el primer nivel: DONDE estoy parado. Todo lo demas son
+       ajustes de una vista concreta y por eso salio de aca: los filtros y los
+       indicadores viven ahora detras de dos iconos en la barra, al lado de las
+       columnas, que es donde se los busca cuando se esta mirando la tabla.
+
+       Abajo de todo, separado por un empujon, el engranaje: lo que es de la
+       PAGINA y no de una vista -- como se ve, de donde bajan los datos, el
+       respaldo. Se conservan los IDs de los chips para no tocar la logica ni
+       las pruebas. -->
   <nav class="nav-lat" id="navVistas">
     <span class="nav-item on" id="chipTabla" title="La tabla del screener · tecla P">
       <i class="nav-ico">▤</i>Tabla</span>
     <span class="nav-item" id="chipVista" title="Tarjetas de índices y sectores · tecla P">
       <i class="nav-ico">◫</i>Panorama</span>
-    <span class="nav-item" id="chipBonos" title="Bonos soberanos argentinos · tecla B">
+    <span class="nav-item" id="chipBonos" title="Bonos soberanos y obligaciones negociables · tecla B">
       <i class="nav-ico">🇦🇷</i>Argentina</span>
+    <span class="nav-esp"></span>
+    <span class="nav-item" id="chipAjustes" title="Cómo se ve, de dónde salen los datos, respaldo">
+      <i class="nav-ico">⚙</i>Configuración</span>
   </nav>
 
-  <div class="nav-rotulo">Ajustes de la tabla</div>
+  <!-- Solo se ve con el engranaje puesto. Es lo de la pagina, no lo de la
+       tabla: el tamaño de letra, el alto de las filas, de donde bajan los
+       precios y el respaldo de la configuracion. -->
+  <div id="secAjustes" hidden>
+  <details open><summary>Datos</summary><div class="cuerpo">
+    <p class="nota" id="infoDatos"></p>
 
+    <div id="cajaYahoo" style="display:none">
+      <button id="btnYahoo">Traer precios de Yahoo ahora</button>
+      <label class="check"><input type="checkbox" id="yaAuto" checked>
+        al abrir, buscar los precios del día en Yahoo</label>
+      <p class="nota" id="infoYahoo"></p>
+      <details id="detProxy"><summary style="padding-left:0">Si Yahoo no contesta</summary>
+        <div style="padding:0">
+          <p class="nota">El navegador sólo puede pedirle precios a Yahoo si Yahoo
+            lo permite (CORS), y eso cambia sin aviso. Si acá abajo dice que está
+            bloqueado, hay dos salidas:</p>
+          <p class="nota">1. Abrir el screener con <code>python servidor.py</code>,
+            que baja los precios por afuera del navegador y nunca depende de esto.</p>
+          <p class="nota">2. Publicar el proxy de una línea que está en
+            <code>cloudflare-worker.js</code> (es gratis, tarda cinco minutos) y
+            pegar acá la dirección que te da:</p>
+          <input type="text" id="yaProxy" placeholder="https://algo.workers.dev">
+          <button id="btnProbarProxy">Probar</button>
+        </div>
+      </details>
+    </div>
+
+    <div id="cajaServidor" style="display:none">
+      <label>Historial a descargar</label>
+      <select id="srvPeriodo"><option>2y</option><option selected>3y</option>
+        <option>5y</option><option>10y</option></select>
+      <label class="check"><input type="checkbox" id="srvFund" checked>
+        traer sector, float y market cap</label>
+      <button id="btnActualizar">Actualizar los datos ahora</button>
+      <button id="btnCompleto">Rehacer todo el historial</button>
+      <label class="check"><input type="checkbox" id="srvAuto" checked>
+        al abrir, actualizar solo si están viejos</label>
+    </div>
+    <p class="nota" id="infoFaltantes"></p>
+    <p class="nota" id="cajaArchivo">El historial sale del archivo; la rueda del
+      día se le pide a Yahoo acá arriba. Si Yahoo no contesta, arrancá con
+      <code>python servidor.py</code>: baja los precios por fuera del navegador
+      y no depende de que Yahoo permita CORS.</p>
+    <div class="subt">Cómo se ve</div>
+    <label>Tamaño de letra</label>
+    <div class="chips" id="chipsLetra">
+      <span class="chip" data-escala="0.88">Chica</span>
+      <span class="chip on" data-escala="1">Normal</span>
+      <span class="chip" data-escala="1.12">Grande</span>
+      <span class="chip" data-escala="1.26">Muy grande</span>
+    </div>
+    <label>Alto de las filas</label>
+    <div class="chips" id="chipsAire">
+      <span class="chip" data-aire="0.8">Apretado</span>
+      <span class="chip on" data-aire="1">Normal</span>
+      <span class="chip" data-aire="1.35">Cómodo</span>
+    </div>
+
+    <div class="subt">Datos</div>
+    <button id="btnCsv">Bajar la tabla en CSV</button>
+    <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
+      Tocá <code>?</code> en cualquier momento para verlos todos.<br>
+      El KPI <code>⚠ Precio atrasado</code> esconde y muestra los desactualizados</p>
+  </div></details>
+
+  <details><summary>Respaldo de la configuración</summary>
+  <div class="cuerpo">
+    <p class="nota">El navegador puede borrar su almacenamiento sin avisar (modo
+      incógnito, «limpiar datos de navegación», otra máquina). Estas tres cosas
+      hacen que no pierdas nada.</p>
+    <button id="btnVista">Copiar el enlace de esta vista</button>
+    <p class="nota">Mete <b style="color:var(--tenue)">todo</b> el estado actual
+      dentro de la dirección. Guardalo en favoritos y la vista vuelve tal cual,
+      aunque se borre el almacenamiento o sea otra computadora.</p>
+    <button id="btnExportar">Bajar un respaldo (.json)</button>
+    <button id="btnImportar">Restaurar desde un respaldo</button>
+    <input type="file" id="archImportar" accept="application/json,.json" style="display:none">
+    <p class="nota">El respaldo lleva los filtros guardados, los favoritos y la
+      sesión actual.</p>
+  </div></details>
+  </div>
+</div></aside>
+
+<main>
+  <div id="avisoCarga"><span id="txtCarga"></span><div class="barra-prog"><i id="barraCarga"></i></div></div>
+  <div id="avisoYahoo"></div>
+  <div class="marca">
+    <button class="icono" id="btnAbrir" title="Mostrar el panel  ·  tecla [">›</button>
+    <span class="titulo">Screener ASH</span>
+    <span class="pastilla" id="frescura" title="Antigüedad de los precios publicados"></span>
+    <button class="icono recargar" id="btnRefrescar" title="Traer los precios de nuevo · tecla R">⟳</button>
+    <span class="firma" id="firma"></span>
+    <select id="selRapido" title="Filtros guardados"></select>
+    <!-- Tres capsulas y no una sola. La primera es una eleccion entre dos
+         vistas y siempre tiene exactamente una encendida; la segunda son
+         interruptores que van y vienen; la tercera abre menus. Estando todos
+         en la misma capsula, "Panorama" y "★ favoritos" prendidos a la vez se
+         leian como dos opciones elegidas del mismo control, que no existe. -->
+    <div class="tf grupo-chips inter">
+      <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
+      <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
+    </div>
+    <!-- Los ajustes de la TABLA, con icono en vez de palabra: son tres y se
+         usan todo el tiempo, y escritos se comian media barra. El de sectores
+         se fue de aca -- el ranking ya esta en Panorama y repetirlo era ruido;
+         lo que si era util, elegir un sector para filtrar, se mudo adentro del
+         panel de filtros, que es donde se lo busca.
+
+         Todo este grupo se esconde fuera de la tabla: no hay nada que filtrar
+         en Panorama ni en la curva de bonos. -->
+    <div class="tf grupo-chips menus" id="menusTabla">
+      <span class="chip ico" id="btnFiltros" title="Filtros y grupos">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3h13M4 8h8m-5.5 5h3"/></svg>
+        Filtros <b id="cuentaFiltrosBarra"></b></span>
+      <span class="chip ico" id="btnIndic" title="Configuración de los indicadores">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h12M2 11.5h12"/><circle cx="6" cy="4.5" r="2"/><circle cx="10.5" cy="11.5" r="2"/></svg>
+        Indicadores</span>
+      <span class="chip" id="btnCols" title="Elegir qué columnas ver">Columnas <b id="cuentaCols"></b> ▾</span>
+    </div>
+  </div>
+  <div class="desplegable ancho ctrl-host" id="panelIndic">
+    <div class="dcab"><b>Cómo se calculan los indicadores</b></div>
   <details open><summary>ASH</summary><div class="cuerpo">
     <label>Indicator Method</label>
     <select id="ashModo"><option>RSI</option><option>STOCHASTIC</option><option>ADX</option></select>
@@ -896,7 +1049,10 @@ body.cajon #velo{display:block}
       es cuántas barras a cada lado tiene que dominar un máximo para contar:
       más grande, menos líneas y más importantes.</p>
   </div></details>
-
+  </div>
+  <div class="desplegable ancho ctrl-host" id="panelFiltros">
+    <div class="dcab"><b>Filtros</b>
+      <span class="chip" id="filtrosLimpiar">Limpiar todo</span></div>
   <details open><summary>Filtros <span class="cuenta" id="cuentaFiltros"></span></summary>
   <div class="cuerpo">
     <div class="subt">Liquidez</div>
@@ -1028,6 +1184,28 @@ body.cajon #velo{display:block}
     <button id="btnGrupos">Todos / ninguno</button>
   </div></details>
 
+    <!-- El ranking de sectores se mudo de la barra a aca. Elegir un sector ES
+         un filtro; tenerlo en un menu aparte al lado de "Columnas" lo hacia
+         parecer otra cosa, y ademas repetia lo que ya muestra Panorama. -->
+    <details><summary>Sector o industria <span class="cuenta" id="cuentaInd"></span></summary>
+      <div class="cuerpo">
+        <div class="dcab" style="padding:0 0 .5rem">
+          <b id="tituloInd">Sectores · ordenados por fuerza relativa</b>
+          <span class="chip on" data-campo="sector">Sector</span>
+          <span class="chip" data-campo="industria">Industria</span>
+          <span class="chip" id="indTodas">Todos</span>
+        </div>
+        <table class="tind" id="tablaInd"></table>
+        <p class="nota">Tocá uno para ver sólo esos papeles.
+          <b style="color:var(--tenue)">RS</b> es la mediana de rendimiento a 3
+          meses del grupo contra los demás;
+          <b style="color:var(--tenue)">verde</b> es qué parte de él tiene el ASH
+          diario positivo. Sólo se rankean grupos con dos papeles o más.<br>
+          El sector es el corte grande y confiable (once grupos). La industria
+          parte el universo en más de cien y Yahoo la clasifica mal seguido, así
+          que sirve para afinar pero no para decidir.</p>
+      </div></details>
+
   <details><summary>Filtros guardados <span class="cuenta" id="cuentaPerfiles"></span></summary>
   <div class="cuerpo">
     <label>Elegir uno</label>
@@ -1041,125 +1219,6 @@ body.cajon #velo{display:block}
       tuyos quedan en el almacenamiento del navegador, en esta máquina.</p>
     <p class="nota" id="avisoAlmacen" style="display:none;color:var(--ambar)"></p>
   </div></details>
-
-  <details><summary>Respaldo de la configuración</summary>
-  <div class="cuerpo">
-    <p class="nota">El navegador puede borrar su almacenamiento sin avisar (modo
-      incógnito, «limpiar datos de navegación», otra máquina). Estas tres cosas
-      hacen que no pierdas nada.</p>
-    <button id="btnVista">Copiar el enlace de esta vista</button>
-    <p class="nota">Mete <b style="color:var(--tenue)">todo</b> el estado actual
-      dentro de la dirección. Guardalo en favoritos y la vista vuelve tal cual,
-      aunque se borre el almacenamiento o sea otra computadora.</p>
-    <button id="btnExportar">Bajar un respaldo (.json)</button>
-    <button id="btnImportar">Restaurar desde un respaldo</button>
-    <input type="file" id="archImportar" accept="application/json,.json" style="display:none">
-    <p class="nota">El respaldo lleva los filtros guardados, los favoritos y la
-      sesión actual.</p>
-  </div></details>
-
-  <details open><summary>Datos</summary><div class="cuerpo">
-    <p class="nota" id="infoDatos"></p>
-
-    <div id="cajaYahoo" style="display:none">
-      <button id="btnYahoo">Traer precios de Yahoo ahora</button>
-      <label class="check"><input type="checkbox" id="yaAuto" checked>
-        al abrir, buscar los precios del día en Yahoo</label>
-      <p class="nota" id="infoYahoo"></p>
-      <details id="detProxy"><summary style="padding-left:0">Si Yahoo no contesta</summary>
-        <div style="padding:0">
-          <p class="nota">El navegador sólo puede pedirle precios a Yahoo si Yahoo
-            lo permite (CORS), y eso cambia sin aviso. Si acá abajo dice que está
-            bloqueado, hay dos salidas:</p>
-          <p class="nota">1. Abrir el screener con <code>python servidor.py</code>,
-            que baja los precios por afuera del navegador y nunca depende de esto.</p>
-          <p class="nota">2. Publicar el proxy de una línea que está en
-            <code>cloudflare-worker.js</code> (es gratis, tarda cinco minutos) y
-            pegar acá la dirección que te da:</p>
-          <input type="text" id="yaProxy" placeholder="https://algo.workers.dev">
-          <button id="btnProbarProxy">Probar</button>
-        </div>
-      </details>
-    </div>
-
-    <div id="cajaServidor" style="display:none">
-      <label>Historial a descargar</label>
-      <select id="srvPeriodo"><option>2y</option><option selected>3y</option>
-        <option>5y</option><option>10y</option></select>
-      <label class="check"><input type="checkbox" id="srvFund" checked>
-        traer sector, float y market cap</label>
-      <button id="btnActualizar">Actualizar los datos ahora</button>
-      <button id="btnCompleto">Rehacer todo el historial</button>
-      <label class="check"><input type="checkbox" id="srvAuto" checked>
-        al abrir, actualizar solo si están viejos</label>
-    </div>
-    <p class="nota" id="infoFaltantes"></p>
-    <p class="nota" id="cajaArchivo">El historial sale del archivo; la rueda del
-      día se le pide a Yahoo acá arriba. Si Yahoo no contesta, arrancá con
-      <code>python servidor.py</code>: baja los precios por fuera del navegador
-      y no depende de que Yahoo permita CORS.</p>
-    <div class="subt">Cómo se ve</div>
-    <label>Tamaño de letra</label>
-    <div class="chips" id="chipsLetra">
-      <span class="chip" data-escala="0.88">Chica</span>
-      <span class="chip on" data-escala="1">Normal</span>
-      <span class="chip" data-escala="1.12">Grande</span>
-      <span class="chip" data-escala="1.26">Muy grande</span>
-    </div>
-    <label>Alto de las filas</label>
-    <div class="chips" id="chipsAire">
-      <span class="chip" data-aire="0.8">Apretado</span>
-      <span class="chip on" data-aire="1">Normal</span>
-      <span class="chip" data-aire="1.35">Cómodo</span>
-    </div>
-
-    <div class="subt">Datos</div>
-    <button id="btnCsv">Bajar la tabla en CSV</button>
-    <p class="nota"><b style="color:var(--tenue)">Atajos</b><br>
-      Tocá <code>?</code> en cualquier momento para verlos todos.<br>
-      El KPI <code>⚠ Precio atrasado</code> esconde y muestra los desactualizados</p>
-  </div></details>
-</div></aside>
-
-<main>
-  <div id="avisoCarga"><span id="txtCarga"></span><div class="barra-prog"><i id="barraCarga"></i></div></div>
-  <div id="avisoYahoo"></div>
-  <div class="marca">
-    <button class="icono" id="btnAbrir" title="Mostrar el panel  ·  tecla [">›</button>
-    <span class="titulo">Screener ASH</span>
-    <span class="pastilla" id="frescura" title="Antigüedad de los precios publicados"></span>
-    <button class="icono recargar" id="btnRefrescar" title="Traer los precios de nuevo · tecla R">⟳</button>
-    <span class="firma" id="firma"></span>
-    <select id="selRapido" title="Filtros guardados"></select>
-    <!-- Tres capsulas y no una sola. La primera es una eleccion entre dos
-         vistas y siempre tiene exactamente una encendida; la segunda son
-         interruptores que van y vienen; la tercera abre menus. Estando todos
-         en la misma capsula, "Panorama" y "★ favoritos" prendidos a la vez se
-         leian como dos opciones elegidas del mismo control, que no existe. -->
-    <div class="tf grupo-chips inter">
-      <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
-      <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
-    </div>
-    <div class="tf grupo-chips menus">
-      <span class="chip" id="btnInd" title="Ranking de sectores">Sectores ▾</span>
-      <span class="chip" id="btnCols" title="Elegir qué columnas ver">Columnas <b id="cuentaCols"></b> ▾</span>
-    </div>
-  </div>
-  <div class="desplegable" id="panelInd">
-    <div class="dcab">
-      <b id="tituloInd">Sectores · ordenados por fuerza relativa</b>
-      <span class="chip on" data-campo="sector">Sector</span>
-      <span class="chip" data-campo="industria">Industria</span>
-      <span class="chip" id="indTodas">Todos</span>
-    </div>
-    <table class="tind" id="tablaInd"></table>
-    <p class="nota">Tocá uno para ver sólo esos papeles. <b style="color:var(--tenue)">RS</b>
-      es la mediana de rendimiento a 3 meses del grupo contra los demás;
-      <b style="color:var(--tenue)">verde</b> es qué parte de él tiene el ASH
-      diario positivo. Sólo se rankean grupos con dos papeles o más.<br>
-      El sector es el corte grande y confiable (once grupos). La industria parte
-      el universo en más de cien y Yahoo la clasifica mal seguido, así que sirve
-      para afinar pero no para decidir.</p>
   </div>
   <div class="desplegable" id="panelCols">
     <div class="dcab">
@@ -2426,7 +2485,13 @@ function aplicar(ms){
     (industriaSel?`<span class="mini-pill ambar">${esc(industriaSel)}</span> `:'')+
     (act?`<span class="mini-pill ambar">${act} filtro${act>1?'s':''}</span>`
         :`<span class="mini-pill gris2">sin filtros</span>`);
-  $('#btnInd').classList.toggle('on',!!industriaSel);
+  /* La barra tiene que decir cuantos filtros hay puestos SIN abrir el panel:
+     con los filtros escondidos detras de un icono, si no se ve el numero uno
+     no se entera de que esta filtrando. */
+  const enBarra=act+(industriaSel?1:0);
+  $('#cuentaFiltrosBarra').textContent=enBarra?enBarra:'';
+  $('#btnFiltros').classList.toggle('puesto',!!enBarra);
+  $('#cuentaInd').textContent=industriaSel?'1':'';
   $('#cuentaGrupos').textContent=gruposOn.size?gruposOn.size:'';
   render();
 }
@@ -2636,13 +2701,40 @@ function cambiarCampoGrupo(campo){
    perfil guardado con "industria" el boton seguia diciendo "Sectores" mientras
    el panel listaba industrias. */
 function etiquetaGrupo(){
-  $('#btnInd').textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+' ▾';
-  $('#btnInd').title='Ranking de '+(campoGrupo==='sector'?'sectores':'industrias');
+  /* El chip de la barra ya no existe: el ranking se mudo adentro del panel de
+     filtros, que es donde vive un filtro. Lo unico que queda por rotular es el
+     encabezado de esa seccion. */
+  const t=$('#tituloInd');
+  if(t)t.textContent=(campoGrupo==='sector'?'Sectores':'Industrias')+
+    ' · ordenados por fuerza relativa';
 }
 
-function verPanelInd(abrir){
+/* Los dos desplegables nuevos. Se abren de a uno: dos abiertos a la vez se
+   pisan, y ya paso con el de industrias contra el de columnas. */
+/* El engranaje del pie de la navegacion. Adentro va lo que es de la PAGINA y
+   no de una vista: como se ve (letra y alto de fila), de donde bajan los datos
+   y el respaldo de la configuracion. Antes estaba mezclado con los filtros en
+   la misma columna, y no habia forma de saber que "Datos" era una cosa muy
+   distinta de "Filtros". */
+function verAjustes(abrir){
+  const sec=$('#secAjustes');if(!sec)return;
+  sec.hidden=!abrir;
+  $('#chipAjustes').classList.toggle('on',abrir);
+}
+
+function verPanelIndic(abrir){
+  $('#panelIndic').classList.toggle('abierto',abrir);
+  $('#btnIndic').classList.toggle('on',abrir);
+}
+function verPanelFiltros(abrir){
   if(abrir)montarIndustrias();
-  $('#panelInd').classList.toggle('abierto',abrir);
+  $('#panelFiltros').classList.toggle('abierto',abrir);
+  $('#btnFiltros').classList.toggle('on',abrir);
+}
+function cerrarMenus(menos){
+  if(menos!=='cols')  verPanelCols(false);
+  if(menos!=='indic') verPanelIndic(false);
+  if(menos!=='filt')  verPanelFiltros(false);
 }
 
 function verPanelCols(abrir){
@@ -3168,6 +3260,18 @@ function verVista(cual){
   $('#chipTabla').classList.toggle('on', cual === 't');
   $('#chipVista').classList.toggle('on', cual === 'p');
   $('#chipBonos').classList.toggle('on', cual === 'b');
+  /* LOS FILTROS SON DE LA RENTA VARIABLE. En Panorama no hay tabla que filtrar
+     y en la curva de bonos un "RSI mayor que" no quiere decir nada: dejar los
+     controles a la vista invita a tocarlos y despues a no entender por que no
+     pasa nada. Se esconden, y de paso se cierran, que si no quedaba un menu
+     flotando sobre una vista que ya no era la suya. */
+  const enTabla = cual === 't';
+  $('#menusTabla').hidden = !enTabla;
+  if(!enTabla)cerrarMenus();
+  /* Salir a otra vista suelta el engranaje: es un panel de la pagina, no de la
+     vista, pero tenerlo abierto tapando la mitad al cambiar de pantalla es
+     exactamente lo que uno no quiere. */
+  verAjustes(false);
   escribirLS('screener_ash_vista', cual);
   if(cual === 'p')      renderPanorama();
   else if(cual === 'b') verBonos();
@@ -3747,8 +3851,17 @@ function elegirPerfil(valor){
   if(tipo==='p'){ponerValores(PRESETS[nombre],true);etiquetas();aplicar();guardarSesion();}
   else{const p=leerPerfiles()[nombre];if(p)aplicarEstado(p);}
 }
+/* TODO CONTROL DE ESTADO VIVE EN UN .ctrl-host. Antes esto decia
+   `aside input, aside select`, o sea que dependia de DONDE estaba el control en
+   el HTML: al mudar los filtros y los indicadores de la columna izquierda a los
+   dos desplegables de la barra, TODOS quedaron desconectados en silencio -- ni
+   se guardaban ni disparaban el recalculo -- y la pagina seguia cargando igual,
+   que es lo peor. Lo cazaron once pruebas de interfaz.js. Si agregas un
+   contenedor con controles, ponele la clase ctrl-host y listo. */
+const CTRL='.ctrl-host input, .ctrl-host select';
+
 function estadoActual(){const o={};
-  $$('aside input, aside select').forEach(el=>{
+  $$(CTRL).forEach(el=>{
     if(!el.id||el.type==='file'||NO_ESTADO.includes(el.id))return;
     o[el.id]=el.type==='checkbox'?el.checked:el.value;});
   o._grupos=[...gruposOn];
@@ -4486,7 +4599,7 @@ function iniciar(){
                    'parRap','parLen','parK','parFresco','rvLen','rvFuente',
                    'consolBarras','consolAlto'];
   let timer=null, pendientePesado=false;
-  $$('aside input, aside select').forEach(el=>{
+  $$(CTRL).forEach(el=>{
     if(NO_ESTADO.includes(el.id)||el.type==='file')return;
     const evento=el.type==='checkbox'?'change':'input';
     el.addEventListener(evento,()=>{
@@ -4624,18 +4737,28 @@ function iniciar(){
     $$('#ordenCols .fila-ord').forEach(x=>x.classList.remove('arrastrando','encima'));});
   $('#colEsencial').onclick=()=>ponerColumnas(COLS_DEF);
   $('#colTodo').onclick=()=>ponerColumnas(COLS.filter(c=>!c.nosel).map(c=>c.k));
-  $('#btnCols').onclick=e=>{e.stopPropagation();verPanelInd(false);
+  $('#btnCols').onclick=e=>{e.stopPropagation();cerrarMenus('cols');
     verPanelCols(!$('#panelCols').classList.contains('abierto'));};
-  $('#btnInd').onclick=e=>{e.stopPropagation();verPanelCols(false);
-    verPanelInd(!$('#panelInd').classList.contains('abierto'));};
+  $('#btnIndic').onclick=e=>{e.stopPropagation();cerrarMenus('indic');
+    verPanelIndic(!$('#panelIndic').classList.contains('abierto'));};
+  $('#btnFiltros').onclick=e=>{e.stopPropagation();cerrarMenus('filt');
+    verPanelFiltros(!$('#panelFiltros').classList.contains('abierto'));};
   $('#panelCols').onclick=e=>e.stopPropagation();
-  $('#panelInd').onclick=e=>{e.stopPropagation();
+  $('#panelIndic').onclick=e=>e.stopPropagation();
+  $('#panelFiltros').onclick=e=>{e.stopPropagation();
     const chip=e.target.closest('.chip[data-campo]');
     if(chip){cambiarCampoGrupo(chip.dataset.campo);return;}
     const tr=e.target.closest('tr[data-ind]');if(tr)elegirIndustria(tr.dataset.ind);};
   $('#indTodas').onclick=()=>{industriaSel=null;montarIndustrias();aplicar();};
-  document.addEventListener('click',()=>{verPanelCols(false);verPanelInd(false);
+  $('#filtrosLimpiar').onclick=limpiarFiltros;
+  document.addEventListener('click',()=>{cerrarMenus();
     SELECTORES.forEach(s=>s.cont.classList.remove('abierto'));});
+  $('#chipAjustes').onclick=()=>{
+    const abierto=!$('#secAjustes').hidden;
+    /* Poner el engranaje NO cambia de vista: se sigue viendo lo que se estaba
+       viendo, solo cambia lo que muestra la columna de la izquierda. */
+    verAjustes(!abierto);
+  };
   $('#btnCerrar').onclick=()=>panel(false);
   $('#btnAbrir').onclick=()=>panel(true);
   $('#velo').onclick=()=>panel(false);
@@ -4720,7 +4843,8 @@ function iniciar(){
     else if(e.key==='Escape'){
       if($('#ayuda').classList.contains('abierto')){verAtajos(false);return;}
       if($('#panelCols').classList.contains('abierto')){verPanelCols(false);return;}
-      if($('#panelInd').classList.contains('abierto')){verPanelInd(false);return;}
+      if($('#panelIndic').classList.contains('abierto')){verPanelIndic(false);return;}
+      if($('#panelFiltros').classList.contains('abierto')){verPanelFiltros(false);return;}
       if(industriaSel){industriaSel=null;aplicar();return;}
       $('#buscar').value='';$('#buscar').blur();aplicar();}
     else if((e.key==='ArrowDown'||e.key==='ArrowUp')&&!escribiendo){
