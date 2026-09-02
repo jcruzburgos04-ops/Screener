@@ -50,17 +50,30 @@ jobs:
           for pr in d['canje']:
               print(f"  {pr['arg']} vs {pr['ny']}  ({pr['vto']}):  {pr['ratio']}")
           print()
-          print("curvas en pesos (agrupadas por el campo `index` de la fuente):")
+          print("curvas en pesos, con VOLUMEN para ver que papeles son de verdad:")
           for c in d.get('pesos', []):
               print(f"  {c['titulo']} ({len(c['filas'])}):")
               print(f"    {'ticker':<9}{'vto':<12}{'dias':>6}{'precio':>12}"
-                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}")
-              for x in c['filas'][:8]:
+                    f"{'TNA':>8}{'TIR':>8}{'TEM':>8}{'volumen':>12}")
+              for x in c['filas']:
                   print(f"    {x['t']:<9}{x['vto']:<12}{x['dias']:>6}{x['precio']:>12,.2f}"
                         f"{(x['tna'] or 0)*100:>7.2f}%{(x['tir'] or 0)*100:>7.2f}%"
-                        f"{(x['tem'] or 0)*100:>7.2f}%")
-              if len(c['filas']) > 8:
-                  print(f"    ... y {len(c['filas'])-8} mas")
+                        f"{(x['tem'] or 0)*100:>7.2f}%{(x['volumen'] or 0):>12,.2f}")
+          # Los que se salen de la curva: se listan aparte con su volumen, que
+          # es lo que dice si el precio es real o una punta vieja.
+          print()
+          print("los que mas se alejan de su curva:")
+          for c in d.get('pesos', []):
+              tems = sorted(x['tem'] for x in c['filas'] if x['tem'] is not None)
+              if len(tems) < 5: continue
+              q1, q3 = tems[len(tems)//4], tems[3*len(tems)//4]
+              ric = q3 - q1
+              for x in c['filas']:
+                  if x['tem'] is None or ric <= 0: continue
+                  if x['tem'] < q1 - 3*ric or x['tem'] > q3 + 3*ric:
+                      print(f"  {c['titulo']:<14} {x['t']:<8} TEM {x['tem']*100:7.2f}% "
+                            f"(mediana {tems[len(tems)//2]*100:.2f}%) "
+                            f"volumen {(x['volumen'] or 0):,.2f} dias {x['dias']}")
           print()
           print(f"futuros: {len(d.get('futuros',[]))} contratos · spot {d.get('spot')} "
                 f"({d.get('spot_fuente')})")

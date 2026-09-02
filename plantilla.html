@@ -588,6 +588,21 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
   background:var(--panel2);border-radius:3px;padding:.05rem .3rem;font-weight:500}
 .bo-pest button.on b{color:var(--ambar);background:var(--ambar-t)}
 .bo-raros{color:var(--ambar);opacity:.85}
+/* ---------- grafico de futuros ---------- */
+/* La barra del spread es el carry dibujado: gris y atras, para que las dos
+   lineas sigan siendo lo que se lee primero. */
+.fu-spread{fill:rgba(255,255,255,.07)}
+.fu-sp{fill:var(--tenue);font-size:13px;font-family:var(--mono)}
+.fu-linea{fill:none;stroke-width:2}
+.fu-pt{stroke:var(--fondo);stroke-width:1.5}
+.fu-val{font-size:13px;font-family:var(--mono);font-weight:600}
+.fu-linea.fu-c-pesos{stroke:var(--ambar)} .fu-pt.fu-c-pesos{fill:var(--ambar)}
+.fu-val.fu-c-pesos{fill:var(--ambar)}
+.fu-linea.fu-c-fut{stroke:#5FA8D3} .fu-pt.fu-c-fut{fill:#5FA8D3}
+.fu-val.fu-c-fut{fill:#5FA8D3}
+.fu-vol{fill:rgba(255,255,255,.16)}
+.bo-leyenda i.fu-c-pesos{background:var(--ambar)}
+.bo-leyenda i.fu-c-fut{background:#5FA8D3}
 .bo-buscar{width:100%;max-width:340px;margin:0 0 var(--e3);
   background:var(--fondo);border:1px solid var(--borde2);border-radius:var(--r);
   color:var(--hueso);font-family:var(--sans);font-size:var(--t2);padding:.45rem .7rem}
@@ -2479,13 +2494,17 @@ function aplicar(ms){
   // contra la fecha de la mayoria: un papel de Asia adelantado no puede
   // tapar que todo Nueva York quedo en el cierre de anteayer
   const ruedas=ruedasHasta(fechaMayoritaria());
-  $('#firma').innerHTML=`<em>${esc(c.ash.modo)} ${c.ash.length}/${c.ash.smooth} ${esc(c.ash.ma_type)}</em>`+
-    `<i class="sep-v"></i>${DATOS.simbolos.length} símbolos`+
+  /* La barra dice SOLO lo que puede estar mal. La configuracion del ASH y la
+     cantidad de simbolos eran informacion muerta: no cambian de un dia para el
+     otro, no hay nada que decidir con ellas, y ocupaban el lugar donde uno mira
+     lo unico urgente, que es si los precios estan al dia. Queda el cierre y los
+     dos avisos de atraso. */
+  $('#firma').innerHTML=
     /* La fecha de la MAYORIA, no el maximo. Con el maximo alcanzaba un solo
        papel de Tokio con la barra de hoy para que el encabezado dijera una
        fecha que ningun papel de Nueva York tenia: el 28/08 decia "cierre
        28/08" con toda la rueda de EEUU todavia en el 27. */
-    `<i class="sep-v"></i>cierre ${fechaCorta(fechaMayoritaria())}`+
+    `cierre ${fechaCorta(fechaMayoritaria())}`+
     // Que TODO el archivo este viejo (el cron fallo, la pestaña quedo abierta
     // desde el jueves) es otro problema distinto de que un papel venga atrasado.
     (ruedas>=2?` <span style="color:var(--bajista)" title="Ni siquiera el más `+
@@ -3440,16 +3459,21 @@ function curvaXY(puntos,op){
     Casi siempre es una cotización vieja de algo que no opera.
     <b>Están igual en la tabla</b>.</p>`:'';
 
-  return `<div class="bo-tarjeta">
-    <div class="bo-tit">${esc(op.titulo||'Curva')}${leyenda}</div>
-    ${op.nota?`<p class="bo-nota">${op.nota}</p>`:''}${aviso}
-    <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
+  /* `desnuda` la devuelve sin tarjeta propia, para meterla adentro de la que
+     ya tiene la tabla. Asi el grafico y los numeros del mismo instrumento
+     quedan juntos y entran en una pantalla, en vez de una tarjeta por cada
+     cosa y tener que ir y volver. */
+  const svg=`<div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
       ${ejes}
       <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${H-mb}" y2="${H-mb}"/>
       <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${H-mb}"/>
       ${dibujo}
       <text class="cv-rot" x="${(ml+W-mr)/2}" y="${H-8}" text-anchor="middle">${esc(op.rotuloX||'')}</text>
-    </svg></div></div>`;
+    </svg></div>`;
+  if(op.desnuda)return aviso+svg;
+  return `<div class="bo-tarjeta">
+    <div class="bo-tit">${esc(op.titulo||'Curva')}${leyenda}</div>
+    ${op.nota?`<p class="bo-nota">${op.nota}</p>`:''}${aviso}${svg}</div>`;
 }
 
 /* La de los soberanos queda como un caso de la general. */
@@ -3558,28 +3582,23 @@ function renderPesos(){
       actualización.</p></div>`;
     ponerPestanas();return;}
 
-  /* Todas juntas primero: es la comparacion que se quiere hacer -- cuanto
-     paga cada familia al mismo plazo. Despues cada una con su tabla. */
-  const todas=[];
-  curvas.forEach(c=>c.filas.forEach(f=>{
-    if(hay(f.tem)&&hay(f.dias))todas.push({x:f.dias,y:f.tem*100,t:f.t,serie:c.titulo});}));
+  /* NO va una curva que las superponga a todas. Se probo y era ilegible por
+     dos motivos que no se arreglan con diseño: los rotulos de cincuenta y
+     pico de papeles se pisan unos con otros, y sobre todo las escalas no son
+     comparables -- un CER rinde 0,3% mensual REAL y una LECAP 2,1% NOMINAL.
+     Ponerlas en el mismo eje sugiere que una paga siete veces mas que la
+     otra, que es exactamente lo contrario de lo que pasa.
 
+     Cada familia va con su curva y su tabla, JUNTAS en la misma tarjeta, para
+     que se pueda mirar el grafico y buscar el papel sin desplazarse. */
   cuerpo.innerHTML=pestanas()+
-    curvaXY(todas,{
-      titulo:'Todas las curvas en pesos',
-      rotuloX:'días al vencimiento',
-      alto:420,
-      nota:'La <b>TEM</b> (tasa efectiva mensual) de cada papel contra los días que le '+
-        'quedan. Ojo con comparar de más: la de un CER es un rendimiento <b>real</b> '+
-        '(por encima de la inflación) y la de un dólar linked es <b>en dólares</b> (por '+
-        'encima de la devaluación). Sólo la de tasa fija es la que se cobra en pesos.'})+
     curvas.map(c=>{
       const p=c.filas.filter(f=>hay(f.tem)&&hay(f.dias))
         .map(f=>({x:f.dias,y:f.tem*100,t:f.t}));
-      return curvaXY(p,{titulo:'Curva '+c.titulo,rotuloX:'días al vencimiento',alto:320})+
-        `<div class="bo-tarjeta"><div class="bo-tit">${esc(c.titulo)}
+      return `<div class="bo-tarjeta"><div class="bo-tit">${esc(c.titulo)}
           <span class="bo-leyenda">${c.filas.length} papeles</span></div>
          <p class="bo-nota">${c.nota}</p>
+         ${curvaXY(p,{rotuloX:'días al vencimiento',alto:230,desnuda:1})}
          ${tablaSimple(c.filas,COLS_PESOS,'bo-grande')}</div>`;
     }).join('')+
     `<div class="bo-falta"><b>La TIR, la TNA y la TEM de estas tablas las calcula
@@ -3590,6 +3609,110 @@ function renderPesos(){
       que vence desaparece sola: no hay ninguna lista que mantener.</div>`;
   ponerPestanas();
   cuerpo.onclick=null;cuerpo.onkeydown=null;
+}
+
+/* ---------- el grafico de futuros ----------
+   No usa curvaXY y es a proposito: la forma es otra. Ahi el eje X son dias y
+   cada punto lleva su ticker; aca el eje X son LOS CONTRATOS, uno al lado del
+   otro y equiespaciados, cada punto lleva su PORCENTAJE, y entre las dos
+   lineas van las barras del spread. Es la figura con la que se mira el carry.
+
+   La linea de tasa fija se INTERPOLA al plazo de cada contrato: comparar el
+   DLR/DIC26 (121 dias) contra una LECAP de 88 no dice nada. Se interpola
+   linealmente entre los dos papeles que lo rodean y NO se extrapola: si el
+   contrato vence mas lejos que la letra mas larga, ese punto no existe y no se
+   dibuja. Inventar el tramo largo de la curva de pesos seria justo lo que este
+   proyecto no hace. */
+function interpolar(curva, dias){
+  const p=curva.filter(x=>hay(x.dias)&&hay(x.tna)).sort((a,b)=>a.dias-b.dias);
+  if(p.length<2||dias<p[0].dias||dias>p[p.length-1].dias)return null;
+  for(let i=1;i<p.length;i++){
+    if(dias<=p[i].dias){
+      const a=p[i-1], b=p[i], t=(dias-a.dias)/((b.dias-a.dias)||1);
+      return a.tna+(b.tna-a.tna)*t;
+    }
+  }
+  return null;
+}
+
+function graficoFuturos(futs, fija){
+  const f=futs.filter(x=>hay(x.tna)&&x.dias>0);
+  if(f.length<2)return '';
+  const pts=f.map(x=>({t:x.t.replace(/^.*\//,''), dias:x.dias, fut:x.tna*100,
+                       pesos:(()=>{const v=interpolar(fija,x.dias);return v==null?null:v*100;})(),
+                       vol:x.volumen||0}));
+
+  const W=1000,H=430,ml=56,mr=24,mt=34,mb=86,volH=46;
+  const base=H-mb;                       // piso del panel de tasas
+  const ys=[];pts.forEach(p=>{ys.push(p.fut);if(hay(p.pesos))ys.push(p.pesos);});
+  let y0=Math.min(...ys), y1=Math.max(...ys);
+  const pad=Math.max((y1-y0)*0.25,0.5); y0-=pad; y1+=pad;
+  const paso=(W-ml-mr)/f.length;
+  const X=i=>ml+paso*(i+0.5);
+  const Y=v=>mt+(y1-v)/(y1-y0)*(base-mt);
+
+  const py=cvPaso(y1-y0,4);
+  let ejes='';
+  for(let v=Math.ceil(y0/py)*py; v<=y1+1e-9; v+=py)
+    ejes+=`<line class="cv-grid" x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`+
+      `<text class="cv-eje" x="${ml-9}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${v.toFixed(0)}%</text>`;
+
+  /* Las barras del spread: la distancia entre lo que paga quedarse en pesos y
+     lo que paga cubrirse. ES el carry, y verlo como area es mas directo que
+     restar dos lineas con la vista. */
+  const barras=pts.map((p,i)=>{
+    if(!hay(p.pesos))return '';
+    const a=Y(Math.max(p.fut,p.pesos)), b=Y(Math.min(p.fut,p.pesos));
+    const dif=p.pesos-p.fut;
+    return `<rect class="fu-spread" x="${(X(i)-paso*0.26).toFixed(1)}" y="${a.toFixed(1)}" `+
+      `width="${(paso*0.52).toFixed(1)}" height="${Math.max(1,b-a).toFixed(1)}"/>`+
+      (Math.abs(b-a)>16?`<text class="fu-sp" x="${X(i).toFixed(1)}" y="${((a+b)/2+4).toFixed(1)}" `+
+        `text-anchor="middle">${dif>0?'+':''}${dif.toFixed(1)}</text>`:'');
+  }).join('');
+
+  const linea=(clave,clase,arriba)=>{
+    const s=pts.map((p,i)=>({i,v:p[clave]})).filter(x=>hay(x.v));
+    if(!s.length)return '';
+    return `<path class="fu-linea ${clase}" d="${s.map((x,j)=>
+        (j?'L':'M')+X(x.i).toFixed(1)+' '+Y(x.v).toFixed(1)).join(' ')}"/>`+
+      s.map(x=>`<circle class="fu-pt ${clase}" cx="${X(x.i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="4"/>`+
+        `<text class="fu-val ${clase}" x="${X(x.i).toFixed(1)}" `+
+        `y="${(Y(x.v)+(arriba?-11:16)).toFixed(1)}" text-anchor="middle">${x.v.toFixed(1)}%</text>`).join('');
+  };
+
+  /* El volumen abajo, en su propia franja. Sin el no se sabe cuales de estos
+     precios son de verdad: los contratos largos casi no operan. */
+  const volMax=Math.max(...pts.map(p=>p.vol),1);
+  const vol=pts.map((p,i)=>{
+    const h=Math.max(1,(p.vol/volMax)*volH);
+    return `<rect class="fu-vol" x="${(X(i)-paso*0.22).toFixed(1)}" y="${(H-18-h).toFixed(1)}" `+
+      `width="${(paso*0.44).toFixed(1)}" height="${h.toFixed(1)}"><title>${esc(p.t)}: `+
+      `${bnum(p.vol,0)} contratos</title></rect>`;}).join('');
+
+  const rotulos=pts.map((p,i)=>
+    `<text class="cv-eje" x="${X(i).toFixed(1)}" y="${(base+20).toFixed(1)}" `+
+    `text-anchor="middle">${esc(p.t)}</text>`).join('');
+
+  const sinPesos=pts.filter(p=>!hay(p.pesos)).length;
+
+  return `<div class="bo-tarjeta"><div class="bo-tit">Futuros contra tasa fija en pesos
+      <span class="bo-leyenda"><i class="fu-c-pesos"></i>tasa fija en pesos<i class="fu-c-fut"></i>TNA del futuro</span></div>
+    <p class="bo-nota">La <b>TNA del futuro</b> es lo que rinde comprar dólar a plazo. La
+      <b>tasa fija en pesos</b> es lo que rinde quedarse en pesos al mismo plazo,
+      interpolada al vencimiento de cada contrato. <b>La barra gris entre las dos es el
+      carry</b>: cuando la de pesos va por arriba, el mercado te paga por no cubrirte.
+      Abajo, el volumen de cada contrato: los largos casi no operan y su precio hay que
+      mirarlo con eso en la cabeza.${sinPesos?` <b>${sinPesos} contrato${sinPesos>1?'s':''}
+      sin línea de pesos</b>: vence${sinPesos>1?'n':''} más lejos que la letra más larga
+      y la curva no se extrapola.`:''}</p>
+    <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
+      ${ejes}${barras}
+      <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${base}" y2="${base}"/>
+      <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${base}"/>
+      ${linea('pesos','fu-c-pesos',true)}${linea('fut','fu-c-fut',false)}
+      ${rotulos}${vol}
+      <text class="cv-rot" x="${ml}" y="${H-4}">volumen</text>
+    </svg></div></div>`;
 }
 
 /* ---------- futuros de dolar ---------- */
@@ -3651,28 +3774,16 @@ function renderFuturos(){
     +(hay(mep)&&hay(d.spot)?`<div><span>Brecha</span><b>${bnum((mep/d.spot-1)*100,2)}%</b>
         <em>el MEP contra el oficial</em></div>`:'');
 
-  /* Dos series: lo que paga el futuro y lo que paga la tasa fija en pesos al
-     mismo plazo. La distancia entre las dos ES el carry, que es la unica
-     razon por la que alguien mira las dos juntas. */
-  const puntos=f.filter(x=>hay(x.tna)).map(x=>({x:x.dias,y:x.tna*100,t:x.t,serie:'futuro (TNA)'}));
-  /* La clave es la familia de la fuente (LETRAS-FIJO), no el indice (Fijo):
-     buscar por la vieja dejaba el grafico con una sola serie y sin carry, que
-     es justamente lo unico que este grafico existe para mostrar. */
-  const fija=((d.pesos||[]).find(c=>c.clave==='Fijo')||{filas:[]}).filas
-    .filter(x=>hay(x.tna)&&hay(x.dias))
-    .map(x=>({x:x.dias,y:x.tna*100,t:x.t,serie:'tasa fija en pesos'}));
+  /* La clave es el indice de la fuente ('Fijo'), no la familia: buscar por la
+     vieja dejaba el grafico sin la linea de pesos y por lo tanto sin carry,
+     que es justamente lo unico que este grafico existe para mostrar. */
+  const fija=((d.pesos||[]).find(c=>c.clave==='Fijo')||{filas:[]}).filas;
 
   cuerpo.innerHTML=pestanas()+
     `<div class="bo-tarjeta"><div class="bo-tit">Tipos de cambio
       <span class="bo-leyenda">rueda del ${esc((f[0]&&f[0].rueda)||'')}</span></div>
       <div class="bo-det-cab">${caja}</div></div>`+
-    curvaXY(puntos.concat(fija),{
-      titulo:'Curva de futuros contra la tasa fija en pesos',
-      rotuloX:'días al vencimiento', alto:400,
-      nota:'La <b>TNA del futuro</b> es lo que rinde comprar dólar a plazo. La <b>tasa '+
-        'fija</b> es lo que rinde quedarse en pesos al mismo plazo. '+
-        '<b>La distancia entre las dos es el carry</b>: cuando la de pesos va por '+
-        'arriba, el mercado te está pagando por no cubrirte.'})+
+    graficoFuturos(f,fija)+
     `<div class="bo-tarjeta"><div class="bo-tit">Contratos
       <span class="bo-leyenda">${f.length} vivos</span></div>
       <p class="bo-nota"><b>Tasa directa</b>: cuánto rinde el contrato hasta su

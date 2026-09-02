@@ -165,16 +165,25 @@ console.log('== el interruptor de tres posiciones ==');
  ok('todas tienen su titulo en pantalla',
     curvas.every(c=>tp.indexOf(c.titulo)>=0),
     curvas.map(c=>c.titulo).join(' '));
- /* Una por familia CON AL MENOS DOS PAPELES, mas la de "todas juntas". Una
-    familia con un solo papel no tiene curva: un punto suelto sobre dos ejes no
-    dice nada, y dibujarlo igual sugiere una forma que no existe. */
+ /* Una curva por familia CON AL MENOS DOS PAPELES. Un punto suelto sobre dos
+    ejes no dice nada y dibujarlo sugiere una forma que no existe.
+
+    NO hay una curva que las superponga a todas: se probo y era ilegible. Los
+    rotulos de cincuenta papeles se pisan, y sobre todo las escalas no son
+    comparables -- un CER rinde 0,3% mensual REAL y una LECAP 2,1% NOMINAL, asi
+    que en el mismo eje parece que una paga siete veces mas que la otra. */
  const conCurva=curvas.filter(c=>c.filas.filter(f=>f.tem!=null&&f.dias!=null).length>=2);
  const svgs=d.querySelectorAll('#bonosCuerpo svg.cv');
- ok('dibuja una curva por familia con dos papeles o mas, y la general',
-    svgs.length===conCurva.length+1,svgs.length+' vs '+(conCurva.length+1));
+ ok('una curva por familia con dos papeles o mas, y ninguna que las mezcle',
+    svgs.length===conCurva.length,svgs.length+' vs '+conCurva.length);
  ok('pero la TABLA sale igual aunque la familia tenga un solo papel',
     curvas.length>conCurva.length&&
     tp.indexOf(curvas.find(c=>!conCurva.includes(c)).filas[0].t)>=0);
+ /* El grafico y su tabla van en la MISMA tarjeta: si no, hay que ir y volver
+    entre la curva y los numeros del mismo instrumento. */
+ ok('cada curva vive en la misma tarjeta que su tabla',
+    [...svgs].every(g=>{const t=g.closest('.bo-tarjeta');
+      return t&&t.querySelector('table');}));
  const filasP=d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr');
  const totalP=curvas.reduce((a,c)=>a+c.filas.length,0);
  ok('y un renglon por papel',filasP.length===totalP,filasP.length+' vs '+totalP);
@@ -208,19 +217,48 @@ console.log('== el interruptor de tres posiciones ==');
     ['directa','TNA','TEM'].every(h=>tf.indexOf(h)>=0));
  ok('y la implicita de A3 aparte',/A3/.test(tf));
  ok('avisa que los vencimientos salen de A3',/salen de A3/i.test(tf));
- /* Dos series: el futuro y la tasa fija. La distancia es el carry, que es la
-    unica razon para mirarlas juntas. */
+ /* El grafico de futuros NO es una curvaXY: el eje X son los contratos, uno
+    al lado del otro, cada punto lleva su porcentaje y entre las dos lineas van
+    las barras del spread. Es la figura con la que se mira el carry. */
  const svgF=d.querySelector('#bonosCuerpo svg.cv');
- ok('dibuja la curva',!!svgF);
- const series=new Set([...svgF.querySelectorAll('.cv-pt')]
-   .map(g=>g.getAttribute('class').replace('cv-pt ','')));
- ok('con dos series, futuro y tasa fija',series.size===2,[...series].join());
+ ok('dibuja el grafico',!!svgF);
+ ok('con la linea del futuro',svgF.querySelectorAll('.fu-linea.fu-c-fut').length===1);
+ ok('y la de la tasa fija en pesos',
+    svgF.querySelectorAll('.fu-linea.fu-c-pesos').length===1);
+ ok('un punto por contrato en la linea del futuro',
+    svgF.querySelectorAll('.fu-pt.fu-c-fut').length===futs.filter(x=>x.tna!=null).length);
+ /* Los rotulos son PORCENTAJES, no tickers: es lo que se lee en el grafico de
+    referencia y lo que se necesita para comparar dos lineas de un vistazo. */
+ ok('cada punto lleva su porcentaje',
+    [...svgF.querySelectorAll('.fu-val')].every(t=>/%$/.test(t.textContent)));
+ ok('hay barras de spread entre las dos lineas',
+    svgF.querySelectorAll('.fu-spread').length>0);
+ ok('y una franja de volumen abajo',svgF.querySelectorAll('.fu-vol').length>0);
  /* Mismo invariante que en el grafico del screener. */
  const vbF=svgF.getAttribute('viewBox').split(' ').map(Number);
- ok('nada se dibuja fuera del lienzo',
-    [...svgF.querySelectorAll('circle')].every(c=>{
-      const x=+c.getAttribute('cx'),y=+c.getAttribute('cy');
-      return x>=0&&x<=vbF[2]&&y>=0&&y<=vbF[3];}));
+ const fueraF=[...svgF.querySelectorAll('circle')].filter(c=>{
+   const x=+c.getAttribute('cx'),y=+c.getAttribute('cy');
+   return !(x>=0&&x<=vbF[2]&&y>=0&&y<=vbF[3]);});
+ ok('nada se dibuja fuera del lienzo',fueraF.length===0,fueraF.length);
+ const barras=[...svgF.querySelectorAll('rect')].filter(r=>{
+   const y=+r.getAttribute('y'), h=+r.getAttribute('height');
+   return !(y>=0&&y+h<=vbF[3]);});
+ ok('ni las barras',barras.length===0,barras.length);
+
+ console.log('\n== la tasa fija se interpola, y no se extrapola ==');
+ /* Comparar el DLR/DIC26 (121 dias) contra una LECAP de 88 no dice nada: hay
+    que interpolar al plazo del contrato. Pero MAS ALLA de la letra mas larga
+    no se inventa nada, que es lo que haria una extrapolacion. */
+ const fijaF=(pay.pesos.find(c=>c.clave==='Fijo')||{filas:[]}).filas
+   .filter(x=>x.tna!=null&&x.dias!=null).sort((a,b)=>a.dias-b.dias);
+ const masLarga=fijaF.length?fijaF[fijaF.length-1].dias:0;
+ const dentro=futs.filter(x=>x.tna!=null&&x.dias>0&&x.dias<=masLarga&&x.dias>=fijaF[0].dias);
+ ok('la linea de pesos llega hasta donde llega la curva, y no mas',
+    svgF.querySelectorAll('.fu-pt.fu-c-pesos').length===dentro.length,
+    svgF.querySelectorAll('.fu-pt.fu-c-pesos').length+' vs '+dentro.length);
+ if(futs.some(x=>x.dias>masLarga))
+   ok('y avisa por los contratos que quedaron sin ella',
+      /no se extrapola/.test(d.querySelector('#bonosCuerpo').textContent));
 
  console.log('\n== corporativos: tabla plana, no agrupada ==');
  await irA('ons');

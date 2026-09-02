@@ -133,9 +133,17 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
     ok('y la pastilla dice "sin filtros"',
        /sin filtros/.test($('#resumenFiltro').textContent),
        $('#resumenFiltro').textContent);
-    ok('la firma usa separadores y no puntos sueltos',
-       $('#firma').querySelectorAll('.sep-v').length>=2,
-       $('#firma').innerHTML.slice(0,120));
+    /* La firma se achico: antes llevaba la config del ASH y la cantidad de
+       simbolos, que no cambian de un dia para el otro y no dejan decidir nada.
+       Queda el cierre y, si los hay, los avisos de atraso -- que es lo unico
+       que puede estar mal. Lo que sigue valiendo es que los tramos se separen
+       con la regla vertical y no con puntos sueltos. */
+    const fir=$('#firma');
+    ok('la firma ya no lleva la config del ASH ni el conteo de simbolos',
+       !/RSI|EMA|símbolos/.test(fir.textContent),fir.textContent);
+    ok('pero sigue diciendo el cierre',/cierre/.test(fir.textContent),fir.textContent);
+    ok('y separa los tramos con la regla, no con puntos sueltos',
+       !/ · /.test(fir.textContent),fir.innerHTML.slice(0,160));
     // Las vistas se mudaron al panel izquierdo: son el primer nivel de la
     // pagina, no un control mas de la barra de arriba.
     ok('las vistas viven en la navegacion del panel',
@@ -168,16 +176,29 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   await new Promise(r=>setTimeout(r,250));
 
   console.log('\n== el bug del debounce compartido ==');
+  /* Antes esto miraba la firma de la barra, que decia "RSI 40/4". La firma ya
+     no lleva la configuracion del ASH -- era informacion muerta y ocupaba el
+     lugar donde uno mira si los precios estan al dia -- asi que ahora se mira
+     LA TABLA. Es ademas una prueba mas fuerte: no comprueba que un cartel diga
+     40, comprueba que los numeros del ASH se recalcularon de verdad. */
+  const tablaAhora=()=>$$('#tabla tbody tr').slice(0,20).map(tr=>tr.textContent).join('|');
+  const con16=tablaAhora();
   $('#ashLen').value='40';
   $('#ashLen').dispatchEvent(new w.Event('input',{bubbles:true}));
   $('#fRsiMin').value='10';                       // enseguida, un filtro liviano
   $('#fRsiMin').dispatchEvent(new w.Event('input',{bubbles:true}));
   await new Promise(r=>setTimeout(r,500));
-  const conf=$('#firma').textContent;
-  ok('el cambio pesado no se pierde',/40\/4/.test(conf),conf);
-  $('#ashLen').value='16';$('#fRsiMin').value='0';
+  /* Se saca el filtro liviano: si el recalculo pesado se hubiera perdido, la
+     tabla volveria a ser identica a la de 16. */
+  $('#fRsiMin').value='0';
+  $('#fRsiMin').dispatchEvent(new w.Event('input',{bubbles:true}));
+  await new Promise(r=>setTimeout(r,400));
+  ok('el cambio pesado no se pierde',tablaAhora()!==con16,
+     'la tabla quedo igual que con el ASH en 16');
+  $('#ashLen').value='16';
   $('#ashLen').dispatchEvent(new w.Event('input',{bubbles:true}));
   await new Promise(r=>setTimeout(r,400));
+  ok('y al volver a 16 la tabla vuelve',tablaAhora()===con16);
 
   console.log('\n== persistencia ==');
   // configuro cosas variadas
