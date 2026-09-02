@@ -450,12 +450,27 @@ def fecha_de_la_fuente(crudo):
     (`estimation_date`). Se usa ESO y no el reloj de la maquina: el workflow
     corre en UTC y a las 02:00 UTC ya es otro dia que en Buenos Aires, asi que
     `date.today()` correria todos los plazos una vez por noche.
+
+    LA MAYORITARIA, NO LA PRIMERA. Tomando la primera fila salio publicado un
+    panel con fecha del 21/07 estando a 2/9: las ONs mostraban su proximo pago
+    el 27/07 -- una fecha que ya habia pasado -- y el CAC7O daba 412 dias al
+    vencimiento en vez de 369. Alcanza con que UNA fila del panel venga rancia
+    para correr todos los plazos de todos los instrumentos.
+
+    Es el mismo criterio que ya se usa para los atrasos de precios: la fecha
+    mas FRECUENTE, no la primera ni la maxima. Unos pocos papeles que la fuente
+    no actualizo no pueden mover el dia de referencia de los novecientos.
     """
+    cuenta = {}
     for f in crudo:
         d = _fecha_larga(f.get("estimation_date"))
         if d:
-            return d
-    return date.today()
+            cuenta[d] = cuenta.get(d, 0) + 1
+    if not cuenta:
+        return date.today()
+    # A igual frecuencia gana la mas nueva: si el panel viene partido en dos
+    # dias, el bueno es el de hoy.
+    return max(cuenta, key=lambda d: (cuenta[d], d))
 
 
 def habil_siguiente(d):
@@ -587,6 +602,11 @@ def armar_ons(crudo, hoy=None):
             "vto": vto or f.get("end_date"),
             "emitido": f.get("start_date"),
             "dias": dias,
+            # Los dias que dice la FUENTE, al lado de los nuestros. No se
+            # muestran: los compara el diagnostico del workflow, que es lo que
+            # caza que la fecha del panel se haya corrido -- en la pantalla un
+            # plazo mal no se ve, porque sigue pareciendo plausible.
+            "dias_fuente": _entero(f.get("days_to_finish")),
             "precio": round(float(f["last_price"]), 2),
             "cupon": _tna(f),
             "var": redondo(f.get("day_difference"), 6),
@@ -891,13 +911,18 @@ def main():
     # pesos: es el mismo panel. Bajarlo dos veces seria castigar a la fuente
     # por como esta organizado este programa.
     print(f"[2/4] Bajando {FUENTE_ONS}")
-    ons, emis, pesos = [], [], []
+    ons, emis, pesos, fecha_panel = [], [], [], None
     try:
         panel = bajar_con_cache(FUENTE_ONS, args.cache_ons, args.ons_minutos)
-        ons = armar_ons(panel)
+        # Una sola vez para las dos secciones: si cada una la resolviera por su
+        # cuenta podrian quedar en dias distintos.
+        dia = fecha_de_la_fuente(panel)
+        fecha_panel = dia.isoformat()
+        ons = armar_ons(panel, dia)
         emis = emisores(ons)
-        pesos = armar_pesos(panel)
-        print(f"      {len(ons)} obligaciones negociables de {len(emis)} emisores")
+        pesos = armar_pesos(panel, dia)
+        print(f"      panel del {fecha_panel} · {len(ons)} obligaciones "
+              f"negociables de {len(emis)} emisores")
         for c in pesos:
             print(f"      curva {c['titulo']:<14} {len(c['filas'])} papeles")
     except Exception as e:
@@ -936,6 +961,9 @@ def main():
         # De donde salio el spot. La pantalla lo dice: no es lo mismo el A3500
         # oficial que una aproximacion con el contrato mas corto.
         "spot_fuente": spot_fuente,
+        # El dia al que corresponde el panel de renta fija, segun la fuente.
+        # Lo usa el diagnostico para verificar que los plazos no se corrieron.
+        "fecha_panel": fecha_panel,
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)

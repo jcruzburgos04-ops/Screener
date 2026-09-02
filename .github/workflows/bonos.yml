@@ -83,6 +83,25 @@ jobs:
           print(f"futuros: {len(d.get('futuros',[]))} contratos · spot {d.get('spot')} "
                 f"({d.get('spot_fuente')})")
           print()
+          # LO QUE HUBIERA CAZADO EL BUG DE LA FECHA DEL PANEL: nuestros dias
+          # tienen que dar lo mismo que los de la fuente. Cuando se tomaba el
+          # estimation_date de la PRIMERA fila y esa venia rancia, el panel
+          # entero quedaba corrido 43 dias y en la pantalla no se notaba,
+          # porque las fechas seguian viendose plausibles. Aca si se nota.
+          print(f"dia del panel segun la fuente: {d.get('fecha_panel')}")
+          desvios = [(o['t'], o['dias'], o['dias_fuente'])
+                     for o in d.get('ons', [])
+                     if o.get('dias_fuente') is not None
+                     and o.get('dias') is not None
+                     and abs(o['dias'] - o['dias_fuente']) > 1]
+          if desvios:
+              print(f"  [!] {len(desvios)} especies con los plazos corridos -- "
+                    f"mirar la fecha del panel:")
+              for t, nuestro, suyo in desvios[:10]:
+                  print(f"      {t:<9} nuestro {nuestro:>6}   fuente {suyo:>6}")
+          else:
+              print("  plazos: coinciden con la fuente en todas")
+          print()
           # El proximo pago de las ONs: ULT marca las que ya entraron en su
           # ultimo tramo, o sea las que quedan con el cronograma COMPLETO.
           ons = d.get('ons', [])

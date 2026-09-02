@@ -279,6 +279,26 @@ ok("y una fecha que no se entiende no rompe",
 ok("con el panel vacio se cae al reloj",
    bonos.fecha_de_la_fuente([]) == date.today())
 
+# ESTO SALIO PUBLICADO Y ESTABA MAL. Tomando la fecha de la PRIMERA fila, una
+# sola rancia corria los plazos de los novecientos instrumentos: las ONs
+# mostraban su proximo pago el 27/07 estando a 2/9 -- una fecha ya pasada -- y
+# el CAC7O daba 412 dias al vencimiento en vez de 369.
+PANEL = ([{"estimation_date": "July 21st, 2026"}]
+         + [{"estimation_date": "September 2nd, 2026"}] * 40
+         + [{"estimation_date": "no se entiende"}, {}])
+ok("una fila rancia adelante no corre el panel entero",
+   bonos.fecha_de_la_fuente(PANEL) == date(2026, 9, 2),
+   bonos.fecha_de_la_fuente(PANEL))
+ok("las que no se entienden no cuentan",
+   bonos.fecha_de_la_fuente([{"estimation_date": "x"}, {},
+                             {"estimation_date": "September 2nd, 2026"}])
+   == date(2026, 9, 2))
+# Si el panel viene partido en dos dias por mitades, el bueno es el de hoy.
+ok("a igual frecuencia gana la mas nueva",
+   bonos.fecha_de_la_fuente([{"estimation_date": "September 1st, 2026"},
+                             {"estimation_date": "September 2nd, 2026"}])
+   == date(2026, 9, 2))
+
 ok("24hs liquida el habil siguiente",
    bonos.liquidacion(date(2026, 9, 2)) == date(2026, 9, 3))
 ok("el viernes salta al lunes",
@@ -357,6 +377,27 @@ ok("un proximo pago posterior al vencimiento se descarta",
 ok("y uno sin importe sale igual, con el importe vacio",
    bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100,
                        "days_to_coupon": 10}, HOY)["monto"] is None)
+
+# Y de punta a punta: el panel entero con UNA fila rancia adelante tiene que
+# dar los mismos plazos que la fuente. Es el bug que salio publicado.
+PANEL_ONS = [
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "RANCIA",
+     "emisor": "X", "estimation_date": "July 21st, 2026",
+     "end_date": "2027-09-07", "days_to_finish": 369, "last_price": 0,
+     "settlement": "24hs", "short_description": "x", "description": "x"},
+] + [
+    {"bond_family": "ONS", "bond_law": "LA", "ticker": "CAC7O",
+     "emisor": "Capex", "estimation_date": "September 2nd, 2026",
+     "end_date": "2027-09-07", "days_to_finish": 369, "days_to_coupon": 5,
+     "coupon": 3.28, "last_price": 101.0, "tir": 0.06,
+     "settlement": "24hs", "short_description": "Bono USD Ley Arg. - 6.00%",
+     "description": "x"},
+] * 3
+o = bonos.armar_ons(PANEL_ONS)[0]
+ok("con una fila rancia adelante, los dias siguen dando los de la fuente",
+   o["dias"] == 369, (o["t"], o["dias"], o["vto"]))
+ok("y el proximo pago NO cae en una fecha ya pasada",
+   o["pago"]["fecha"] > "2026-09-02", o["pago"])
 
 print("\n== los que distorsionan el grafico: no operaron ==")
 # Los volumenes son los REALES del panel del 2/9/2026, sacados de la corrida
