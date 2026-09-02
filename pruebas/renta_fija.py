@@ -266,6 +266,87 @@ ok("LECAP y BONCAP caen en la MISMA curva de tasa fija",
    len(j) == 1 and sorted(f["t"] for f in j[0]["filas"]) == ["S30S6", "TO26"],
    [(x["clave"], [f["t"] for f in x["filas"]]) for x in j])
 
+print("\n== fechas: vencimiento habil, plazos y proximo pago ==")
+# Contra el informe de cierre del 01/09/2026 nuestros dias daban UNO MENOS en
+# los once papeles de tasa fija. NO era un error: ese informe liquida el 02-09
+# y nuestro dato liquida el 03-09. Lo que se prueba aca es lo que de verdad
+# hay que sostener -- que reproducimos a la fuente exactamente -- para que
+# nadie "arregle" un dia que no esta roto.
+HOY = bonos._fecha_larga("September 2nd, 2026")
+ok("la fecha del panel sale de la fuente, no del reloj", HOY == date(2026, 9, 2), HOY)
+ok("y una fecha que no se entiende no rompe",
+   bonos._fecha_larga("Septiembre 2, 2026") is None)
+ok("con el panel vacio se cae al reloj",
+   bonos.fecha_de_la_fuente([]) == date.today())
+
+ok("24hs liquida el habil siguiente",
+   bonos.liquidacion(date(2026, 9, 2)) == date(2026, 9, 3))
+ok("el viernes salta al lunes",
+   bonos.liquidacion(date(2026, 9, 4)) == date(2026, 9, 7))
+ok("contado inmediato liquida hoy",
+   bonos.liquidacion(date(2026, 9, 2), "CI") == date(2026, 9, 2))
+
+# Filas CRUDAS de la fuente, tal como las devolvio el panel del 2/9/2026.
+# `days_to_finish` es lo que ELLA publica: si alguna vez dejamos de dar lo
+# mismo, es que le cambiamos la convencion sin darnos cuenta.
+CRUDAS = [
+    # ticker, end_date, days_to_finish, days_to_coupon, plazo, coupon
+    ("S15S6", "2026-09-15", 12, 12, "24hs", 7.210377),
+    ("TO26",  "2026-10-17", 47, 47, "CI",   7.75),
+    ("TY30P", "2030-05-30", 1365, 88, "24hs", 14.75),
+    ("DICP",  "2033-12-31", 2678, 123, "24hs", 1575.392582),
+]
+malos = []
+for tk, end, dtf, dtc, sett, cup in CRUDAS:
+    f = {"end_date": end, "days_to_finish": dtf, "days_to_coupon": dtc,
+         "settlement": sett, "coupon": cup}
+    _, dias = bonos.vencimiento_y_dias(f, HOY)
+    if dias != dtf:
+        malos.append(f"{tk}: {dias} != {dtf}")
+ok("los dias dan lo mismo que la fuente, no uno menos", not malos, malos)
+
+# Lo que SI estaba mal: la fecha. El TO26 figura venciendo un sabado.
+v26, d26 = bonos.vencimiento_y_dias(
+    {"end_date": "2026-10-17", "days_to_finish": 47, "settlement": "CI"}, HOY)
+ok("un vencimiento que cae sabado se muestra el lunes", v26 == "2026-10-19", v26)
+ok("y son los mismos 47 dias que ya contaba la fuente", d26 == 47, d26)
+ok("uno en dia habil no se toca", bonos.vencimiento_y_dias(
+   {"end_date": "2026-09-15", "settlement": "24hs"}, HOY)[0] == "2026-09-15")
+ok("sin fecha usable se cae a lo que diga la fuente",
+   bonos.vencimiento_y_dias({"days_to_finish": 99}, HOY) == (None, 99))
+ok("y una fecha ilegible tampoco rompe",
+   bonos.vencimiento_y_dias({"end_date": "ayer", "days_to_finish": 5}, HOY) == (None, 5))
+
+# EL PROXIMO PAGO. `coupon` es un IMPORTE, no una tasa: el TO26 paga 15,50%
+# anual sobre 100 de residual y el campo trae 7,75, que es el semestre.
+p = {tk: bonos.proximo_pago(
+        {"end_date": e, "days_to_finish": dtf, "days_to_coupon": dtc,
+         "settlement": st, "coupon": c, "coupon_yield": 0.02}, HOY)
+     for tk, e, dtf, dtc, st, c in CRUDAS}
+ok("una letra que capitaliza paga todo junto al vencimiento",
+   p["S15S6"]["fecha"] == "2026-09-15" and p["S15S6"]["ultimo"], p["S15S6"])
+ok("y su importe es el que publica la fuente",
+   cerca(p["S15S6"]["monto"], 7.2104, 1e-4), p["S15S6"]["monto"])
+ok("el TO26 tambien tiene un solo pago por delante", p["TO26"]["ultimo"])
+# ESTA es la que separa un cronograma completo de uno que no lo esta.
+ok("al TY30P le faltan cupones, y NO se dice que sea el ultimo",
+   p["TY30P"]["ultimo"] is False, p["TY30P"])
+ok("su proximo pago es el 30/11/2026, no el vencimiento",
+   p["TY30P"]["fecha"] == "2026-11-30", p["TY30P"]["fecha"])
+ok("y son 88 dias, los que dice la fuente", p["TY30P"]["dias"] == 88)
+ok("al DICP tampoco", p["DICP"]["ultimo"] is False)
+
+ok("sin days_to_coupon no hay proximo pago",
+   bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100}, HOY) is None)
+# Un days_to_coupon mayor que el plazo al vencimiento es un dato roto, y en
+# una columna se leeria como un cobro que no existe.
+ok("un proximo pago posterior al vencimiento se descarta",
+   bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100,
+                       "days_to_coupon": 500}, HOY) is None)
+ok("y uno sin importe sale igual, con el importe vacio",
+   bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100,
+                       "days_to_coupon": 10}, HOY)["monto"] is None)
+
 print("\n== los que distorsionan el grafico: no operaron ==")
 # Los volumenes son los REALES del panel del 2/9/2026, sacados de la corrida
 # del workflow. Es el caso que hay que arreglar, no uno inventado: cuatro de

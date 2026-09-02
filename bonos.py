@@ -49,7 +49,7 @@ import json
 import re
 import sys
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import futuros
@@ -397,6 +397,150 @@ def _tna(fila):
             except ValueError:
                 pass
     return None
+
+
+# ---------------------------------------------------------------------------
+# Fechas: el vencimiento que se muestra, y el proximo pago
+# ---------------------------------------------------------------------------
+# LO QUE **NO** ESTABA MAL, aunque lo parecia. Contra el informe de cierre del
+# 01/09/2026 nuestros dias daban UNO MENOS en los once papeles de tasa fija,
+# sin una sola excepcion, que es la pinta clasica de un error de convencion.
+# No lo era: ese informe es el cierre del 01-09 y liquida el 02-09, y nuestro
+# dato es del 02-09 y liquida el 03-09. Un dia mas fresco, no un dia mal
+# contado.
+#
+# Verificado contra los datos crudos: para las tres formas -- 24hs sobre dia
+# habil, contado inmediato, y un vencimiento que cae sabado -- el
+# `days_to_finish` que publica la fuente es EXACTAMENTE el vencimiento habil
+# menos la liquidacion de ese plazo. Ya cuenta desde la liquidacion y ya corre
+# los fines de semana.
+#
+# LO QUE SI ESTABA MAL es la FECHA que se muestra. La fuente publica el
+# vencimiento NOMINAL: el TO26 figura venciendo el 17/10/2026, que es sabado,
+# cuando lo que se cobra -- y contra lo que ella misma descuenta -- es el lunes
+# 19/10. Se corrige para que la columna diga lo mismo que la cuenta.
+
+MESES_EN = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5,
+            "june": 6, "july": 7, "august": 8, "september": 9, "october": 10,
+            "november": 11, "december": 12}
+
+
+def _fecha_larga(s):
+    """`September 2nd, 2026` -> date(2026, 9, 2). None si no se entiende."""
+    m = re.match(r"\s*([A-Za-z]+)\s+(\d{1,2})[a-z]{0,2},?\s+(\d{4})", str(s or ""))
+    if not m:
+        return None
+    mes = MESES_EN.get(m.group(1).lower())
+    if not mes:
+        return None
+    try:
+        return date(int(m.group(3)), mes, int(m.group(2)))
+    except ValueError:
+        return None
+
+
+def fecha_de_la_fuente(crudo):
+    """
+    El dia al que corresponde el panel, segun la propia fuente
+    (`estimation_date`). Se usa ESO y no el reloj de la maquina: el workflow
+    corre en UTC y a las 02:00 UTC ya es otro dia que en Buenos Aires, asi que
+    `date.today()` correria todos los plazos una vez por noche.
+    """
+    for f in crudo:
+        d = _fecha_larga(f.get("estimation_date"))
+        if d:
+            return d
+    return date.today()
+
+
+def habil_siguiente(d):
+    """
+    Un pago que cae sabado o domingo se cobra el lunes. NO contempla feriados:
+    no hay calendario publico sin sumar otra fuente. Es el mismo limite que ya
+    tiene `futuros.ultimo_habil` y esta asumido igual.
+    """
+    while d.weekday() >= 5:
+        d += timedelta(days=1)
+    return d
+
+
+def liquidacion(hoy, plazo="24hs"):
+    """
+    Cuando recibe el titulo el que compra: contado inmediato el mismo dia,
+    24hs el habil siguiente. Es la fecha desde la que se cuenta todo.
+    """
+    if str(plazo or "").upper() == "CI":
+        return habil_siguiente(hoy)
+    return habil_siguiente(hoy + timedelta(days=1))
+
+
+def _fecha(s):
+    """La fecha ISO de la fuente, o None si no viene o no se entiende."""
+    try:
+        return datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _entero(v):
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
+def vencimiento_y_dias(fila, hoy):
+    """
+    (vencimiento corregido al habil, dias desde la liquidacion).
+
+    Los dias se recalculan aca en vez de pasar `days_to_finish` para que la
+    fecha y la cuenta no puedan discrepar cuando el vencimiento se corre. Da
+    lo mismo que la fuente -- esta verificado -- pero ahora es verificable.
+    Sin fecha usable se cae a lo que diga ella: peor, pero es lo que hay.
+    """
+    v = _fecha(fila.get("end_date"))
+    if not v:
+        return None, _entero(fila.get("days_to_finish"))
+    v = habil_siguiente(v)
+    return v.isoformat(), (v - liquidacion(hoy, fila.get("settlement"))).days
+
+
+def proximo_pago(fila, hoy):
+    """
+    El proximo servicio del instrumento: cuando, cuanto, y si es el ultimo.
+
+    Sale de dos campos que la fuente publica para casi todo lo que cotiza
+    -- 881 de las 909 filas del panel --: `days_to_coupon`, los dias que
+    faltan, y `coupon`, su IMPORTE cada 100 nominales.
+
+    `coupon` ES UN IMPORTE, NO UNA TASA. Es la confusion que ya se pago cara
+    una vez con los soberanos: el TO26 paga 15,50% anual sobre 100 de residual
+    y el campo trae 7,75, que es el semestre.
+
+    ES EL ULTIMO cuando `days_to_coupon` coincide con `days_to_finish`: no
+    queda ningun servicio entre este y el vencimiento. Eso es lo que separa a
+    una letra que capitaliza y paga todo junto -- que asi queda con su
+    cronograma COMPLETO, de una sola linea -- de un bono al que le faltan
+    cupones que la fuente no detalla. La pantalla dice cual de las dos cosas
+    esta mirando; inventar los cupones del medio seria lo que este proyecto no
+    hace.
+    """
+    dc = _entero(fila.get("days_to_coupon"))
+    dv = _entero(fila.get("days_to_finish"))
+    # Un `days_to_coupon` mayor que el plazo al vencimiento no es un pago: es
+    # un dato roto, y en una columna se leeria como un cobro que no existe.
+    if dc is None or dc < 0 or (dv is not None and dc > dv):
+        return None
+    liq = liquidacion(hoy, fila.get("settlement"))
+    f = habil_siguiente(liq + timedelta(days=dc))
+    monto = fila.get("coupon")
+    rinde = fila.get("coupon_yield")
+    return {
+        "fecha": f.isoformat(),
+        "dias": (f - liq).days,
+        "monto": round(monto, 4) if isinstance(monto, (int, float)) else None,
+        # Sobre el valor tecnico, no sobre el precio. Lo publica la fuente.
+        "sobre_vt": (round(rinde, 6)
+                     if isinstance(rinde, (int, float)) and rinde else None),
+        "ultimo": dv is not None and dc == dv,
+    }
 
 
 def armar_ons(crudo):
