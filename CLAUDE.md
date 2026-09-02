@@ -100,6 +100,7 @@ datos incrustados.
 | `diagnostico.py` | Lee un `datos.json` y reporta qué símbolos vienen con precios atrasados. |
 | `actualizar_rapido.py` | **La actualización intradía.** Toma el `datos.json` publicado, pide sólo el último mes y fusiona. Barato: es lo que corre cada media hora. |
 | `bonos.py` | **La renta fija argentina.** Precios de los soberanos, los dos dólares implícitos, el canje de leyes, TIR/TNA/paridad/duration/DV01 sobre el cronograma, y las obligaciones negociables. Ver la sección 7b. |
+| `futuros.py` | **Los futuros de dólar** (A3/Matba Rofex). Deduce el vencimiento del símbolo, descarta los vencidos y despeja el spot. Ver la sección 7b. |
 | `armar_universo.py` | Compara `cedears.csv` contra el panel vivo de BYMA y reporta las diferencias. Sólo reporta, no escribe. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 
@@ -961,6 +962,97 @@ el que arma una cartera decide primero *a quién le presta*.
 > los que no. **Tampoco hay calificación de riesgo** en ninguna fuente abierta,
 > y la pantalla lo dice en vez de omitirlo en silencio.
 
+### Curvas en pesos, futuros de dólar, y por qué nada de eso se mantiene a mano
+
+La pestaña **Argentina** tiene cuatro pantallas: **Soberanos USD**, **Pesos**,
+**Futuros** y **Corporativos**.
+
+> **El pedido explícito fue que no haya que tocar código cuando vence un
+> contrato o una letra.** Todo lo de abajo está diseñado alrededor de eso, y es
+> el criterio con el que hay que juzgar cualquier cambio futuro: si te encontrás
+> agregando un ticker o una fecha a una lista, parate y buscá el campo de la
+> fuente que ya te lo dice.
+
+#### Cómo se mantienen solas
+
+| Qué | Cómo se resuelve | Qué NO se hace |
+|---|---|---|
+| Qué instrumentos hay en cada curva | El campo `bond_family` de bonistas | Una lista de tickers |
+| Cómo se llama una curva nueva | Su `bond_family_label` | Que desaparezca en silencio |
+| Qué contratos de futuros hay | Los que devuelve A3 | Una lista de vencimientos |
+| Cuándo vence un futuro | Se **deduce del símbolo**: `DLR092026` → último día hábil de septiembre 2026 | Anotarlo |
+| Qué está vencido | Se compara contra hoy y se cae solo | Limpiarlo a mano |
+| Qué rueda usar | Se pide un **rango** y se toma la más nueva de cada contrato | Pedir "hoy", que falla todo feriado, sábado y antes del cierre |
+
+Verificado con datos reales: `BONO-TAMAR-USD` y `DUAL-CER-TAMAR-USD` aparecieron
+solas en una corrida sin estar declaradas en ningún lado.
+
+#### Por familia, no por índice — costó un bug
+
+El primer corte fue por el campo `index` (`Fijo`, `CER`, `Tamar`, `USDL`…). Con
+datos reales eso metía la letra en pesos **S30S6** y su gemela en dólares
+**SS6D** en la misma curva: dos puntos al mismo plazo con rendimientos muy
+distintos (**TO26 25,6%** contra **TO26D 46,5%**). Son instrumentos distintos y
+la fuente ya los separa por familia. Además, las familias que terminan en
+`-USD` se excluyen de la pestaña de pesos por el sufijo de la familia — no por
+una lista.
+
+#### El spot de los futuros: se deduce, no se adivina
+
+La tasa directa es `precio_futuro / spot − 1`, así que un spot malo corrompe
+**todas** las tasas. El orden es:
+
+1. **A3500 del BCRA**, que es contra lo que liquidan estos contratos.
+2. Si el BCRA no contesta: **se despeja de las tasas implícitas que publica A3**.
+   Si un contrato vale P, vence en D días y A3 dice que rinde R, el spot que usó
+   A3 es `P / (1 + R/100 × D/365)`. Se despeja de varios y se toma la mediana.
+3. Último recurso: el contrato más corto.
+
+> **Por qué importa:** la primera versión saltaba directo al paso 3, que suena
+> razonable y no lo es. En datos reales el contrato más corto quedó en **1534,5**
+> contra un A3500 de **1509,5** — 1,7% que se le sumaba a la tasa de *todos* los
+> contratos. La deducción del paso 2 dio **1510,11**, a 0,04% del real.
+
+El payload lleva `spot_fuente` y **la pantalla dice cuál de las tres se usó**.
+
+#### Un punto muy lejos del resto no se dibuja (pero sí se lista)
+
+Había un dólar linked cotizando con **139% de TIR** — una cotización vieja de
+algo que no opera — que estiraba el eje y dejaba a los otros diecinueve
+aplastados en una línea. `cvSinRaros()` los saca **del dibujo**, nunca de la
+tabla, con un corte contra la mediana y el rango intercuartil (que no se mueven
+por tener un outlier adentro, un promedio sí), y **la tarjeta dice cuántos y
+cuáles quedaron afuera**.
+
+#### Las patas sintéticas de los duales no son especies
+
+`TXMJ8_CER`, `TTS26_CAP`, `BPOA8_PUT`: son la descomposición que hace bonistas
+para valuar la opción de un bono dual, no algo que se pueda comprar. Vienen con
+precio 0 o TIR absurda — el `TTS26_CAP` daba **−95%** — y en una tabla se leen
+como oportunidades que no existen. Se filtran por las dos marcas que usa la
+fuente: guion bajo en el ticker, o familia terminada en `-LEG`.
+
+#### Corporativos: plana, no agrupada
+
+La primera versión agrupaba por emisor, con el argumento de que el que arma una
+cartera decide primero *a quién le presta*. El pedido fue el contrario y tiene
+razón para este caso: agrupadas no se pueden ordenar por rendimiento ni comparar
+dos emisores al mismo plazo sin abrir y cerrar. Ahora es una tabla sola,
+ordenable por cualquier columna, con buscador, y el emisor como columna.
+
+#### Fuentes
+
+| Qué | De dónde |
+|---|---|
+| Curvas en pesos y ONs | `bonistas.com/api/bonds` — **un solo pedido para las dos cosas** |
+| Futuros | `apicem.matbarofex.com.ar/api/v2/closing-prices` (A3, público) |
+| A3500 | `api.bcra.gob.ar` (dos endpoints, se prueban los dos) |
+
+**Ninguna de las tres puede tirar abajo al resto**: si una falla, su sección sale
+vacía con su explicación y todo lo demás se publica igual.
+
+---
+
 ### Educación con la fuente y tolerancia a fallos
 
 El panel de ONs pesa 1,6 MB e `intradia.yml` publica cada diez minutos. Por eso
@@ -1255,6 +1347,12 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
 | `bonos.js` | la vista de bonos: que lo que el payload trae llegue a la pantalla, la curva, el cronograma que se abre, las ONs por emisor |
 | `menus.js` | los desplegables de la barra, el engranaje, y **que ningún control quede huérfano al mudarse de contenedor** |
+
+Los de renta fija cubren además **lo que se mantiene solo**: que una familia
+desconocida aparezca con su nombre en vez de desaparecer, que un papel vencido
+se caiga, que las patas sintéticas de los duales no se cuelen, que el
+vencimiento de un futuro salga del símbolo, y que el spot se despeje de las
+tasas de A3 en vez de aproximarse con el contrato más corto.
 | `fixtura.py` | arma `tmp/sitio` con series sintéticas. **El único lugar con datos falsos.** |
 
 **No hay Chrome en el entorno de desarrollo.** Se usa **jsdom** desde Node, con el
@@ -1318,6 +1416,14 @@ necesitan internet.
 18. **Nunca el precio del CEDEAR, tampoco de `arg_cedears` ni de BYMA.** Están
     en pesos y mezclan el papel con el tipo de cambio implícito. Para el
     screener sólo sirven las fuentes en la moneda de origen.
+19. **Nada de la sección Argentina lleva una lista de tickers ni de
+    vencimientos.** Si te encontrás agregando uno, parate: hay un campo de la
+    fuente que ya lo dice (`bond_family`, el símbolo del contrato). Era el
+    pedido explícito del usuario y es lo que hace que la sección no se pudra
+    sola cuando vence algo.
+20. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
+    sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
+    pero **no de la tabla**, y la tarjeta dice cuál y por qué.
 
 ---
 
