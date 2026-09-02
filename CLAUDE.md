@@ -1101,6 +1101,35 @@ cupón— y **no** se marca como último.
 > se reconstruye desde los días. Derivándolas por caminos separados, las
 > columnas «vence» y «próximo pago» podían decir días distintos del mismo evento.
 
+#### La fecha del panel es la MAYORITARIA (esto salió publicado mal)
+
+Al pasar a calcular los plazos acá en vez de leerlos de la fuente, se empezó a
+necesitar una «fecha de hoy». Se tomó del campo `estimation_date` **de la
+primera fila** del panel, y eso salió publicado: las ONs mostraban su próximo
+pago el **27/07/2026 estando a 2/9** —una fecha que ya había pasado— y el
+`CAC7O` daba **412 días** al vencimiento en vez de 369. Alcanza con que **una**
+fila venga rancia para correr los plazos de los novecientos instrumentos.
+
+Ahora se toma la fecha **más frecuente**, que es el mismo criterio que el
+proyecto ya usa para los atrasos de precios (§8): unos pocos papeles sin
+actualizar no pueden mover el día de referencia de todos. A igual frecuencia
+gana la más nueva. Y se resuelve **una sola vez** para las ONs y para las curvas
+en pesos: si cada una la resolviera por su cuenta podrían quedar en días
+distintos.
+
+> **Por qué no lo cazaron las pruebas y sí el workflow:** en la pantalla un
+> plazo corrido **no se ve**, porque las fechas siguen pareciendo plausibles.
+> Por eso el payload publica ahora `dias_fuente` —los días que dice la fuente—
+> al lado de los nuestros, y el diagnóstico de `bonos.yml` los compara especie
+> por especie.
+
+**Unas pocas que difieren por dos o tres días no son un error.** Cada fila trae
+su propio `estimation_date` y algunas la fuente las valuó antes; contra la
+compra de hoy el número bueno es el nuestro. En la corrida del 2/9 difieren 5 de
+260, todas de IRSA, por 2-3 días. El diagnóstico sólo grita cuando la
+divergencia es **sistemática** (más del 10% de las especies) o **grande** (más
+de 7 días), que es la firma de la fecha del panel corrida.
+
 #### Los días NO estaban mal, aunque lo parecían
 
 Vale la pena dejarlo escrito porque la evidencia era convincente y la conclusión

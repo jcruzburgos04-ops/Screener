@@ -94,13 +94,25 @@ jobs:
                      if o.get('dias_fuente') is not None
                      and o.get('dias') is not None
                      and abs(o['dias'] - o['dias_fuente']) > 1]
-          if desvios:
-              print(f"  [!] {len(desvios)} especies con los plazos corridos -- "
-                    f"mirar la fecha del panel:")
-              for t, nuestro, suyo in desvios[:10]:
-                  print(f"      {t:<9} nuestro {nuestro:>6}   fuente {suyo:>6}")
+          # UNAS POCAS filas que difieren por dos o tres dias NO son un
+          # problema: son papeles que la fuente valuo hace un par de dias, y
+          # cada uno trae su propia fecha. Contra la compra de HOY el numero
+          # bueno es el nuestro. Lo que si es un problema es que difiera MUCHA
+          # gente o por MUCHO: eso es la fecha del panel corrida, que es lo que
+          # ya paso una vez y no se vio en la pantalla.
+          total_ons = len([o for o in d.get('ons', []) if o.get('dias_fuente')])
+          grande = [x for x in desvios if abs(x[1] - x[2]) > 7]
+          sistematico = total_ons and len(desvios) > total_ons * 0.10
+          if grande or sistematico:
+              print(f"  [!] LA FECHA DEL PANEL PARECE CORRIDA: {len(desvios)} de "
+                    f"{total_ons} especies no coinciden con la fuente")
+          elif desvios:
+              print(f"  plazos: {len(desvios)} de {total_ons} difieren por pocos "
+                    f"dias (la fuente las valuo antes; el nuestro es el de hoy)")
           else:
-              print("  plazos: coinciden con la fuente en todas")
+              print(f"  plazos: coinciden con la fuente en las {total_ons}")
+          for t, nuestro, suyo in desvios[:10]:
+              print(f"      {t:<9} nuestro {nuestro:>6}   fuente {suyo:>6}")
           print()
           # El proximo pago de las ONs: ULT marca las que ya entraron en su
           # ultimo tramo, o sea las que quedan con el cronograma COMPLETO.
