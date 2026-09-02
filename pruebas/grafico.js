@@ -81,13 +81,14 @@ setTimeout(async()=>{
   // escapado
   const cuerpo=doc.querySelector('#tabla tbody').innerHTML;
   ok('el nombre hostil no inyecta HTML',cuerpo.indexOf('onerror=')<0&&cuerpo.indexOf('<img')<0);
-  doc.querySelector('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  // el ranking de sectores se mudo de la barra al panel de filtros
+  doc.querySelector('#btnFiltros').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await new Promise(r=>setTimeout(r,120));
   const ind=doc.querySelector('#tablaInd').innerHTML;
   ok('un sector con comillas no rompe el data-ind',
      ind.indexOf('data-ind="Sector &quot;raro&quot;')>=0,ind.slice(0,140));
   // seleccionar EXPLICITAMENTE el simbolo hostil
-  doc.querySelector('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  doc.querySelector('#btnFiltros').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   w.eval('limpiarFiltros()');
   await new Promise(r=>setTimeout(r,200));
   w.eval('seleccionar('+JSON.stringify(JSON.parse(datos).simbolos[0].t)+')');

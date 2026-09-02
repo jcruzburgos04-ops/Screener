@@ -99,6 +99,8 @@ datos incrustados.
 | `verificar.py` | Imprime OHLC e indicadores de UN símbolo, para comparar a ojo contra TradingView. |
 | `diagnostico.py` | Lee un `datos.json` y reporta qué símbolos vienen con precios atrasados. |
 | `actualizar_rapido.py` | **La actualización intradía.** Toma el `datos.json` publicado, pide sólo el último mes y fusiona. Barato: es lo que corre cada media hora. |
+| `bonos.py` | **La renta fija argentina.** Precios de los soberanos, los dos dólares implícitos, el canje de leyes, TIR/TNA/paridad/duration/DV01 sobre el cronograma, y las obligaciones negociables. Ver la sección 7b. |
+| `armar_universo.py` | Compara `cedears.csv` contra el panel vivo de BYMA y reporta las diferencias. Sólo reporta, no escribe. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 
 ### Datos y configuración
@@ -107,16 +109,18 @@ datos incrustados.
 |---|---|
 | `universo.csv` | `ticker,grupo[,subyacente]` — 465 símbolos. |
 | `cedears.csv` | `local,subyacente` — 400 mapeos del panel oficial de BYMA del 12/6/2026. |
-| `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico. ~83 KB. |
+| `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
+| `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico, panorama, renta fija. |
 | `requirements.txt` | pandas, numpy, yfinance. El servidor usa sólo la stdlib. |
 | `.github/workflows/actualizar.yml` | El cron nocturno: historial completo. |
-| `.github/workflows/intradia.yml` | Cada media hora durante la rueda: sólo los precios del día. |
+| `.github/workflows/intradia.yml` | Durante la rueda: los precios del día **y los bonos**, en la misma corrida. |
+| `.github/workflows/bonos.yml` | A mano. Corre `pruebas/renta_fija.py` y después arma el payload con datos de verdad y lo imprime entero. Es lo que hay que mirar cuando se toca `bonos.py` o el cronograma. |
 | `pruebas/` | La batería completa. `cd pruebas && ./correr.sh`. |
 
 ### Generados (no se commitean, están en `.gitignore`)
 
 `cache_precios.pkl`, `cache_datos.json.gz`, `cache_fundamentales.json`,
-`sin_datos.json`, `sitio/`, `screener.html`, `pruebas/tmp/`.
+`sin_datos.json`, `sitio/`, `screener.html`, `pruebas/tmp/`, `estado/ons.json`.
 
 ---
 
@@ -484,6 +488,44 @@ sola operación suelta mueve el precio 4%.
 
 `intradia.yml` corre 8:00-23:30 UTC para cubrir las tres sesiones.
 
+### Dónde vive cada control (cambió, y por un motivo)
+
+Hay tres alturas y no se mezclan:
+
+1. **Navegación (columna izquierda, arriba)** — Tabla · Panorama · Argentina.
+   Es *dónde estoy parado*.
+2. **Ajustes de la vista tabla (barra, con icono)** — **Filtros**,
+   **Indicadores**, **Columnas**. Se abren como desplegables desde la barra,
+   que es donde se los busca mientras se mira la tabla.
+3. **Ajustes de la página (columna izquierda, al pie, tras el ⚙)** — tamaño de
+   letra, alto de fila, de dónde bajan los datos, respaldo, CSV. No es de
+   ninguna vista: es de la página.
+
+**Los filtros y los indicadores salieron de la columna izquierda.** Estaban
+siempre abiertos ocupando media pantalla, y mezclados con "Datos" y "Respaldo",
+que son cosas de otro rango.
+
+**El chip de Sectores/Industrias se fue de la barra.** El *ranking* ya está en
+Panorama y repetirlo era ruido; lo que sí servía —elegir un sector para
+filtrar— se mudó adentro del panel de Filtros, que es donde vive un filtro.
+
+**El grupo entero se esconde fuera de la tabla.** Los filtros son de la renta
+variable: en Panorama no hay tabla que filtrar y en la curva de bonos un "RSI
+mayor que" no quiere decir nada. Dejarlos a la vista invita a tocarlos y después
+a no entender por qué no pasa nada. Cambiar de vista además los cierra.
+
+**La barra dice cuántos filtros hay puestos.** Con los filtros detrás de un
+icono, ese número es lo único que avisa que la tabla **no** está mostrando todo.
+
+> **Trampa que costó once pruebas y hay que no repetir:** el cableado de los
+> controles decía `$$('aside input, aside select')`, o sea que dependía de
+> **dónde** estaba cada control en el HTML. Al mudarlos a los desplegables,
+> **todos quedaron desconectados en silencio** — no guardaban la sesión ni
+> disparaban el recálculo — y la página seguía cargando igual, con la tabla
+> perfecta. Ahora es `.ctrl-host input, .ctrl-host select`: **si agregás un
+> contenedor con controles, ponele la clase `ctrl-host`.** `pruebas/menus.js`
+> verifica que ninguno quede huérfano.
+
 ### Barra superior
 Pastilla de **frescura** · desplegable de filtros guardados · tres cápsulas de
 chips · nada más.
@@ -827,6 +869,113 @@ histograma). Crosshair con OHLC. Selector diario/semanal.
 
 ---
 
+## 7b. Renta fija argentina: bonos soberanos y obligaciones negociables
+
+La segunda pata del proyecto. El screener sirve para elegir acciones; esta
+sección sirve para elegir bonos, que es el otro pedido concreto: *"para que la
+página pueda ser utilizada por asesores para buscar las acciones o bonos que más
+se adapten a sus clientes"*.
+
+Vive en `bonos.py` (payload) + la vista `#bonos` de `plantilla.html`. Viaja en
+un archivo aparte, `bonos.json`, que se baja **la primera vez que se entra a la
+vista**: el que nunca mira bonos no paga la descarga.
+
+### De dónde sale cada cosa
+
+| Dato | Fuente |
+|---|---|
+| Precios de los soberanos (pesos / MEP / cable) | `data912.com/live/arg_bonds`. Cada bono cotiza en tres especies: `AL30`, `AL30D`, `AL30C`. |
+| Cupones del canje 2020 | `bonistas.com/api/bonds`, campo `description`: enumera el step-up cupón por cupón. |
+| Amortización | Texto del prospecto que publica **Rava** en `/perfil/<TICKER>`, citando la Resolución 381/2020. |
+| Obligaciones negociables | `bonistas.com/api/bonds`, familias `ONS` y `ONS-CABLE`. |
+
+**Lo que se probó y NO sirve, para que nadie lo reintente:** data912 no tiene
+cronogramas (se leyó su `openapi.json` entero: 16 endpoints, todos precios u
+OHLC). Open BYMA tampoco — hay que pedirle con **POST** y cuerpo
+`{"excludeZeroPxAndQty":true,"T1":true}` (con `T2` devuelve el sobre paginado
+vacío, y el `405` de antes era el método, no una negativa); así contestan
+`cedears`, `public-bonds`, `leading-equity` y `general-equity`, pero
+`government-bonds`, `corporate-bonds` y `negotiable-obligations` dan **401**, y
+ninguno trae flujos. Ministerio de Economía, `datos.gob.ar`, IAMC y Bolsar:
+nada. **CAFCI (fondos comunes) devuelve 403** — por eso no hay sección de FCI:
+no es que falte hacerla, es que no hay de dónde.
+
+### Cómo se verificaron los cronogramas (tres cruces, no memoria)
+
+Esto importa más que el código. `bonos_cronograma.csv` tiene los once soberanos
+completos desde la emisión, y la cabecera del archivo documenta cada cruce:
+
+1. **El importe del próximo cupón.** El campo `coupon` de bonistas **no es la
+   tasa**: es la plata que paga el próximo cupón por cada 100 de nominal
+   original, o sea `cupón_anual/2 × residual/100`. Ata la tasa **y** el residual
+   a la vez. Da exacto en los nueve bonos donde bonistas lo publica. Es lo que
+   fijó el cronograma del **GD46**, que no tenía otra referencia: su `coupon` de
+   1,875 con cupón 4,125% obliga a un residual de 90,909 = 40/44, o sea 44
+   cuotas de 2,2727% con cuatro pagadas → la primera fue el 9/1/2025.
+2. **TIR, paridad, duration y DV01** contra la pantalla de referencia del
+   usuario (1/9/2026). La **duration coincide hasta la centésima en los cinco**
+   bonos con referencia, y la duration es justamente lo que el cronograma
+   decide. Las centésimas de diferencia en la TIR son del *precio*, que se
+   reconstruyó de un DV01 redondeado a cuatro decimales.
+3. **Los gemelos.** GD29/GD30/GD35/GD38/GD41 tienen el mismo flujo que su par de
+   ley argentina; lo único que cambia es el tribunal.
+
+> **La trampa del step-up, que ya costó una vuelta:** el cupón que se **cobra**
+> en una fecha es el que rigió el semestre **anterior**, no el que empieza ese
+> día. Aplicarlo un pago antes daba 8,91% de TIR en el AL30 contra 8,65% de
+> referencia — **con la paridad y la duration ya coincidiendo**, que es lo que
+> señalaba que el error estaba en el importe y no en las fechas.
+
+> **La otra trampa:** el **residual es lo que queda por amortizar**, no "100
+> menos lo ya pagado". La primera versión restaba de 100 las amortizaciones
+> pasadas del CSV y daba 92 cuando lo que faltaba sumaba 60.
+
+La columna `verificado` en `1` quiere decir que ese bono pasó los cruces. Si
+alguna vez se agrega uno sin verificar se pone `0`, y la pantalla muestra su TIR
+con una pastilla **prov.** al lado.
+
+### Qué muestra la pantalla
+
+Dos pestañas dentro de la vista Argentina.
+
+**Soberanos:** curva de rendimientos (TIR contra **duration**, no contra año de
+vencimiento — un bono que amortiza temprano devuelve la plata mucho antes de lo
+que su vencimiento sugiere; una línea por ley, y **la distancia vertical entre
+las dos ES el canje**, dibujado); tabla por ley con TIR, TNA, paridad, duration,
+DV01, residual vivo y próximo pago; y **tocar una fila abre su cronograma** —
+cada pago con renta, amortización, total y cuánto queda vivo después, más qué
+fracción de lo que se cobra es renta y cuánta es devolución de capital propio
+(un bono que paga casi todo capital no "rinde" como un plazo fijo, te está
+devolviendo lo tuyo).
+
+**Obligaciones negociables:** agrupadas **por emisor**, ordenadas por TIR
+mediana. No es una tabla plana de seiscientas filas porque no se lee, y porque
+el que arma una cartera decide primero *a quién le presta*.
+
+> **La TIR, la duration y la paridad de las ONs las calcula bonistas, no este
+> programa, y la pantalla lo dice.** Para los soberanos el cronograma está
+> cargado y verificado acá; para las ONs son cientos de emisiones y no hay
+> fuente pública con los flujos. **No se usa el campo de amortización de
+> bonistas**: dice "bullet" hasta para los soberanos del canje, que amortizan en
+> cuotas desde 2024. Si está mal en los que se pueden verificar, no se usa en
+> los que no. **Tampoco hay calificación de riesgo** en ninguna fuente abierta,
+> y la pantalla lo dice en vez de omitirlo en silencio.
+
+### Educación con la fuente y tolerancia a fallos
+
+El panel de ONs pesa 1,6 MB e `intradia.yml` publica cada diez minutos. Por eso
+`--cache-ons` con TTL de 30 minutos: cada publicación sale **completa** —no se
+cae la sección en las vueltas intermedias— y los pedidos bajan a dos por hora.
+
+**Si bonistas o data912 no contestan, los soberanos igual salen y el screener ni
+se entera.** La renta fija no puede tirar abajo las acciones.
+
+`data912` y `bonistas` son servicios de terceros sin acuerdo de nivel de
+servicio; data912 se describe a sí misma como una API educativa. Para uso
+profesional con clientes eso hay que decirlo, y la pantalla de ONs lo dice.
+
+---
+
 ## 8. Yahoo Finance: todo lo que se aprendió a los golpes
 
 ### Los fallos vienen en rachas, no por símbolo
@@ -1024,6 +1173,59 @@ industria.
 
 ---
 
+## 8b. De dónde salen los precios, y por qué de ahí
+
+Medido el 2/9/2026 desde el runner de Actions (`sonda_velocidad.py`, borrada
+después de contestar). Los números son de esa corrida, no estimaciones.
+
+| Fuente | Pedidos | Tiempo | Cubre del universo | Moneda |
+|---|---|---|---|---|
+| **Yahoo** (`v8/finance/chart`, de a uno) | **465** | ~70 s | 465/465 | la de origen |
+| **data912** `/live/usa_stocks` | **1** | 1,0 s | 3.155 símbolos | **USD** |
+| **data912** `/live/usa_adrs` | **1** | 0,5 s | 205 símbolos | **USD** |
+| data912 `/live/arg_cedears` | 1 | 0,8 s | 967 símbolos | **pesos — inservible** |
+| BYMA `cedears` (POST) | 1 | 1,5 s | 1.168 símbolos | **pesos — inservible** |
+
+**Los dos endpoints de data912 juntos cubren 374 de los 465 en dólares, con dos
+pedidos.** Los 91 que faltan son ETFs (`TLT HYG LQD EWZ` y la familia `EW*`),
+listados fuera de EE.UU. (`.DE .PA .SA .T .TW .IL`), los seis muertos conocidos
+(`WBA TTM LFC HNP PCRFY YZCHY`) y los dos que esperan confirmación de renombre
+(`BK MMC`).
+
+### Lo que esto cambia y lo que no
+
+**El cuello de botella no es la CPU, es la cantidad de pedidos.** Yahoo tarda
+0,150 s por símbolo y corta cuando lo apuran, que es exactamente por qué los
+precios llegan tarde. Bajar de 465 pedidos a ~87 (374 por data912 en dos, más
+los ~85 vivos que faltan por Yahoo) es **un 81% menos de pedidos** contra la
+única fuente que rate-limitea.
+
+**El historial sigue en Yahoo y no hay alternativa.** Ninguna fuente sirve OHLC
+en bloque: `/historical/...` de data912 es de a un símbolo, y el de CEDEARs
+viene en pesos, o sea que rompe el invariante 2. La corrida nocturna
+—400 barras × 465 símbolos— no se puede mudar.
+
+> **Nunca uses `arg_cedears` ni el panel de BYMA para precios.** Están en pesos
+> y mezclan el movimiento del papel con el tipo de cambio implícito: un CEDEAR
+> puede subir 4% un día que el papel no se movió. Sirven para la sección
+> Argentina, no para el screener.
+
+### Sobre reescribir en C++ (se preguntó, se midió)
+
+**No serviría de nada.** El tiempo se va esperando la red, no calculando:
+
+- El recálculo completo del motor —465 símbolos × 400 barras, ASH, Paragon,
+  RSI, ADX, líneas de tendencia— tarda **3-35 ms en JavaScript**.
+- La descarga tarda **~70 s**, y es todo espera de red y pausas deliberadas
+  entre reintentos.
+
+C++ haría los 30 ms un poco más rápidos y no tocaría los 70 segundos. A cambio
+se perderían `yfinance` y `pandas`, aparecería un paso de compilación, y el HTML
+dejaría de ser un archivo suelto que anda sin internet ni dependencias
+(invariante 7). **La palanca real es pedir menos veces, no calcular más rápido.**
+
+---
+
 ## 9. Cómo testear (no hay navegador)
 
 ```
@@ -1050,6 +1252,9 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
 | `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |
 | `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial |
+| `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
+| `bonos.js` | la vista de bonos: que lo que el payload trae llegue a la pantalla, la curva, el cronograma que se abre, las ONs por emisor |
+| `menus.js` | los desplegables de la barra, el engranaje, y **que ningún control quede huérfano al mudarse de contenedor** |
 | `fixtura.py` | arma `tmp/sitio` con series sintéticas. **El único lugar con datos falsos.** |
 
 **No hay Chrome en el entorno de desarrollo.** Se usa **jsdom** desde Node, con el
@@ -1099,6 +1304,20 @@ necesitan internet.
     mentira. Si no hay datos, la página lo dice.
 13. **Una pestaña sólo graba la sesión si el usuario tocó algo en ella.** Si no,
     una pestaña vieja en segundo plano te revierte la configuración.
+14. **Todo control de estado cuelga de un `.ctrl-host`.** El cableado no puede
+    volver a depender de en qué contenedor del HTML está el control: así se
+    desconectaron todos, en silencio, al mudarlos a los desplegables.
+15. **Un rendimiento calculado acá se muestra como propio; uno de un tercero se
+    muestra atribuido.** Los soberanos tienen su cronograma cargado y
+    verificado, así que su TIR es auditable. La de las ONs la calcula bonistas
+    y la pantalla lo dice. Nunca al revés.
+16. **La renta fija no puede tirar abajo las acciones.** Si `data912` o
+    `bonistas` no contestan, `bonos.py` avisa y sigue.
+17. **`bonos_cronograma.csv` no se toca de memoria.** Cada línea tiene que pasar
+    los cruces documentados en la cabecera, y `pruebas/renta_fija.py` los corre.
+18. **Nunca el precio del CEDEAR, tampoco de `arg_cedears` ni de BYMA.** Están
+    en pesos y mezclan el papel con el tipo de cambio implícito. Para el
+    screener sólo sirven las fuentes en la moneda de origen.
 
 ---
 
@@ -1117,8 +1336,26 @@ necesitan internet.
 3. **Tabla de correcciones manuales de sector/industria**, para pisar los errores
    de Yahoo (el caso `ACH`). Un CSV `correcciones.csv` que se aplique después de
    `bajar_fundamentales`.
-4. **`armar_universo.py`** — regenerar `universo.csv` y `cedears.csv` desde el
-   panel de BYMA. Hoy `cedears.csv` es del 12/6/2026 y se actualiza a mano.
+4. **Pedirle los precios del día a data912 en vez de a Yahoo.** Medido: cubre
+   **374 de los 465 en dólares con dos pedidos** contra los 465 de Yahoo (ver la
+   sección 8b). Es un 81% menos de pedidos contra la única fuente que
+   rate-limitea, y es la causa real de que los precios lleguen tarde. Yahoo
+   queda para los ~85 que faltan y para todo el historial, que no se puede mudar.
+5. **Cargar los CEDEARs nuevos.** `armar_universo.py` ya compara contra el panel
+   vivo y reporta las diferencias, pero **todavía no se aplicaron**. Se mapean
+   solos: `BNG BNY CLS EMBJ MRSH NU SPCE SPCX`. Los brasileños van a mano:
+   `ABEV3 BBDC3 CSNA3 ITUB3 PETR3 SBSP3 SUZB3 TIMS3 VALE3 VIVT3`. **Dos son
+   renombres y hay que confirmarlos antes de tocarlos**: `BK`→`BNY` y
+   `MMC`→`MRSH`, que hoy fallan en silencio en el universo.
+6. **Sección Global**: bonos del Tesoro (`^TNX`, `^TYX`), commodities (`CL=F`,
+   `GC=F`, `ZS=F`) e índices — verificado que Yahoo los devuelve.
+7. **Portafolios.** El usuario los pidió y eligió **local ahora, backend
+   después**: guardar en `localStorage` detrás de una capa fina. Cuentas y login
+   son **imposibles** en GitHub Pages, que es estático; eso hay que decirlo
+   cuando se retome.
+8. **Letras y acciones argentinas.** `data912` ya las publica
+   (`/live/arg_notes`, `/live/arg_stocks`); falta el parser y la pantalla. Ahí
+   los filtros del screener vuelven a tener sentido y se muestran de nuevo.
 
 ### Medio
 

@@ -4062,6 +4062,10 @@ function limpiarFiltros(){
   ponerValores({},true);
   $('#buscar').value='';$('#selRapido').value='0';$('#selPerfil').value='0';
   marcarPerfil();industriaSel=null;ponerSoloFav(false);
+  /* Soltar el sector no alcanza con poner la variable en null: la fila queda
+     pintada como elegida en el panel y la tabla ya no la esta filtrando, o sea
+     que el panel miente. Hay que rehacerlo. */
+  montarIndustrias();
   etiquetas();aplicar();guardarSesion();
 }
 

@@ -65,9 +65,9 @@ setTimeout(async()=>{
   await esperar(300);
 
   console.log('== filtro por sector (y por industria) ==');
-  $('#btnInd').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  $('#btnFiltros').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(200);
-  ok('el boton dice Sectores',/Sectores/.test($('#btnInd').textContent),$('#btnInd').textContent);
+  ok('el encabezado dice Sectores',/Sectores/.test($('#tituloInd').textContent),$('#tituloInd').textContent);
   const sectores=$$('#tablaInd tr[data-ind]');
   ok('hay ranking de sectores',sectores.length>0,sectores.length);
   ok('son pocos grupos, no cien',sectores.length<=20,sectores.length);
@@ -86,17 +86,17 @@ setTimeout(async()=>{
   ok('queda guardado el sector',ses._ind===nombreSec,ses._ind);
   ok('y el campo elegido',ses._indCampo==='sector',ses._indCampo);
 
-  $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='industria')
+  $$('#panelFiltros .chip[data-campo]').find(c=>c.dataset.campo==='industria')
     .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(400);
-  ok('se puede cambiar a industria',/Industrias/.test($('#btnInd').textContent),
-     $('#btnInd').textContent);
+  ok('se puede cambiar a industria',/Industrias/.test($('#tituloInd').textContent),
+     $('#tituloInd').textContent);
   ok('cambiar de campo suelta el filtro',$$('#tabla tbody tr').length===antes,
      $$('#tabla tbody tr').length+' vs '+antes);
   ok('y hay mas industrias que sectores',
      $$('#tablaInd tr[data-ind]').length>sectores.length,
      $$('#tablaInd tr[data-ind]').length+' vs '+sectores.length);
-  $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+  $$('#panelFiltros .chip[data-campo]').find(c=>c.dataset.campo==='sector')
     .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(300);
   $('#indTodas').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
@@ -105,24 +105,24 @@ setTimeout(async()=>{
 
   console.log('== la etiqueta del boton acompaña al campo elegido ==');
   {
-    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='industria')
+    $$('#panelFiltros .chip[data-campo]').find(c=>c.dataset.campo==='industria')
       .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
     await esperar(300);
     $('#nomPerfil').value='con industrias';
     $('#btnGuardar').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
     await esperar(300);
-    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+    $$('#panelFiltros .chip[data-campo]').find(c=>c.dataset.campo==='sector')
       .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
     await esperar(300);
-    ok('al volver a sector el boton lo dice',/Sectores/.test($('#btnInd').textContent),
-       $('#btnInd').textContent);
+    ok('al volver a sector el encabezado lo dice',/Sectores/.test($('#tituloInd').textContent),
+       $('#tituloInd').textContent);
     $('#selPerfil').value='m:con industrias';
     $('#selPerfil').dispatchEvent(new w.Event('change'));
     await esperar(500);
-    ok('al cargar el perfil el boton se actualiza',/Industrias/.test($('#btnInd').textContent),
-       $('#btnInd').textContent);
+    ok('al cargar el perfil el encabezado se actualiza',/Industrias/.test($('#tituloInd').textContent),
+       $('#tituloInd').textContent);
     ok('y el panel lista industrias',w.eval('campoGrupo')==='industria',w.eval('campoGrupo'));
-    $$('#panelInd .chip[data-campo]').find(c=>c.dataset.campo==='sector')
+    $$('#panelFiltros .chip[data-campo]').find(c=>c.dataset.campo==='sector')
       .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
     await esperar(300);
   }
