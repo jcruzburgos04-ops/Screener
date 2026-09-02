@@ -17,12 +17,6 @@ jobs:
         with: {python-version: "3.12"}
       - name: La cuenta y los cronogramas, contra la referencia
         run: python pruebas/renta_fija.py
-      # SONDA TEMPORAL: que campos manda bonistas de verdad. Decide si se
-      # pueden mostrar los pagos de cada instrumento o no. Se saca cuando
-      # conteste.
-      - name: Sonda de campos
-        run: python sonda_campos.py
-
       - name: Los futuros, solos (A3 + BCRA)
         run: python futuros.py
       - name: Armar el payload con datos de verdad
