@@ -44,4 +44,4 @@ tmp.write_text('local,subyacente\nAAPL.BA,AAPL\nROTA\nOTRA,\nTEN.BA,TS\n')
 m = cargar_mapa_cedears(tmp)
 print('mapa con lineas rotas:', m)
 assert m == {'AAPL':'AAPL','TEN':'TS'}, m
-print('\nTODO OK')
+print('\nATRASOS OK')

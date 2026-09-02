@@ -1548,7 +1548,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 
 | Archivo | Qué prueba |
 |---|---|
-| `atrasos.py` | detección de atrasos por mercado, `limpiar_barras`, `cedears.csv` roto |
+| `atrasos.py` | detección de atrasos por mercado, `limpiar_barras`, `cedears.csv` roto (termina en `ATRASOS OK`) |
 | `reintentos.py` | las tres vueltas con Yahoo fallando en rachas, y la cuarentena |
 | `repesca.py` | que la repesca arregle los recortados y no invente los muertos |
 | `paridad.py` + `paridad_js.js` | Python ↔ JS, 18 combinaciones + RSI/ATR/ADX/ADR |
