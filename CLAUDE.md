@@ -1573,15 +1573,44 @@ se caiga, que las patas sintéticas de los duales no se cuelen, que el
 vencimiento de un futuro salga del símbolo, y que el spot se despeje de las
 tasas de A3 en vez de aproximarse con el contrato más corto.
 | `fixtura.py` | arma `tmp/sitio` con series sintéticas. **El único lugar con datos falsos.** |
+| `vista.js` | **en un navegador de verdad**: que la curva se vea, con color y con texto legible |
 
-**No hay Chrome en el entorno de desarrollo.** Se usa **jsdom** desde Node, con el
-canvas stubbeado entero. Sirve para contar filas y columnas, leer KPIs, disparar
-clics y eventos `input`, probar teclas, verificar persistencia (con un
-`localStorage` falso compartido entre dos aperturas) y medir el recálculo.
+**Casi todo se prueba con jsdom** desde Node, con el canvas stubbeado entero.
+Sirve para contar filas y columnas, leer KPIs, disparar clics y eventos `input`,
+probar teclas, verificar persistencia (con un `localStorage` falso compartido
+entre dos aperturas) y medir el recálculo.
 
-**No sirve para**: nada visual. El gráfico no se puede verificar así — lo único
-comprobable es que no lance excepciones y que las coordenadas caigan dentro del
-canvas (se hace capturando las llamadas a `fillRect`).
+### SÍ hay navegador, y hace falta
+
+> Durante mucho tiempo acá decía «no hay Chrome en el entorno de desarrollo» y
+> **era falso**: `/opt/pw-browsers` trae Chromium y Playwright lo maneja. Esa
+> creencia costó cara.
+
+jsdom **no aplica CSS ni calcula layout**. Dos bugs pasaron por delante de 811
+pruebas sin que ninguna los viera, y los dos eran del mismo tipo —el DOM
+perfecto y la pantalla no—:
+
+1. **La línea de tendencia se dibujaba con `stroke:none`.** El `<path>` estaba
+   ahí, con su `d` bien calculada, y en pantalla **no había ninguna línea**: las
+   reglas de color apuntaban a `.cv-linea` y la clase había pasado a ser
+   `.cv-ajuste`. Para jsdom estaba todo bien.
+2. **El gráfico tenía un `viewBox` de 1000 y se pintaba en una columna de 636**,
+   así que todo salía al 64% y los rótulos de 13 px quedaban en **8,3 px**. El
+   usuario reportó «faltan las curvas»: estaban, pero se leían como una mancha.
+
+`pruebas/vista.js` levanta el sitio en un servidor local —por `http` y no por
+`file://`, que con origen opaco ni carga— y verifica **lo medible, no lo
+estético**: que lo que tiene que tener color lo tenga, que el texto llegue a la
+pantalla con al menos 11 px reales, que el gráfico tenga ancho y alto mayores
+que cero y un tamaño comparable al de su tabla, y que ninguna pestaña tire una
+excepción. **Nada de comparar imágenes.** Se saltea sola si faltan Playwright o
+Chromium, para que la batería siga corriendo en cualquier máquina.
+
+> Y para mirar de verdad: una captura con `page.screenshot()` sobre
+> `.bo-tarjeta` alcanza para ver el problema en dos segundos. Cuando algo «se ve
+> mal» y las pruebas están en verde, **sacá la foto antes de teorizar** — yo
+> perdí un rato largo razonando sobre grid y `min-width` cuando la respuesta
+> estaba en `getComputedStyle(...).stroke`.
 
 **Ojo con las pruebas que dependen de la fecha:** `yahoo.js` dispara la descarga
 a mano en vez de esperar el refresco automático. Cuando dependía del automático,

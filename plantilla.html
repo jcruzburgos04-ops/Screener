@@ -595,7 +595,7 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
    pantallas y habia que subir y bajar entre el grafico y los numeros del
    mismo papel. `minmax(0,...)` es necesario: sin el, la tabla ancha estira
    su columna y le come el ancho al grafico en vez de desplazarse ella. */
-.bo-par{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);
+.bo-par{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,5fr);
   gap:var(--e3);align-items:start}
 .bo-par-g{min-width:0}
 .bo-par-t{min-width:0}
@@ -680,7 +680,15 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 /* La tendencia ajustada, punteada, como en el informe de referencia. NO une
    los puntos: los resume. Unirlos daba un zigzag que se leia como si el
    mercado tuviera saltos donde solo hay dispersion. */
-.cv-ajuste{fill:none;stroke-width:1.6;stroke-dasharray:5 5;opacity:.7}
+.cv-ajuste{fill:none;stroke-width:2;stroke-dasharray:6 5;opacity:.85}
+/* El color sale de la serie, igual que en la linea. Sin estas cuatro reglas el
+   path se dibuja con `stroke:none` -- o sea invisible -- porque las de color
+   apuntaban a .cv-linea y esta clase es otra. Paso: la tendencia estaba en el
+   DOM, con su `d` bien calculada, y en pantalla no habia ninguna linea. */
+.cv-ajuste.pt-a{stroke:var(--ambar)}
+.cv-ajuste.pt-b{stroke:#5FA8D3}
+.cv-ajuste.pt-c{stroke:#7FB77E}
+.cv-ajuste.pt-d{stroke:#C08BC0}
 .cv-linea.pt-a{stroke:var(--ambar)}
 .cv-linea.pt-b{stroke:#5FA8D3}
 .cv-linea.pt-c{stroke:#7FB77E}
@@ -3460,7 +3468,12 @@ function curvaXY(puntos,op){
   let raros=[];
   if(op.robusto!==false)[p,raros]=cvSinRaros(p);
   if(p.length<2)return '';
-  const W=1000,H=op.alto||380,ml=68,mr=80,mt=26,mb=54;
+  /* EL ANCHO DEL viewBox IMPORTA PARA LA LEGIBILIDAD. El svg se pinta al ancho
+     de su columna: con un viewBox de 1000 en una columna de 636, TODO se
+     dibuja al 64% y los rotulos de 13px salen a 8,3px, que no se leen. Se
+     pasa un ancho parecido al real y el texto queda casi 1:1. */
+  const W=op.ancho||1000,H=op.alto||380;
+  const ml=op.ml||68,mr=op.mr||80,mt=26,mb=54;
   const xs=p.map(q=>q.x), ys=p.map(q=>q.y);
   let x0=op.desdeCero===false?Math.min(...xs):0, x1=Math.max(...xs);
   if(x1<=x0)x1=x0+1;
@@ -3490,9 +3503,17 @@ function curvaXY(puntos,op){
      primero se prueba arriba del punto, si choca se prueba abajo, y si sigue
      chocando NO SE DIBUJA. El punto queda igual, con su nombre en el globito
      y en la tabla de al lado, que es donde se lee el detalle. */
-  const puestos=[];
+  /* Los rotulos tampoco pueden caer encima de un PUNTO. Solo esquivando a
+     otros rotulos, el circulo del S30S6 quedaba dibujado arriba de su propia
+     etiqueta y no se leia. Se siembra la lista de ocupados con los circulos
+     de todos los puntos antes de colocar el primer rotulo. */
+  const R_PT=4, puestos=p.map(q=>({q, x1:X(q.x)-R_PT-2, x2:X(q.x)+R_PT+2,
+                                   y1:Y(q.y)-R_PT-2, y2:Y(q.y)+R_PT+2}));
   const ANCHO_CHAR=7.8, ALTO_ROT=14;      // mono a 13px en unidades del viewBox
   function rotulo(q){
+    // Su PROPIO punto no cuenta: el rotulo sale pegado a el por definicion.
+    // Sin esta linea todos chocaban consigo mismos y no se dibujaba ninguno.
+    const libre=o=>o.q!==q;
     const w=Math.max(1,(q.t||'').length)*ANCHO_CHAR, cx=X(q.x), cy=Y(q.y);
     /* Cuatro lugares por punto, en orden de preferencia: arriba, abajo, a la
        derecha y a la izquierda. Con solo arriba/abajo, dos papeles al mismo
@@ -3508,8 +3529,8 @@ function curvaXY(puntos,op){
                   y1:cy+dy-ALTO_ROT-AIRE, y2:cy+dy+AIRE};
       // Ni fuera del panel ni pisando a otro que ya se puso.
       if(caja.y1<mt-2||caja.y2>H-mb+2||caja.x1<2||caja.x2>W-2)continue;
-      if(puestos.some(o=>!(caja.x2<o.x1||caja.x1>o.x2||
-                           caja.y2<o.y1||caja.y1>o.y2)))continue;
+      if(puestos.some(o=>libre(o)&&!(caja.x2<o.x1||caja.x1>o.x2||
+                                     caja.y2<o.y1||caja.y1>o.y2)))continue;
       puestos.push(caja);
       return `<text x="${x.toFixed(1)}" y="${(cy+dy).toFixed(1)}" `+
              `text-anchor="${anc}">${esc(q.t||'')}</text>`;
@@ -3744,7 +3765,13 @@ function renderPesos(){
          habia que subir y bajar. Al costado entran los dos de una: la curva
          mide lo mismo que la tabla de al lado. Abajo de 1100px se apilan,
          porque en un telefono lado a lado no entra ninguno de los dos. */
-      const g=curvaXY(p,{rotuloX:'duration · años',alto:300,desnuda:1});
+      /* El alto sigue a la cantidad de filas para que la curva y la tabla midan
+         mas o menos lo mismo, como en el informe: una curva de 190px al lado de
+         una tabla de 330 se lee como un hueco con motitas. Y el ancho del
+         viewBox va cerca del ancho real de la columna, para que el texto no se
+         achique. */
+      const g=curvaXY(p,{rotuloX:'duration · años', ancho:620, ml:60, mr:34,
+        alto:Math.min(760,Math.max(320,26*c.filas.length+110)), desnuda:1});
       const avisos=(g?'':`<p class="bo-nota bo-raros">Sin curva: ${
             p.length?'hoy operó un solo papel de esta familia'
                     :'hoy no operó ninguno de estos papeles'}.</p>`)+

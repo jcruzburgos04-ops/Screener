@@ -66,6 +66,8 @@ echo; echo "== Python: renta fija y los cronogramas de los soberanos =="
 python3 renta_fija.py
 echo; echo "== la vista de bonos =="
 node bonos.js
+echo; echo "== en un navegador de verdad: que la curva SE VEA =="
+node vista.js
 echo; echo "== los menus de la barra y el engranaje =="
 node menus.js
 echo; echo "== el desplegable de filtros dibujado a mano =="

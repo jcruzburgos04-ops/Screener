@@ -21,3 +21,11 @@ pruebas/motor.js
 pruebas/series.json
 pruebas/salida_js.json
 pruebas/node_modules
+
+# jsdom y playwright se instalan a mano donde haga falta (npm install jsdom
+# playwright). No van al repo: son decenas de MB y el proyecto no tiene ni
+# build step ni dependencias de runtime en JS -- la pagina no carga un solo
+# script de afuera.
+node_modules/
+package.json
+package-lock.json

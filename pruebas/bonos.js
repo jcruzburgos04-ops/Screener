@@ -214,7 +214,21 @@ console.log('== el interruptor de tres posiciones ==');
       pisados.push(a.t+'/'+b.t);}
   ok('con los once papeles reales, ningun rotulo pisa a otro',
      pisados.length===0, pisados.join(' '));
-  ok('y los once quedan rotulados', cajas.length===REAL.length,
+  /* Ni a un PUNTO. Solo esquivando rotulos, el circulo del S30S6 quedaba
+     dibujado arriba de su propia etiqueta. */
+  const R=4;
+  const sobrePunto=cajas.filter(c=>REAL.some(([t])=>t!==c.t)&&
+    [...doc.querySelectorAll('.cv-pt circle')].some(ci=>{
+      const cx=+ci.getAttribute('cx'), cy=+ci.getAttribute('cy');
+      return !(c.x2<cx-R||c.x1>cx+R||c.y2<cy-R||c.y1>cy+R);}));
+  ok('ni cae encima de un punto', sobrePunto.length===0,
+     sobrePunto.map(c=>c.t).join(' '));
+  /* No se exige que entren TODOS: cuando dos papeles caen practicamente en el
+     mismo lugar, uno se queda sin rotulo a proposito. Un ticker pisado es peor
+     que ausente, y el nombre esta en el globito y en la tabla de al lado. Lo
+     que si se exige es que sea la excepcion. */
+  ok('y queda rotulada la gran mayoria',
+     cajas.length>=Math.ceil(REAL.length*0.8),
      cajas.length+' de '+REAL.length);
   /* Y ninguno se sale del lienzo, que es el otro modo de quedar ilegible. */
   const vb=(doc.querySelector('svg').getAttribute('viewBox')||'').split(' ').map(Number);
