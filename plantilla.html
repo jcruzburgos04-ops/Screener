@@ -551,6 +551,20 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-falta b{color:var(--ambar)}
 .bo-vacio{padding:3rem 1.6rem;color:var(--tenue);text-align:center}
 .bo-scroll{overflow-x:auto}
+/* Las dos pestañas de la vista de bonos. Botones y no chips: son navegacion,
+   no filtros, y confundir las dos cosas ya paso con los chips de vistas. */
+.bo-pest{display:flex;gap:.3rem;margin:0 1.6rem 1rem;border-bottom:1px solid var(--borde)}
+.bo-pest button{background:none;border:0;border-bottom:2px solid transparent;
+  color:var(--tenue);font-family:var(--sans);font-size:var(--t2);font-weight:500;
+  padding:.55rem .9rem;cursor:pointer;margin-bottom:-1px;letter-spacing:.01em}
+.bo-pest button:hover{color:var(--hueso)}
+.bo-pest button.on{color:var(--ambar);border-bottom-color:var(--ambar)}
+.bo-pest button b{font-family:var(--mono);font-size:var(--t0);color:var(--tenue);
+  background:var(--panel2);border-radius:3px;padding:.05rem .3rem;font-weight:500}
+.bo-pest button.on b{color:var(--ambar);background:var(--ambar-t)}
+.bo-ons{min-width:640px}
+.bo-cable{font-family:var(--sans);font-size:var(--t0);color:var(--tenue);
+  border:1px solid var(--borde2);border-radius:3px;padding:0 .25rem;margin-left:.35rem}
 .bo-grande{min-width:820px}
 .bo-tabla td.fuerte{color:var(--hueso);font-weight:600}
 /* La fila se abre al tocarla: el cursor y la flecha lo tienen que decir antes
@@ -3169,7 +3183,7 @@ let BONOS=null, bajandoBonos=false;
 
 async function verBonos(){
   const cuerpo=$('#bonosCuerpo');
-  if(BONOS){renderBonos();return;}
+  if(BONOS){pintarBonos();return;}
   if(bajandoBonos)return;
   bajandoBonos=true;
   cuerpo.innerHTML='<p class="bo-vacio">Buscando los bonos…</p>';
@@ -3177,7 +3191,9 @@ async function verBonos(){
     const r=await fetch('bonos.json?v='+Math.floor(Date.now()/120000),{cache:'no-cache'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     BONOS=await r.json();
-    renderBonos();
+    /* La pestaña elegida sobrevive a recargar la pagina. */
+    bonosPestana=leerLS('screener_ash_bonos_pest')==='ons'?'ons':'sob';
+    pintarBonos();
   }catch(e){
     /* Que falte el archivo no es un error del usuario: pasa si todavia no
        corrio la actualizacion que lo publica. Se dice qué pasó, no "error". */
@@ -3190,11 +3206,17 @@ async function verBonos(){
    vez no sirve para comparar (no quedan alineados) y estira la pagina. */
 let bonoAbierto=null;
 
-const bnum=(v,dec)=>isFinite(v)?v.toLocaleString('es-AR',
+/* OJO: isFinite(null) es TRUE en JavaScript, porque null se convierte en 0.
+   Una obligacion negociable step-up no tiene UNA tasa de cupon y el payload
+   manda null; con `isFinite(o.cupon)` de guarda la fila pasaba el filtro y
+   despues reventaba en toLocaleString, tirando abajo la vista entera. Por eso
+   toda esta pantalla pregunta con hay(), que ademas exige que no sea null. */
+const hay=v=>v!=null&&isFinite(v);
+const bnum=(v,dec)=>hay(v)?v.toLocaleString('es-AR',
   {minimumFractionDigits:dec,maximumFractionDigits:dec}):'·';
-const bpc=(v,dec)=>isFinite(v)?(v*100).toFixed(dec===undefined?2:dec)+'%':'·';
-const bsig=v=>isFinite(v)?(v>0?'+':'')+v.toFixed(2)+'%':'·';
-const bcol=v=>isFinite(v)?(v>0?'up':(v<0?'dn':'')):'';
+const bpc=(v,dec)=>hay(v)?(v*100).toFixed(dec===undefined?2:dec)+'%':'·';
+const bsig=v=>hay(v)?(v>0?'+':'')+v.toFixed(2)+'%':'·';
+const bcol=v=>hay(v)?(v>0?'up':(v<0?'dn':'')):'';
 /* 2027-01-09 -> 9 ene 27. Se corta el año a dos digitos porque la columna
    entra en una tabla que ya es ancha, y el siglo no aporta nada. */
 const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -3216,7 +3238,7 @@ function bfecha(iso){
    el inspector (o con jsdom, que es como se prueba acá) y no hace falta
    redibujarla cuando cambia el tamaño de la ventana. */
 function curvaBonos(filas){
-  const p=filas.filter(b=>isFinite(b.tir)&&isFinite(b.duration));
+  const p=filas.filter(b=>hay(b.tir)&&hay(b.duration));
   if(p.length<2)return '';
   const W=1000,H=400,ml=64,mr=96,mt=24,mb=52;
   const xs=p.map(b=>b.duration), ys=p.map(b=>b.tir*100);
@@ -3283,12 +3305,12 @@ function filaBono(b,abierto){
     <td>${bnum(b.pesos,0)}</td>
     <td>${bnum(b.usd_mep,2)}</td>
     <td class="${bcol(b.var)}">${bsig(b.var)}</td>
-    <td class="fuerte">${isFinite(b.tir)?bpc(b.tir):'·'}${prov}</td>
-    <td>${isFinite(b.tna)?bpc(b.tna):'·'}</td>
-    <td>${isFinite(b.paridad)?bpc(b.paridad,1):'·'}</td>
-    <td>${isFinite(b.duration)?bnum(b.duration,2):'·'}</td>
-    <td>${isFinite(b.dv01)?bnum(b.dv01,4):'·'}</td>
-    <td>${isFinite(b.vivo)?bnum(b.vivo,0):'·'}</td>
+    <td class="fuerte">${hay(b.tir)?bpc(b.tir):'·'}${prov}</td>
+    <td>${hay(b.tna)?bpc(b.tna):'·'}</td>
+    <td>${hay(b.paridad)?bpc(b.paridad,1):'·'}</td>
+    <td>${hay(b.duration)?bnum(b.duration,2):'·'}</td>
+    <td>${hay(b.dv01)?bnum(b.dv01,4):'·'}</td>
+    <td>${hay(b.vivo)?bnum(b.vivo,0):'·'}</td>
     <td>${bfecha(b.prox_pago)}</td></tr>`;
   return cuerpo+(abierto?detalleBono(b):'');
 }
@@ -3328,6 +3350,117 @@ function detalleBono(b){
     `</tbody></table></div></td></tr>`;
 }
 
+/* ---------- obligaciones negociables ----------
+   Se agrupan POR EMISOR y no en una tabla plana de seiscientas filas. El que
+   arma una cartera para un cliente decide primero A QUIEN le presta y despues
+   a que plazo: YPF a 2029 y YPF a 2031 son la misma decision de credito.
+   Ademas una tabla de 600 renglones no se lee.
+
+   Los emisores van ordenados por TIR mediana, que es lo mismo que ordenarlos
+   por lo que el mercado les cobra: arriba, los que pagan mas. */
+let emisorAbierto=null;
+
+function tablaOns(papeles){
+  return `<div class="bo-scroll"><table class="bo-tabla bo-ons"><thead><tr>
+    <th>especie</th><th>ley</th><th>vence</th><th>cupón</th><th>precio</th>
+    <th title="La calcula bonistas.com, no este programa">TIR</th>
+    <th>durat.</th><th>paridad</th></tr></thead><tbody>`+
+  papeles.map(o=>`<tr>
+    <td class="tk">${esc(o.t)}${o.cable?'<span class="bo-cable" title="Liquida afuera (cable)">C</span>':''}</td>
+    <td>${o.ley==='Argentina'?'Arg':'NY'}</td>
+    <td>${bfecha(o.vto)}</td>
+    <td>${hay(o.cupon)?bnum(o.cupon,2)+'%':'·'}</td>
+    <td>${bnum(o.precio,2)}</td>
+    <td class="fuerte">${bpc(o.tir)}</td>
+    <td>${bnum(o.duration,2)}</td>
+    <td>${bpc(o.paridad,1)}</td>
+  </tr>`).join('')+'</tbody></table></div>';
+}
+
+function renderOns(){
+  const d=BONOS, cuerpo=$('#bonosCuerpo');
+  const ons=(d&&d.ons)||[], emis=(d&&d.emisores)||[];
+  if(!ons.length){
+    cuerpo.innerHTML=pestanas()+`<div class="bo-tarjeta">
+      <div class="bo-tit">Obligaciones negociables</div>
+      <p class="bo-nota">No vinieron datos de deuda corporativa en esta
+      actualización. Se arman en la misma corrida que los bonos; si falla esa
+      fuente, los soberanos igual salen.</p></div>`;
+    ponerPestanas();return;}
+
+  const porEmisor=new Map();
+  ons.forEach(o=>{const l=porEmisor.get(o.emisor)||[];l.push(o);porEmisor.set(o.emisor,l);});
+
+  const filas=emis.map(e=>{
+    const abierto=emisorAbierto===e.emisor;
+    const papeles=(porEmisor.get(e.emisor)||[]).slice()
+      .sort((a,b)=>(a.dias||0)-(b.dias||0));
+    return `<tr class="bo-fila ${abierto?'abierta':''}" data-emisor="${esc(e.emisor)}" tabindex="0">
+        <td class="tk">${esc(e.emisor)}<i class="bo-flecha">${abierto?'▾':'▸'}</i></td>
+        <td>${e.papeles}</td>
+        <td class="fuerte">${bpc(e.tir_med)}</td></tr>`+
+      (abierto?`<tr class="bo-det"><td colspan="3"><div class="bo-det-caja">
+        ${tablaOns(papeles)}</div></td></tr>`:'');
+  }).join('');
+
+  cuerpo.innerHTML=pestanas()+
+    `<div class="bo-tarjeta"><div class="bo-tit">Deuda corporativa argentina
+        <span class="bo-leyenda">${ons.length} especies · ${emis.length} emisores</span></div>
+      <p class="bo-nota">Ordenados por la <b>TIR mediana</b> de cada emisor, que es lo
+        mismo que ordenarlos por lo que el mercado les cobra: arriba, los que pagan
+        más. Se agrupa por emisor porque prestarle a YPF a 2029 y a 2031 es la misma
+        decisión de crédito. Tocá un emisor para ver sus papeles.</p>
+      <div class="bo-scroll"><table class="bo-tabla bo-grande"><thead><tr>
+        <th>emisor</th><th>especies</th><th>TIR mediana</th>
+      </tr></thead><tbody>${filas}</tbody></table></div></div>`+
+    `<div class="bo-falta">
+      <b>La TIR, la duration y la paridad de esta tabla las calcula
+      bonistas.com, no este programa.</b> Para los soberanos el cronograma está
+      cargado y verificado acá, así que esos números son propios y se pueden
+      auditar. Para las ONs son cientos de emisiones y no hay ninguna fuente
+      pública con los flujos de fondos, así que se muestra lo de ellos,
+      atribuido. <b>Tampoco hay calificación de riesgo</b>: no se encontró
+      ninguna fuente abierta que la publique. Antes de usar esto con un cliente,
+      contrastá contra el prospecto.</div>`;
+  ponerPestanas();
+
+  cuerpo.onclick=e=>{
+    const fila=e.target.closest('.bo-fila[data-emisor]');
+    if(!fila)return;
+    emisorAbierto = emisorAbierto===fila.dataset.emisor ? null : fila.dataset.emisor;
+    renderOns();
+  };
+  cuerpo.onkeydown=e=>{
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    const fila=e.target.closest&&e.target.closest('.bo-fila[data-emisor]');
+    if(!fila)return;
+    e.preventDefault();
+    emisorAbierto = emisorAbierto===fila.dataset.emisor ? null : fila.dataset.emisor;
+    renderOns();
+  };
+}
+
+/* Las dos pestañas de la vista. Se dibujan en las dos ramas y el manejador se
+   pone aparte, porque cada rama rehace el innerHTML entero. */
+let bonosPestana='sob';
+function pestanas(){
+  const n=(BONOS&&BONOS.ons&&BONOS.ons.length)||0;
+  return `<div class="bo-pest" id="bonosPestanas">
+    <button type="button" class="${bonosPestana==='sob'?'on':''}" data-pest="sob">Soberanos</button>
+    <button type="button" class="${bonosPestana==='ons'?'on':''}" data-pest="ons">Obligaciones negociables${n?` <b>${n}</b>`:''}</button>
+  </div>`;
+}
+function ponerPestanas(){
+  const c=$('#bonosPestanas');if(!c)return;
+  c.onclick=e=>{const b=e.target.closest('[data-pest]');if(!b)return;
+    bonosPestana=b.dataset.pest;
+    escribirLS('screener_ash_bonos_pest',bonosPestana);
+    pintarBonos();};
+}
+/* Un solo punto de entrada para las dos vistas: si no, el que llama tiene que
+   acordarse de cual toca, y ahi es donde se cuelan los estados imposibles. */
+function pintarBonos(){bonosPestana==='ons'?renderOns():renderBonos();}
+
 function renderBonos(){
   const d=BONOS, cuerpo=$('#bonosCuerpo');
   if(!d||!d.bonos||!d.bonos.length){
@@ -3337,7 +3470,7 @@ function renderBonos(){
   /* Se ordena por duration y no por vencimiento: es el orden en que se lee una
      curva, y deja juntos a los que de verdad compiten entre si. */
   const orden=[...filas].sort((a,b)=>
-    (isFinite(a.duration)?a.duration:99)-(isFinite(b.duration)?b.duration:99)||
+    (hay(a.duration)?a.duration:99)-(hay(b.duration)?b.duration:99)||
     a.vto-b.vto||a.t.localeCompare(b.t));
 
   const tabla=(titulo,nota,ley)=>{
@@ -3383,8 +3516,8 @@ function renderBonos(){
 
   /* Lo que falta se dice, no se disimula. Y se dice CUANTO falta: "faltan 7 de
      11" es accionable, "faltan datos" no. */
-  const sinTir=filas.filter(b=>!isFinite(b.tir)).map(b=>b.t);
-  const provis=filas.filter(b=>isFinite(b.tir)&&!b.verificado).map(b=>b.t);
+  const sinTir=filas.filter(b=>!hay(b.tir)).map(b=>b.t);
+  const provis=filas.filter(b=>hay(b.tir)&&!b.verificado).map(b=>b.t);
   let falta='';
   if(sinTir.length||provis.length){
     falta='<div class="bo-falta">';
@@ -3398,11 +3531,12 @@ function renderBonos(){
     falta+='</div>';
   }
 
-  cuerpo.innerHTML=curvaBonos(orden)+
+  cuerpo.innerHTML=pestanas()+curvaBonos(orden)+
     tabla('Ley Argentina','Se rigen por tribunales locales. Suelen rendir más que su '+
       'gemelo: es lo que el mercado cobra por el fuero.','Argentina')+
     tabla('Ley Nueva York','Mismo emisor, mismo flujo de fondos, otro tribunal.','Nueva York')+
     tc+canje+falta;
+  ponerPestanas();
 
   /* Abrir y cerrar el detalle. Delegado, porque la tabla se rehace entera en
      cada render y los manejadores por fila se perderian. */
