@@ -233,6 +233,45 @@ console.log('== el interruptor de tres posiciones ==');
  ok('y ahi tambien lo dice',/no operó ninguno de estos papeles/.test(plano));
  ok('pero el papel sigue estando',tp.indexOf(badlar.filas[0].t)>=0);
 
+ /* EL PROXIMO PAGO. Es la pregunta que se le hace a un bono antes que
+    cualquier otra -- cuando cobro y cuanto -- y hasta ahora solo la
+    contestaban los soberanos, que son los unicos con cronograma cargado.
+
+    Lo que hay que verificar no es que aparezca una fecha, sino que la
+    pantalla DISTINGA los dos casos: si despues de ese pago no queda nada,
+    esa linea es el cronograma completo; si faltan mas, el importe no es el
+    total y no puede leerse como si lo fuera. */
+ const conPago=c=>c.filas.filter(f=>f.pago);
+ const todasP=curvas.flatMap(c=>c.filas);
+ ok('el payload trae el proximo pago de los papeles en pesos',
+    todasP.filter(f=>f.pago).length>=5, todasP.filter(f=>f.pago).length);
+ ok('la tabla tiene las tres columnas del pago',
+    ['próx. pago','en','cobra'].every(h=>tp.indexOf(h)>=0));
+
+ const unUltimo=todasP.find(f=>f.pago&&f.pago.ultimo);
+ const unParcial=todasP.find(f=>f.pago&&!f.pago.ultimo);
+ ok('hay un papel cuyo proximo pago es el ultimo',!!unUltimo,unUltimo&&unUltimo.t);
+ ok('y otro al que le faltan pagos',!!unParcial,unParcial&&unParcial.t);
+ /* Si es el ultimo, el pago ES el vencimiento: las dos columnas de la misma
+    fila no pueden decir dias distintos del mismo evento. */
+ ok('cuando es el ultimo, el pago cae en el vencimiento de su propia fila',
+    unUltimo.pago.fecha===unUltimo.vto&&unUltimo.pago.dias===unUltimo.dias,
+    JSON.stringify([unUltimo.vto,unUltimo.dias,unUltimo.pago]));
+ ok('al que le faltan pagos, el proximo es ANTES del vencimiento',
+    unParcial.pago.fecha<unParcial.vto&&unParcial.pago.dias<unParcial.dias,
+    JSON.stringify([unParcial.vto,unParcial.dias,unParcial.pago]));
+
+ const trU=[...d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr')]
+   .find(tr=>tr.textContent.indexOf(unUltimo.t)>=0);
+ ok('el ultimo pago se resalta en la tabla',
+    !!trU.querySelector('.bo-final'),trU.textContent.slice(0,60));
+ ok('y el parcial NO',!([...d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr')]
+    .find(tr=>tr.textContent.indexOf(unParcial.t)>=0).querySelector('.bo-final')));
+ ok('el importe de un pago parcial lleva el + que avisa que no es el total',
+    !!([...d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr')]
+    .find(tr=>tr.textContent.indexOf(unParcial.t)>=0).querySelector('.bo-mas')));
+ ok('el del ultimo no lo lleva',!trU.querySelector('.bo-mas'));
+
  console.log('\n== futuros de dolar ==');
  await irA('fut');
  const tf=d.querySelector('#bonosCuerpo').textContent;
@@ -310,12 +349,51 @@ console.log('== el interruptor de tres posiciones ==');
  ok('con precio, cupon, TIR y paridad',
     ['precio','cupón','TIR','paridad'].every(h=>tOns.indexOf(h)>=0));
  ok('dice de quien es la TIR',/bonistas/i.test(tOns));
- ok('y que no hay calificacion de riesgo',/calificaci.n de riesgo/i.test(tOns));
+ const tOnsPlano=tOns.replace(/\s+/g,' ');
+ ok('y que no hay calificacion de riesgo',
+    /calificaci.n de riesgo/i.test(tOnsPlano),tOnsPlano.slice(-260));
+
+ /* Las ONs tambien. Era el pedido explicito: "que todo lo que sea renta fija
+    me aparezca cuales son sus pagos, tambien en las ONs". De ellas NO hay
+    cronograma completo en ninguna fuente abierta -- ya esta verificado --,
+    pero el proximo servicio si lo publica la fuente, y para las que ya
+    entraron en su ultimo tramo ESE es el cronograma entero. */
+ const ons=pay.ons||[];
+ ok('el payload trae el proximo pago de las ONs',
+    ons.filter(o=>o.pago).length>=3, ons.filter(o=>o.pago).length);
+ ok('y la tabla las muestra',
+    ['próx. pago','en','cobra'].every(h=>tOns.indexOf(h)>=0));
+ const oU=ons.find(o=>o.pago&&o.pago.ultimo), oP=ons.find(o=>o.pago&&!o.pago.ultimo);
+ ok('hay una ON en su ultimo tramo',!!oU,oU&&oU.t);
+ ok('y otra con cupones por delante',!!oP,oP&&oP.t);
+ ok('a la del ultimo tramo el pago le cae en su vencimiento',
+    oU.pago.fecha===oU.vto&&oU.pago.dias===oU.dias,
+    JSON.stringify([oU.vto,oU.dias,oU.pago]));
+ ok('y a la otra, antes',oP.pago.fecha<oP.vto,
+    JSON.stringify([oP.vto,oP.pago.fecha]));
+ const trOU=[...d.querySelectorAll('#bonosCuerpo .bo-tabla tbody tr')]
+   .find(tr=>tr.textContent.indexOf(oU.t)>=0);
+ ok('en la tabla el ultimo tramo va resaltado',!!trOU.querySelector('.bo-final'),
+    trOU.textContent.slice(0,60));
+ /* Y que la tarjeta diga que el + NO es el total. Es la unica defensa contra
+    leer un cupon suelto como todo lo que queda por cobrar. */
+ ok('la tarjeta explica que el + no es el total',
+    /no es el total/i.test(tOnsPlano),tOnsPlano.slice(-200));
 
  console.log('\n== ordenar la tabla plana ==');
  /* Ordenar es la razon de aplanarla: sin esto, 600 filas planas son peores
     que agrupadas. */
- const tirDe=tr=>{const c=tr.querySelectorAll('td')[7].textContent;
+ /* La columna se busca POR SU ENCABEZADO, no por indice. Con un td[7] fijo,
+    agregar una columna a la izquierda hacia que el test siguiera pasando o
+    fallando por el motivo equivocado -- es la misma trampa de los selectores
+    por posicion que ya se pago cara con `aside input`. */
+ const colDe=(nombre)=>{
+   const th=[...d.querySelectorAll('#bonosCuerpo .bo-tabla thead th')];
+   const i=th.findIndex(x=>x.textContent.trim().toLowerCase()===nombre);
+   if(i<0)throw new Error('no existe la columna '+nombre);
+   return i;};
+ const iTir=colDe('tir');
+ const tirDe=tr=>{const c=tr.querySelectorAll('td')[iTir].textContent;
    return c==='·'?null:parseFloat(c.replace('%',''));};
  const arranque=filasO().map(tirDe);
  ok('arranca ordenada por TIR de mayor a menor',
