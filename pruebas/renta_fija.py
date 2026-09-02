@@ -187,6 +187,130 @@ ok("la mediana de un emisor con dos papeles es el promedio de los dos",
 ok("y los ordena por lo que el mercado les cobra",
    e[0]["tir_med"] > e[1]["tir_med"])
 
+print("\n== curvas en pesos: se arman solas, sin lista de tickers ==")
+# Lo que se prueba aca es que la seleccion sea por REGLA y no por lista: es lo
+# que hace que una letra nueva aparezca sola y una vencida desaparezca sola.
+PESOS = [
+    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-09-30", "days_to_finish": 27,
+     "last_price": 115.4, "tir": 0.27, "tna": 0.24, "mtir": 0.020,
+     "modified_duration": 0.06, "parity": 1.003, "settlement": "24hs"},
+    # el mismo papel en contado inmediato: gana el de 24hs
+    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-09-30", "days_to_finish": 27,
+     "last_price": 99.9, "tir": 0.99, "tna": 0.9, "mtir": 0.06, "settlement": "CI"},
+    {"ticker": "TZXM9", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2029-03-28", "days_to_finish": 937,
+     "last_price": 89.9, "tir": 0.098, "tna": 0.094, "mtir": 0.0078,
+     "modified_duration": 2.34, "parity": 0.787, "settlement": "24hs"},
+    # pata sintetica de un dual: TIR de -95%, no es comprable
+    {"ticker": "TTS26_CAP", "bond_family": "TAMAR-FIJA", "index": "Fijo", "end_date": "2026-09-15", "days_to_finish": 12,
+     "last_price": 168.8, "tir": -0.958, "tna": -2.78, "mtir": -0.232, "settlement": "CI"},
+    # ya vencido
+    {"ticker": "VIEJO", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-08-01", "days_to_finish": -30,
+     "last_price": 100.0, "tir": 0.3, "tna": 0.28, "mtir": 0.022, "settlement": "24hs"},
+    # sin precio
+    {"ticker": "SINPX", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2028-01-01", "days_to_finish": 480,
+     "last_price": 0, "tir": 0, "settlement": "24hs"},
+    # familia que no esta en CURVAS_PESOS: se ignora en vez de romper
+    {"ticker": "OTRO", "bond_family": "FAMILIA-NUEVA",
+     "bond_family_label": "Una familia que todavía no existe", "end_date": "2028-01-01",
+     "days_to_finish": 480, "last_price": 100, "tir": 0.2, "settlement": "24hs"},
+]
+c = bonos.armar_pesos(PESOS)
+por = {x["clave"]: [f["t"] for f in x["filas"]] for x in c}
+ok("agrupa por la familia que declara la fuente",
+   sorted(por) == ["FAMILIA-NUEVA", "LETRAS-CER", "LETRAS-FIJO"], sorted(por))
+ok("una letra viva entra sola", por.get("LETRAS-FIJO") == ["S30S6"], por.get("LETRAS-FIJO"))
+# ESTO es lo que hace que no haya que mantenerlo: una familia que este programa
+# no conoce entra igual, con la etiqueta que le pone la fuente, en vez de
+# desaparecer en silencio.
+ok("una familia desconocida aparece sola y con su nombre",
+   any(x["clave"] == "FAMILIA-NUEVA"
+       and x["titulo"] == "Una familia que todavía no existe" for x in c),
+   [(x["clave"], x["titulo"]) for x in c])
+ok("descarta las patas sinteticas de los duales", "TTS26_CAP" not in str(por))
+ok("un papel vencido se cae solo", "VIEJO" not in str(por))
+ok("y uno sin precio tampoco entra", "SINPX" not in str(por))
+ok("se queda con el plazo que se opera (24hs)",
+   c[0]["filas"][0]["precio"] == 115.4, c[0]["filas"][0]["precio"])
+ok("pasa la TEM tal cual la publica la fuente",
+   cerca(c[0]["filas"][0]["tem"], 0.020, 1e-9), c[0]["filas"][0]["tem"])
+ok("las conocidas van en el orden declarado y las nuevas al final",
+   [x["clave"] for x in c] == ["LETRAS-FIJO", "LETRAS-CER", "FAMILIA-NUEVA"],
+   [x["clave"] for x in c])
+
+print("\n== futuros: el vencimiento sale del simbolo, no de una lista ==")
+import futuros  # noqa: E402
+ok("DLR092026 vence el ultimo dia habil de septiembre",
+   futuros.vencimiento("DLR092026") == date(2026, 9, 30), futuros.vencimiento("DLR092026"))
+# 31/1/2027 cae domingo: tiene que retroceder al viernes 29
+ok("y si el ultimo dia cae fin de semana, retrocede al habil",
+   futuros.vencimiento("DLR012027") == date(2027, 1, 29), futuros.vencimiento("DLR012027"))
+ok("diciembre no se pasa de año",
+   futuros.vencimiento("DLR122026") == date(2026, 12, 31), futuros.vencimiento("DLR122026"))
+ok("un simbolo raro devuelve None en vez de romper",
+   futuros.vencimiento("RARO") is None and futuros.vencimiento(None) is None)
+ok("un mes imposible tambien", futuros.vencimiento("DLR992026") is None)
+ok("la etiqueta es la del mercado",
+   futuros.etiqueta("DLR092026", date(2026, 9, 30)) == "DLR/SEP26",
+   futuros.etiqueta("DLR092026", date(2026, 9, 30)))
+
+RUEDAS = [
+    {"symbol": "DLR092026", "dateTime": "2026-09-01T00:00:00Z", "close": 1500.0,
+     "settlement": 1500.0, "volume": 100, "openInterest": 900000},
+    {"symbol": "DLR092026", "dateTime": "2026-09-02T00:00:00Z", "close": 1509.0,
+     "settlement": 1509.5, "volume": 390944, "openInterest": 997504,
+     "changePercent": -0.17, "impliedRate": 22.5},
+    {"symbol": "DLR122026", "dateTime": "2026-09-02T00:00:00Z", "close": 1619.5,
+     "settlement": 1619.5, "volume": 6462, "openInterest": 318356},
+    # vencido hace rato: se cae solo
+    {"symbol": "DLR012026", "dateTime": "2026-09-02T00:00:00Z", "close": 1200.0},
+    {"symbol": "RARO", "dateTime": "2026-09-02T00:00:00Z", "close": 1.0},
+]
+f, spot, fuente = futuros.armar(RUEDAS, date(2026, 9, 2), 1508.5, "A3500")
+tk = [x["t"] for x in f]
+ok("solo quedan los contratos vivos", tk == ["DLR/SEP26", "DLR/DIC26"], tk)
+ok("usa la rueda MAS NUEVA de cada contrato", f[0]["precio"] == 1509.0, f[0]["precio"])
+ok("y van ordenados por plazo", f[0]["dias"] < f[1]["dias"])
+# tasa directa = 1619.5/1508.5 - 1 = 7.36% en 120 dias
+# Tolerancia 1e-6 y no 1e-9: el payload redondea a seis decimales a proposito,
+# para que el JSON no lleve dieciseis digitos de ruido por cada numero.
+ok("la tasa directa se calcula contra el spot",
+   cerca(f[1]["directa"], 1619.5 / 1508.5 - 1, 1e-6), f[1]["directa"])
+ok("la TNA anualiza en dias, no en meses",
+   cerca(f[1]["tna"], f[1]["directa"] * 365.0 / f[1]["dias"], 1e-6), f[1]["tna"])
+# La TEM capitaliza: NO es directa/meses. Con 7.36% en 120 dias, directa/4 daria
+# 1.84% y la capitalizada da menos.
+ok("la TEM capitaliza en vez de dividir",
+   cerca(f[1]["tem"], (1 + f[1]["directa"]) ** (30.0 / f[1]["dias"]) - 1, 1e-6)
+   and f[1]["tem"] < f[1]["directa"] / (f[1]["dias"] / 30.0), f[1]["tem"])
+ok("la implicita que publica A3 viaja aparte de la propia",
+   f[0]["implicita"] == 22.5, f[0]["implicita"])
+
+# Sin spot: se usa el contrato mas corto, y el payload lo DICE.
+f2, spot2, fuente2 = futuros.armar(RUEDAS, date(2026, 9, 2))
+ok("sin spot usa el contrato mas corto", spot2 == 1509.0, spot2)
+ok("y avisa que es una aproximacion", "corto" in str(fuente2), fuente2)
+ok("ese contrato queda con tasa cero contra si mismo",
+   cerca(f2[0]["directa"], 0.0, 1e-12), f2[0]["directa"])
+
+# Con tres contratos o mas que traigan la implicita de A3, el spot se DEDUCE de
+# ellas en vez de usar el contrato mas corto. Es la correccion que importa: en
+# datos reales el mas corto quedo en 1534,5 contra un A3500 de 1509,5, y ese
+# 1,7% se le sumaba a la tasa de TODOS los contratos.
+CON_IMPL = [
+    {"symbol": "DLR092026", "dateTime": "2026-09-02", "close": 1534.5, "impliedRate": 22.5},
+    {"symbol": "DLR102026", "dateTime": "2026-09-02", "close": 1562.5, "impliedRate": 21.78},
+    {"symbol": "DLR122026", "dateTime": "2026-09-02", "close": 1619.5, "impliedRate": 22.20},
+    {"symbol": "DLR062027", "dateTime": "2026-09-02", "close": 1805.0, "impliedRate": 23.68},
+]
+f3, spot3, fuente3 = futuros.armar(CON_IMPL, date(2026, 9, 2))
+ok("con las implicitas de A3, el spot se deduce", "deducido" in str(fuente3), fuente3)
+# El A3500 real de esa rueda era 1509,47: la deduccion tiene que caer cerca, y
+# MUY lejos del contrato mas corto (1534,5).
+ok(f"y cae en {spot3:.2f}, cerca del A3500 real (1509,47)",
+   cerca(spot3, 1509.47, 5.0), spot3)
+ok("mucho mejor que el contrato mas corto",
+   abs(spot3 - 1509.47) < abs(1534.5 - 1509.47), spot3)
+
 print("\n== una linea rota del CSV se saltea, no rompe el archivo ==")
 with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as f:
     f.write("# comentario\nZZ99,2027-01-09,1.0,10,1\nZZ99,ROTA\n"

@@ -150,42 +150,127 @@ console.log('== el interruptor de tres posiciones ==');
  }else ok('con los once cargados no queda nada que avisar',
           !aviso||!/sin TIR/i.test(aviso.textContent));
 
- console.log('\n== obligaciones negociables ==');
- /* La otra mitad de la seccion Argentina. Se agrupa por emisor a proposito:
-    una tabla plana de seiscientas filas no se lee, y el que arma una cartera
-    decide primero a quien le presta. */
- const pest=d.querySelectorAll('#bonosPestanas button');
- ok('hay dos pestañas',pest.length===2,pest.length);
- ok('arranca en Soberanos',pest[0].classList.contains('on'));
- pest[1].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
- await esperar(150);
- const tOns=d.querySelector('#bonosCuerpo').textContent;
- const emis=d.querySelectorAll('#bonosCuerpo .bo-fila[data-emisor]');
- ok('lista un renglon por emisor',emis.length===pay.emisores.length,
-    emis.length+' vs '+pay.emisores.length);
- ok('ordenados por TIR mediana, el que mas paga arriba',
-    emis[0].dataset.emisor===pay.emisores[0].emisor,emis[0].dataset.emisor);
- ok('dice de quien es la TIR y la duration',/bonistas/i.test(tOns));
- ok('y avisa que no hay calificacion de riesgo',/calificaci.n de riesgo/i.test(tOns));
+ console.log('\n== las cuatro pestañas ==');
+ const pest=()=>[...d.querySelectorAll('#bonosPestanas button')];
+ ok('hay cuatro',pest().length===4,pest().length);
+ ok('arranca en Soberanos',pest()[0].classList.contains('on'));
+ const irA=async k=>{pest().find(b=>b.dataset.pest===k)
+   .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));await esperar(200);};
 
- console.log('\n== abrir un emisor muestra sus papeles ==');
- emis[0].dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
- await esperar(120);
- const papeles=d.querySelectorAll('#bonosCuerpo .bo-ons tbody tr');
- ok('con un renglon por especie',papeles.length===pay.emisores[0].papeles,
-    papeles.length+' vs '+pay.emisores[0].papeles);
- ok('se abre UNO SOLO a la vez',d.querySelectorAll('#bonosCuerpo .bo-det').length===1);
- /* Una ON step-up no tiene UNA tasa de cupon: tiene que salir el punto, no un
-    numero elegido de la escalera. isFinite(null) es true en JS y con esa
-    guarda la vista entera reventaba. */
- const sinCupon=pay.ons.filter(o=>o.emisor===pay.emisores[0].emisor&&o.cupon==null);
- if(sinCupon.length)ok('las step-up muestran punto y no un cupon inventado',
-    [...papeles].some(tr=>tr.textContent.indexOf('·')>=0));
+ console.log('\n== curvas en pesos ==');
+ await irA('ars');
+ const tp=d.querySelector('#bonosCuerpo').textContent;
+ const curvas=pay.pesos;
+ ok('el payload trae curvas',curvas.length>=3,curvas.length);
+ ok('todas tienen su titulo en pantalla',
+    curvas.every(c=>tp.indexOf(c.titulo)>=0),
+    curvas.map(c=>c.titulo).join(' '));
+ /* Una por familia CON AL MENOS DOS PAPELES, mas la de "todas juntas". Una
+    familia con un solo papel no tiene curva: un punto suelto sobre dos ejes no
+    dice nada, y dibujarlo igual sugiere una forma que no existe. */
+ const conCurva=curvas.filter(c=>c.filas.filter(f=>f.tem!=null&&f.dias!=null).length>=2);
+ const svgs=d.querySelectorAll('#bonosCuerpo svg.cv');
+ ok('dibuja una curva por familia con dos papeles o mas, y la general',
+    svgs.length===conCurva.length+1,svgs.length+' vs '+(conCurva.length+1));
+ ok('pero la TABLA sale igual aunque la familia tenga un solo papel',
+    curvas.length>conCurva.length&&
+    tp.indexOf(curvas.find(c=>!conCurva.includes(c)).filas[0].t)>=0);
+ const filasP=d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr');
+ const totalP=curvas.reduce((a,c)=>a+c.filas.length,0);
+ ok('y un renglon por papel',filasP.length===totalP,filasP.length+' vs '+totalP);
+ ok('con TNA, TIR y TEM',['TNA','TIR','TEM'].every(h=>tp.indexOf(h)>=0));
+ /* Lo que hace que esto no haya que mantenerlo: la pantalla lo dice. */
+ ok('avisa que las curvas se arman solas',/se arman solas/i.test(tp));
+ ok('y de quien son los rendimientos',/bonistas/i.test(tp));
+ const s30=curvas[0].filas.find(x=>x.t==='S30S6');
+ ok('la TEM que muestra es la del payload',
+    tp.indexOf((s30.tem*100).toFixed(2))>=0,(s30.tem*100).toFixed(2));
+
+ console.log('\n== futuros de dolar ==');
+ await irA('fut');
+ const tf=d.querySelector('#bonosCuerpo').textContent;
+ const futs=pay.futuros;
+ ok('el payload trae contratos',futs.length>=3,futs.length);
+ const filasF=d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr');
+ ok('un renglon por contrato vivo',filasF.length===futs.length,
+    filasF.length+' vs '+futs.length);
+ ok('los nombra como el mercado',/DLR\/SEP26/.test(tf),tf.slice(0,120));
+ /* La pantalla escribe en es-AR: 1508.5 sale como "1.508,50". */
+ const arSpot=pay.spot.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+ ok('muestra el spot y de donde salio',
+    tf.indexOf(arSpot)>=0&&/A3500/.test(tf),arSpot);
+ ok('trae tasa directa, TNA y TEM',
+    ['directa','TNA','TEM'].every(h=>tf.indexOf(h)>=0));
+ ok('y la implicita de A3 aparte',/A3/.test(tf));
+ ok('avisa que los vencimientos salen de A3',/salen de A3/i.test(tf));
+ /* Dos series: el futuro y la tasa fija. La distancia es el carry, que es la
+    unica razon para mirarlas juntas. */
+ const svgF=d.querySelector('#bonosCuerpo svg.cv');
+ ok('dibuja la curva',!!svgF);
+ const series=new Set([...svgF.querySelectorAll('.cv-pt')]
+   .map(g=>g.getAttribute('class').replace('cv-pt ','')));
+ ok('con dos series, futuro y tasa fija',series.size===2,[...series].join());
+ /* Mismo invariante que en el grafico del screener. */
+ const vbF=svgF.getAttribute('viewBox').split(' ').map(Number);
+ ok('nada se dibuja fuera del lienzo',
+    [...svgF.querySelectorAll('circle')].every(c=>{
+      const x=+c.getAttribute('cx'),y=+c.getAttribute('cy');
+      return x>=0&&x<=vbF[2]&&y>=0&&y<=vbF[3];}));
+
+ console.log('\n== corporativos: tabla plana, no agrupada ==');
+ await irA('ons');
+ const tOns=d.querySelector('#bonosCuerpo').textContent;
+ const filasO=()=>[...d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr')];
+ ok('NO agrupa por emisor',!d.querySelector('#bonosCuerpo .bo-fila[data-emisor]'));
+ ok('un renglon por especie',filasO().length===pay.ons.length,
+    filasO().length+' vs '+pay.ons.length);
+ ok('el emisor queda como columna',
+    pay.ons.every(o=>tOns.indexOf(o.emisor)>=0));
+ ok('con precio, cupon, TIR y paridad',
+    ['precio','cupón','TIR','paridad'].every(h=>tOns.indexOf(h)>=0));
+ ok('dice de quien es la TIR',/bonistas/i.test(tOns));
+ ok('y que no hay calificacion de riesgo',/calificaci.n de riesgo/i.test(tOns));
+
+ console.log('\n== ordenar la tabla plana ==');
+ /* Ordenar es la razon de aplanarla: sin esto, 600 filas planas son peores
+    que agrupadas. */
+ const tirDe=tr=>{const c=tr.querySelectorAll('td')[7].textContent;
+   return c==='·'?null:parseFloat(c.replace('%',''));};
+ const arranque=filasO().map(tirDe);
+ ok('arranca ordenada por TIR de mayor a menor',
+    arranque.every((v,i)=>i===0||v===null||arranque[i-1]===null||arranque[i-1]>=v),
+    arranque.join(' '));
+ const th=[...d.querySelectorAll('#bonosCuerpo th[data-ord]')];
+ const thTir=th.find(x=>x.dataset.ord==='tir');
+ thTir.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ await esperar(150);
+ const alReves=filasO().map(tirDe);
+ ok('tocar la misma columna la da vuelta',
+    alReves[0]<=arranque[0],alReves.join(' '));
+ const thEm=[...d.querySelectorAll('#bonosCuerpo th[data-ord]')]
+   .find(x=>x.dataset.ord==='emisor');
+ thEm.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ await esperar(150);
+ ok('se puede ordenar por emisor',
+    d.querySelector('#bonosCuerpo th[data-ord="emisor"]').classList.contains('on'));
+
+ console.log('\n== buscar en la tabla plana ==');
+ const inp=d.querySelector('#buscaOns');
+ ok('hay buscador',!!inp);
+ inp.value='YPF';inp.dispatchEvent(new w.Event('input',{bubbles:true}));
+ await esperar(200);
+ const conY=filasO();
+ ok('filtra por emisor',conY.length>0&&conY.length<pay.ons.length,
+    conY.length+' de '+pay.ons.length);
+ ok('y lo que queda es de ese emisor',
+    conY.every(tr=>/YPF/i.test(tr.textContent)));
+ const inp2=d.querySelector('#buscaOns');
+ inp2.value='';inp2.dispatchEvent(new w.Event('input',{bubbles:true}));
+ await esperar(200);
+ ok('al borrar vuelven todas',filasO().length===pay.ons.length);
 
  console.log('\n== volver a Soberanos ==');
- d.querySelectorAll('#bonosPestanas button')[0]
-   .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
- await esperar(150);
+ await irA('sob');
  ok('vuelve la curva',!!d.querySelector('#bonosCuerpo svg.cv'));
  ok('y la tabla por ley',
     /Ley Nueva York/.test(d.querySelector('#bonosCuerpo').textContent));

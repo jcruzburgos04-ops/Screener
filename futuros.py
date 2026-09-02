@@ -157,21 +157,64 @@ def a3500(hoy=None):
     """
     hoy = hoy or date.today()
     desde = (hoy - timedelta(days=15)).isoformat()
-    for url in (f"{FUENTE_A3500}?desde={desde}&hasta={hoy.isoformat()}", FUENTE_A3500):
+    for url in (f"{FUENTE_A3500}?desde={desde}&hasta={hoy.isoformat()}",
+                FUENTE_A3500,
+                # La otra API del BCRA, la de cotizaciones. Se prueban las dos
+                # porque cual de las dos anda cambio en el pasado y no hay
+                # motivo para casarse con una.
+                "https://api.bcra.gob.ar/estadisticascambiarias/v1.0/Cotizaciones"):
         try:
             d = bajar(url, verificar=False)
         except Exception:
             continue
         res = (d.get("results") if isinstance(d, dict) else None) or []
-        # la serie puede venir en cualquier orden: se toma la fecha mas alta
         mejor = None
         for x in res:
-            f, v = x.get("fecha"), x.get("valor")
-            if f and isinstance(v, (int, float)) and (mejor is None or f > mejor[1]):
+            if not isinstance(x, dict):
+                continue
+            f = x.get("fecha")
+            v = x.get("valor")
+            # La de cotizaciones anida: {fecha, detalle:[{codigoMoneda, tipoCotizacion}]}
+            if v is None:
+                for det in (x.get("detalle") or []):
+                    if str(det.get("codigoMoneda", "")).upper() == "USD":
+                        v = det.get("tipoCotizacion")
+                        break
+            # la serie puede venir en cualquier orden: se toma la fecha mas alta
+            if f and isinstance(v, (int, float)) and v and (mejor is None or f > mejor[1]):
                 mejor = (float(v), f)
         if mejor:
             return mejor
     return None, None
+
+
+def _spot_implicito(vivos):
+    """
+    El spot deducido de las tasas que publica A3.
+
+    Si un contrato vale P, vence en D dias y A3 dice que su tasa implicita es
+    R, entonces el spot que uso A3 es `P / (1 + R/100 * D/365)`. Despejarlo de
+    varios contratos y quedarse con la MEDIANA da un numero consistente con el
+    mercado y robusto a un contrato mal cotizado.
+
+    Esto reemplazo al "uso el contrato mas corto", que sonaba razonable y no lo
+    era: el mas corto quedo en 1534,5 contra un A3500 de 1509,5, o sea 1,7%
+    arriba, y ese 1,7% se le sumaba a la tasa directa de TODOS los contratos.
+
+    Es una deduccion, no el dato oficial, y el payload lo dice.
+    """
+    cand = []
+    for dias, v, s, f, precio in vivos:
+        r = f.get("impliedRate")
+        if dias > 0 and isinstance(r, (int, float)) and r:
+            base = 1 + (r / 100.0) * dias / 365.0
+            if base > 0:
+                cand.append(precio / base)
+    if len(cand) >= 3:
+        cand.sort()
+        return cand[len(cand) // 2], "deducido de las tasas de A3"
+    # Ultimo recurso: el contrato mas corto converge al spot al vencimiento.
+    return vivos[0][4], "contrato más corto (aproximado)"
 
 
 def armar(crudo, hoy=None, spot=None, spot_fuente=None):
@@ -198,11 +241,7 @@ def armar(crudo, hoy=None, spot=None, spot_fuente=None):
     vivos.sort()
 
     if spot is None and vivos:
-        # El contrato mas corto ES practicamente el spot: al vencimiento el
-        # futuro converge al subyacente. Es una aproximacion, y el payload lo
-        # dice para que la pantalla no la muestre como dato oficial.
-        spot = vivos[0][4]
-        spot_fuente = "contrato más corto"
+        spot, spot_fuente = _spot_implicito(vivos)
 
     salida = []
     for dias, v, s, f, precio in vivos:

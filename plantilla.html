@@ -587,6 +587,18 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-pest button b{font-family:var(--mono);font-size:var(--t0);color:var(--tenue);
   background:var(--panel2);border-radius:3px;padding:.05rem .3rem;font-weight:500}
 .bo-pest button.on b{color:var(--ambar);background:var(--ambar-t)}
+.bo-raros{color:var(--ambar);opacity:.85}
+.bo-buscar{width:100%;max-width:340px;margin:0 0 var(--e3);
+  background:var(--fondo);border:1px solid var(--borde2);border-radius:var(--r);
+  color:var(--hueso);font-family:var(--sans);font-size:var(--t2);padding:.45rem .7rem}
+.bo-buscar:focus{outline:none;border-color:var(--ambar)}
+/* La cabecera ordenable. Sin el cursor y la flecha nadie descubre que se puede
+   tocar, que es la mitad de la razon para aplanar la tabla. */
+.bo-tabla th.orden{cursor:pointer;user-select:none}
+.bo-tabla th.orden:hover{color:var(--hueso)}
+.bo-tabla th.orden.on{color:var(--ambar)}
+.bo-tabla td.corto{max-width:160px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-family:var(--sans);font-size:var(--t2)}
 .bo-ons{min-width:640px}
 .bo-cable{font-family:var(--sans);font-size:var(--t0);color:var(--tenue);
   border:1px solid var(--borde2);border-radius:3px;padding:0 .25rem;margin-left:.35rem}
@@ -3301,7 +3313,8 @@ async function verBonos(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     BONOS=await r.json();
     /* La pestaña elegida sobrevive a recargar la pagina. */
-    bonosPestana=leerLS('screener_ash_bonos_pest')==='ons'?'ons':'sob';
+    const guardada=leerLS('screener_ash_bonos_pest');
+    bonosPestana=PESTANAS.some(x=>x[0]===guardada)?guardada:'sob';
     pintarBonos();
   }catch(e){
     /* Que falte el archivo no es un error del usuario: pasa si todavia no
@@ -3359,9 +3372,29 @@ function cvPaso(rango,cuantas){
   return ([1,2,2.5,5,10].find(m=>bruto<=m*exp)||10)*exp;
 }
 
+/* Un punto muy lejos del resto NO es informacion, es casi siempre una
+   cotizacion rancia de un papel que no opera: en el panel real habia un dolar
+   linked con 139% de TIR que estiraba el eje y dejaba a los otros diecinueve
+   aplastados en una linea. Se lo saca DEL DIBUJO -- nunca de la tabla -- y se
+   dice cuantos quedaron afuera, para que nadie crea que la curva es todo lo
+   que hay. El corte es contra la mediana y el rango intercuartil, que no se
+   mueven por tener un outlier adentro (un promedio si). */
+function cvSinRaros(p){
+  if(p.length<5)return [p,[]];
+  const ys=p.map(q=>q.y).sort((a,b)=>a-b);
+  const cuartil=f=>ys[Math.min(ys.length-1,Math.floor(ys.length*f))];
+  const q1=cuartil(0.25), q3=cuartil(0.75), ric=q3-q1;
+  if(!(ric>0))return [p,[]];
+  const bajo=q1-3*ric, alto=q3+3*ric;
+  const dentro=p.filter(q=>q.y>=bajo&&q.y<=alto);
+  return [dentro, p.filter(q=>q.y<bajo||q.y>alto)];
+}
+
 function curvaXY(puntos,op){
   op=op||{};
-  const p=puntos.filter(q=>hay(q.x)&&hay(q.y));
+  let p=puntos.filter(q=>hay(q.x)&&hay(q.y));
+  let raros=[];
+  if(op.robusto!==false)[p,raros]=cvSinRaros(p);
   if(p.length<2)return '';
   const W=1000,H=op.alto||380,ml=68,mr=80,mt=26,mb=54;
   const xs=p.map(q=>q.x), ys=p.map(q=>q.y);
@@ -3400,9 +3433,16 @@ function curvaXY(puntos,op){
     ? `<span class="bo-leyenda">${nombres.map((n,i)=>
         `<i class="${CV_COLORES[i%CV_COLORES.length]}"></i>${esc(n)}`).join('')}</span>`:'';
 
+  const aviso=raros.length?`<p class="bo-nota bo-raros">Quedaron
+    ${raros.length===1?'1 papel fuera del gráfico':raros.length+' papeles fuera del gráfico'}
+    por estar muy lejos del resto de la curva
+    (${raros.map(q=>esc(q.t||'')+' '+q.y.toFixed(1)+(op.sufijoY||'%')).join(', ')}).
+    Casi siempre es una cotización vieja de algo que no opera.
+    <b>Están igual en la tabla</b>.</p>`:'';
+
   return `<div class="bo-tarjeta">
     <div class="bo-tit">${esc(op.titulo||'Curva')}${leyenda}</div>
-    ${op.nota?`<p class="bo-nota">${op.nota}</p>`:''}
+    ${op.nota?`<p class="bo-nota">${op.nota}</p>`:''}${aviso}
     <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
       ${ejes}
       <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${H-mb}" y2="${H-mb}"/>
@@ -3480,37 +3520,191 @@ function detalleBono(b){
     `</tbody></table></div></td></tr>`;
 }
 
-/* ---------- obligaciones negociables ----------
-   Se agrupan POR EMISOR y no en una tabla plana de seiscientas filas. El que
-   arma una cartera para un cliente decide primero A QUIEN le presta y despues
-   a que plazo: YPF a 2029 y YPF a 2031 son la misma decision de credito.
-   Ademas una tabla de 600 renglones no se lee.
-
-   Los emisores van ordenados por TIR mediana, que es lo mismo que ordenarlos
-   por lo que el mercado les cobra: arriba, los que pagan mas. */
-let emisorAbierto=null;
-
-function tablaOns(papeles){
-  return `<div class="bo-scroll"><table class="bo-tabla bo-ons"><thead><tr>
-    <th>especie</th><th>ley</th><th>vence</th><th>cupón</th><th>precio</th>
-    <th title="La calcula bonistas.com, no este programa">TIR</th>
-    <th>durat.</th><th>paridad</th></tr></thead><tbody>`+
-  papeles.map(o=>`<tr>
-    <td class="tk">${esc(o.t)}${o.cable?'<span class="bo-cable" title="Liquida afuera (cable)">C</span>':''}</td>
-    <td>${o.ley==='Argentina'?'Arg':'NY'}</td>
-    <td>${bfecha(o.vto)}</td>
-    <td>${hay(o.cupon)?bnum(o.cupon,2)+'%':'·'}</td>
-    <td>${bnum(o.precio,2)}</td>
-    <td class="fuerte">${bpc(o.tir)}</td>
-    <td>${bnum(o.duration,2)}</td>
-    <td>${bpc(o.paridad,1)}</td>
-  </tr>`).join('')+'</tbody></table></div>';
+/* ---------- una tabla, muchas curvas ----------
+   Las cinco curvas en pesos, los futuros y las ONs son la misma tabla con
+   otras columnas. Se declara que columna saca que del dato y listo; tener seis
+   funciones que arman <tr> a mano era garantia de que una quede vieja. */
+function tablaSimple(filas,cols,clase){
+  return `<div class="bo-scroll"><table class="bo-tabla ${clase||''}"><thead><tr>`+
+    cols.map(c=>`<th${c.tit?` title="${esc(c.tit)}"`:''}>${esc(c.h)}</th>`).join('')+
+    '</tr></thead><tbody>'+
+    filas.map(f=>'<tr>'+cols.map(c=>{
+      const v=c.v(f);
+      return `<td class="${c.cl||''}">${v===undefined||v===null?'·':v}</td>`;
+    }).join('')+'</tr>').join('')+
+    '</tbody></table></div>';
 }
+
+/* ---------- curvas en pesos ---------- */
+const COLS_PESOS=[
+  {h:'ticker', cl:'tk', v:f=>esc(f.t)},
+  {h:'vence',  v:f=>bfecha(f.vto)},
+  {h:'días',   v:f=>bnum(f.dias,0)},
+  {h:'precio', v:f=>bnum(f.precio,2)},
+  {h:'TNA',    tit:'Tasa nominal anual', v:f=>bpc(f.tna)},
+  {h:'TIR',    tit:'Tasa efectiva anual', cl:'fuerte', v:f=>bpc(f.tir)},
+  {h:'TEM',    tit:'Tasa efectiva mensual: es como se mira este mercado', v:f=>bpc(f.tem)},
+  {h:'durat.', v:f=>bnum(f.duration,2)},
+  {h:'paridad',v:f=>bpc(f.paridad,1)},
+];
+
+function renderPesos(){
+  const d=BONOS, cuerpo=$('#bonosCuerpo');
+  const curvas=(d&&d.pesos)||[];
+  if(!curvas.length){
+    cuerpo.innerHTML=pestanas()+`<div class="bo-tarjeta">
+      <div class="bo-tit">Curvas en pesos</div>
+      <p class="bo-nota">No vinieron datos de instrumentos en pesos en esta
+      actualización.</p></div>`;
+    ponerPestanas();return;}
+
+  /* Todas juntas primero: es la comparacion que se quiere hacer -- cuanto
+     paga cada familia al mismo plazo. Despues cada una con su tabla. */
+  const todas=[];
+  curvas.forEach(c=>c.filas.forEach(f=>{
+    if(hay(f.tem)&&hay(f.dias))todas.push({x:f.dias,y:f.tem*100,t:f.t,serie:c.titulo});}));
+
+  cuerpo.innerHTML=pestanas()+
+    curvaXY(todas,{
+      titulo:'Todas las curvas en pesos',
+      rotuloX:'días al vencimiento',
+      alto:420,
+      nota:'La <b>TEM</b> (tasa efectiva mensual) de cada papel contra los días que le '+
+        'quedan. Ojo con comparar de más: la de un CER es un rendimiento <b>real</b> '+
+        '(por encima de la inflación) y la de un dólar linked es <b>en dólares</b> (por '+
+        'encima de la devaluación). Sólo la de tasa fija es la que se cobra en pesos.'})+
+    curvas.map(c=>{
+      const p=c.filas.filter(f=>hay(f.tem)&&hay(f.dias))
+        .map(f=>({x:f.dias,y:f.tem*100,t:f.t}));
+      return curvaXY(p,{titulo:'Curva '+c.titulo,rotuloX:'días al vencimiento',alto:320})+
+        `<div class="bo-tarjeta"><div class="bo-tit">${esc(c.titulo)}
+          <span class="bo-leyenda">${c.filas.length} papeles</span></div>
+         <p class="bo-nota">${c.nota}</p>
+         ${tablaSimple(c.filas,COLS_PESOS,'bo-grande')}</div>`;
+    }).join('')+
+    `<div class="bo-falta"><b>La TIR, la TNA y la TEM de estas tablas las calcula
+      bonistas.com, no este programa.</b> Los soberanos en dólares son distintos:
+      ahí el cronograma está cargado y verificado acá, y esos números son propios.<br>
+      <b>Las curvas se arman solas.</b> Los papeles salen del panel del día agrupados
+      por lo que la fuente dice que son, así que una letra nueva aparece sola y una
+      que vence desaparece sola: no hay ninguna lista que mantener.</div>`;
+  ponerPestanas();
+  cuerpo.onclick=null;cuerpo.onkeydown=null;
+}
+
+/* ---------- futuros de dolar ---------- */
+function renderFuturos(){
+  const d=BONOS, cuerpo=$('#bonosCuerpo');
+  const f=(d&&d.futuros)||[];
+  if(!f.length){
+    cuerpo.innerHTML=pestanas()+`<div class="bo-tarjeta">
+      <div class="bo-tit">Futuros de dólar</div>
+      <p class="bo-nota">No vinieron datos de A3 en esta actualización.</p></div>`;
+    ponerPestanas();return;}
+
+  const cols=[
+    {h:'contrato', cl:'tk', v:x=>esc(x.t)},
+    {h:'precio',   v:x=>bnum(x.precio,2)},
+    {h:'ajuste',   v:x=>bnum(x.ajuste,2)},
+    {h:'var',      v:x=>bnum(x.var,2)},
+    {h:'var %',    v:x=>`<span class="${bcol(x.var_pct)}">${bsig(x.var_pct)}</span>`},
+    {h:'días',     v:x=>bnum(x.dias,0)},
+    {h:'directa',  tit:'Cuánto rinde comprar el contrato hasta su vencimiento',
+     v:x=>bpc(x.directa)},
+    {h:'TNA',      cl:'fuerte', v:x=>bpc(x.tna)},
+    {h:'TEM',      v:x=>bpc(x.tem)},
+    {h:'A3',       tit:'La tasa implícita que publica A3, no una cuenta de acá',
+     v:x=>hay(x.implicita)?bnum(x.implicita,2)+'%':'·'},
+    {h:'volumen',  v:x=>bnum(x.volumen,0)},
+    {h:'int. abierto', tit:'Contratos abiertos sin cerrar', v:x=>bnum(x.ia,0)},
+  ];
+
+  /* La caja de tipos de cambio, con lo que ya calcula la seccion de bonos: el
+     MEP y el cable son la MEDIANA de los que salen de cada soberano, que es
+     como se los mira. */
+  const meps=(d.bonos||[]).map(b=>b.tc_mep).filter(hay).sort((a,b)=>a-b);
+  const ccls=(d.bonos||[]).map(b=>b.tc_cable).filter(hay).sort((a,b)=>a-b);
+  const med=a=>a.length?a[Math.floor(a.length/2)]:NaN;
+  const mep=med(meps), ccl=med(ccls);
+  const caja=[
+    ['Spot', d.spot, d.spot_fuente||''],
+    ['MEP', mep, meps.length?'mediana de '+meps.length+' bonos':''],
+    ['CCL', ccl, ccls.length?'mediana de '+ccls.length+' bonos':''],
+  ].filter(x=>hay(x[1])).map(x=>
+    `<div><span>${esc(x[0])}</span><b>$${bnum(x[1],2)}</b><em>${esc(x[2])}</em></div>`).join('')
+    +(hay(mep)&&hay(ccl)?`<div><span>Canje</span><b>${bnum((ccl/mep-1)*100,2)}%</b>
+        <em>lo que cuesta pasar de MEP a cable</em></div>`:'')
+    +(hay(mep)&&hay(d.spot)?`<div><span>Brecha</span><b>${bnum((mep/d.spot-1)*100,2)}%</b>
+        <em>el MEP contra el oficial</em></div>`:'');
+
+  /* Dos series: lo que paga el futuro y lo que paga la tasa fija en pesos al
+     mismo plazo. La distancia entre las dos ES el carry, que es la unica
+     razon por la que alguien mira las dos juntas. */
+  const puntos=f.filter(x=>hay(x.tna)).map(x=>({x:x.dias,y:x.tna*100,t:x.t,serie:'futuro (TNA)'}));
+  /* La clave es la familia de la fuente (LETRAS-FIJO), no el indice (Fijo):
+     buscar por la vieja dejaba el grafico con una sola serie y sin carry, que
+     es justamente lo unico que este grafico existe para mostrar. */
+  const fija=((d.pesos||[]).find(c=>c.clave==='LETRAS-FIJO')||{filas:[]}).filas
+    .filter(x=>hay(x.tna)&&hay(x.dias))
+    .map(x=>({x:x.dias,y:x.tna*100,t:x.t,serie:'tasa fija en pesos'}));
+
+  cuerpo.innerHTML=pestanas()+
+    `<div class="bo-tarjeta"><div class="bo-tit">Tipos de cambio
+      <span class="bo-leyenda">rueda del ${esc((f[0]&&f[0].rueda)||'')}</span></div>
+      <div class="bo-det-cab">${caja}</div></div>`+
+    curvaXY(puntos.concat(fija),{
+      titulo:'Curva de futuros contra la tasa fija en pesos',
+      rotuloX:'días al vencimiento', alto:400,
+      nota:'La <b>TNA del futuro</b> es lo que rinde comprar dólar a plazo. La <b>tasa '+
+        'fija</b> es lo que rinde quedarse en pesos al mismo plazo. '+
+        '<b>La distancia entre las dos es el carry</b>: cuando la de pesos va por '+
+        'arriba, el mercado te está pagando por no cubrirte.'})+
+    `<div class="bo-tarjeta"><div class="bo-tit">Contratos
+      <span class="bo-leyenda">${f.length} vivos</span></div>
+      <p class="bo-nota"><b>Tasa directa</b>: cuánto rinde el contrato hasta su
+        vencimiento, contra el spot. <b>TNA</b> y <b>TEM</b> son esa misma tasa
+        anualizada y mensualizada. La columna <b>A3</b> es la implícita que publica
+        el mercado, para contrastar.</p>
+      ${tablaSimple(f,cols,'bo-grande')}</div>`+
+    `<div class="bo-falta"><b>Los contratos y sus vencimientos salen de A3, no de una
+      lista de acá.</b> Cuando uno vence deja de venir y desaparece solo; cuando listan
+      uno nuevo, aparece solo.${d.spot_fuente&&d.spot_fuente.indexOf('A3500')<0
+      ?' <b>Ojo con el spot</b>: el BCRA no contestó, así que se usó el contrato más '+
+       'corto como aproximación (converge al spot, pero no es el dato oficial).':''}</div>`;
+  ponerPestanas();
+  cuerpo.onclick=null;cuerpo.onkeydown=null;
+}
+
+/* ---------- obligaciones negociables ----------
+   PLANA, no agrupada por emisor. La primera version las agrupaba porque el que
+   arma una cartera decide primero a quien le presta; el usuario pidio lo
+   contrario y tiene razon para su caso: agrupadas no se pueden ordenar por
+   rendimiento ni comparar dos emisores al mismo plazo sin abrir y cerrar
+   emisores. Plana se lee como el panel de tasas, que es de donde vino el
+   pedido. El emisor queda como columna y como buscador. */
+const COLS_ONS=[
+  {h:'especie', cl:'tk', v:o=>esc(o.t)+(o.cable
+    ?'<span class="bo-cable" title="Liquida afuera (cable)">C</span>':'')},
+  {h:'emisor',  cl:'corto', v:o=>`<span title="${esc(o.emisor)}">${esc(o.emisor)}</span>`},
+  {h:'ley',     v:o=>o.ley==='Argentina'?'Arg':'NY'},
+  {h:'vence',   v:o=>bfecha(o.vto)},
+  {h:'días',    v:o=>bnum(o.dias,0)},
+  {h:'cupón',   tit:'Tasa nominal anual del cupón. Vacío si es step-up: ahí no hay una sola tasa',
+   v:o=>hay(o.cupon)?bnum(o.cupon,2)+'%':'·'},
+  {h:'precio',  v:o=>bnum(o.precio,2)},
+  {h:'TIR',     cl:'fuerte', tit:'La calcula bonistas.com, no este programa', v:o=>bpc(o.tir)},
+  {h:'durat.',  v:o=>bnum(o.duration,2)},
+  {h:'paridad', v:o=>bpc(o.paridad,1)},
+];
+
+/* Ordenar es la razon de aplanarla: sin esto una tabla de 600 filas es peor
+   que agrupada. Arranca por TIR descendente, que es lo que se mira primero. */
+let ordenOns={k:'tir',desc:true}, buscaOns='';
 
 function renderOns(){
   const d=BONOS, cuerpo=$('#bonosCuerpo');
-  const ons=(d&&d.ons)||[], emis=(d&&d.emisores)||[];
-  if(!ons.length){
+  const todas=(d&&d.ons)||[];
+  if(!todas.length){
     cuerpo.innerHTML=pestanas()+`<div class="bo-tarjeta">
       <div class="bo-tit">Obligaciones negociables</div>
       <p class="bo-nota">No vinieron datos de deuda corporativa en esta
@@ -3518,31 +3712,42 @@ function renderOns(){
       fuente, los soberanos igual salen.</p></div>`;
     ponerPestanas();return;}
 
-  const porEmisor=new Map();
-  ons.forEach(o=>{const l=porEmisor.get(o.emisor)||[];l.push(o);porEmisor.set(o.emisor,l);});
+  const q=buscaOns.trim().toLowerCase();
+  const filas=todas.filter(o=>!q||
+    (o.t+' '+o.emisor+' '+(o.resumen||'')).toLowerCase().indexOf(q)>=0);
+  const k=ordenOns.k, signo=ordenOns.desc?-1:1;
+  filas.sort((a,b)=>{
+    const x=a[k], y=b[k];
+    if(typeof x==='string'||typeof y==='string')
+      return String(x||'').localeCompare(String(y||''))*signo;
+    /* Los que no tienen dato van SIEMPRE al fondo, se ordene como se ordene:
+       si no, pedir "mayor TIR" te devuelve arriba las que no tienen TIR. */
+    if(!hay(x)&&!hay(y))return 0;
+    if(!hay(x))return 1;
+    if(!hay(y))return -1;
+    return (x-y)*signo;
+  });
 
-  const filas=emis.map(e=>{
-    const abierto=emisorAbierto===e.emisor;
-    const papeles=(porEmisor.get(e.emisor)||[]).slice()
-      .sort((a,b)=>(a.dias||0)-(b.dias||0));
-    return `<tr class="bo-fila ${abierto?'abierta':''}" data-emisor="${esc(e.emisor)}" tabindex="0">
-        <td class="tk">${esc(e.emisor)}<i class="bo-flecha">${abierto?'▾':'▸'}</i></td>
-        <td>${e.papeles}</td>
-        <td class="fuerte">${bpc(e.tir_med)}</td></tr>`+
-      (abierto?`<tr class="bo-det"><td colspan="3"><div class="bo-det-caja">
-        ${tablaOns(papeles)}</div></td></tr>`:'');
+  const cab=COLS_ONS.map((c,i)=>{
+    const clave=['t','emisor','ley','vto','dias','cupon','precio','tir','duration','paridad'][i];
+    const act=ordenOns.k===clave;
+    return `<th class="orden ${act?'on':''}" data-ord="${clave}"${c.tit?` title="${esc(c.tit)}"`:''}>`+
+      `${esc(c.h)}${act?(ordenOns.desc?' ▾':' ▴'):''}</th>`;
   }).join('');
 
   cuerpo.innerHTML=pestanas()+
     `<div class="bo-tarjeta"><div class="bo-tit">Deuda corporativa argentina
-        <span class="bo-leyenda">${ons.length} especies · ${emis.length} emisores</span></div>
-      <p class="bo-nota">Ordenados por la <b>TIR mediana</b> de cada emisor, que es lo
-        mismo que ordenarlos por lo que el mercado les cobra: arriba, los que pagan
-        más. Se agrupa por emisor porque prestarle a YPF a 2029 y a 2031 es la misma
-        decisión de crédito. Tocá un emisor para ver sus papeles.</p>
-      <div class="bo-scroll"><table class="bo-tabla bo-grande"><thead><tr>
-        <th>emisor</th><th>especies</th><th>TIR mediana</th>
-      </tr></thead><tbody>${filas}</tbody></table></div></div>`+
+        <span class="bo-leyenda">${filas.length} de ${todas.length} especies</span></div>
+      <p class="bo-nota">Todas las obligaciones negociables que cotizaron, en una sola
+        tabla. Tocá una cabecera para ordenar; buscá por especie o por emisor.</p>
+      <input type="text" class="bo-buscar" id="buscaOns" placeholder="especie o emisor…"
+        value="${esc(buscaOns)}">
+      <div class="bo-scroll"><table class="bo-tabla bo-grande"><thead><tr>${cab}</tr></thead>
+      <tbody>`+
+      filas.map(o=>'<tr>'+COLS_ONS.map(c=>{
+        const v=c.v(o);return `<td class="${c.cl||''}">${v===undefined||v===null?'·':v}</td>`;
+      }).join('')+'</tr>').join('')+
+      '</tbody></table></div></div>'+
     `<div class="bo-falta">
       <b>La TIR, la duration y la paridad de esta tabla las calcula
       bonistas.com, no este programa.</b> Para los soberanos el cronograma está
@@ -3554,31 +3759,43 @@ function renderOns(){
       contrastá contra el prospecto.</div>`;
   ponerPestanas();
 
+  const inp=$('#buscaOns');
+  if(inp){
+    inp.oninput=()=>{buscaOns=inp.value;renderOns();
+      /* Rehacer la tabla pierde el foco y el cursor: sin esto hay que volver a
+         tocar el campo despues de cada letra. */
+      const n=$('#buscaOns');if(n){n.focus();n.setSelectionRange(n.value.length,n.value.length);}};
+  }
   cuerpo.onclick=e=>{
-    const fila=e.target.closest('.bo-fila[data-emisor]');
-    if(!fila)return;
-    emisorAbierto = emisorAbierto===fila.dataset.emisor ? null : fila.dataset.emisor;
+    const th=e.target.closest('th[data-ord]');if(!th)return;
+    const k=th.dataset.ord;
+    /* Tocar la misma columna da vuelta el orden; tocar otra arranca por lo mas
+       alto, que es lo que uno quiere el 90% de las veces. */
+    ordenOns = ordenOns.k===k ? {k:k,desc:!ordenOns.desc} : {k:k,desc:true};
     renderOns();
   };
-  cuerpo.onkeydown=e=>{
-    if(e.key!=='Enter'&&e.key!==' ')return;
-    const fila=e.target.closest&&e.target.closest('.bo-fila[data-emisor]');
-    if(!fila)return;
-    e.preventDefault();
-    emisorAbierto = emisorAbierto===fila.dataset.emisor ? null : fila.dataset.emisor;
-    renderOns();
-  };
+  cuerpo.onkeydown=null;
 }
 
 /* Las dos pestañas de la vista. Se dibujan en las dos ramas y el manejador se
    pone aparte, porque cada rama rehace el innerHTML entero. */
 let bonosPestana='sob';
+/* Las cuatro pantallas de la seccion. La cuenta al lado de cada una sale del
+   payload, asi que una pestaña vacia se ve vacia antes de entrar. */
+const PESTANAS=[
+  ['sob','Soberanos USD', d=>(d.bonos||[]).length],
+  ['ars','Pesos',         d=>(d.pesos||[]).reduce((a,c)=>a+c.filas.length,0)],
+  ['fut','Futuros',       d=>(d.futuros||[]).length],
+  ['ons','Corporativos',  d=>(d.ons||[]).length],
+];
 function pestanas(){
-  const n=(BONOS&&BONOS.ons&&BONOS.ons.length)||0;
-  return `<div class="bo-pest" id="bonosPestanas">
-    <button type="button" class="${bonosPestana==='sob'?'on':''}" data-pest="sob">Soberanos</button>
-    <button type="button" class="${bonosPestana==='ons'?'on':''}" data-pest="ons">Obligaciones negociables${n?` <b>${n}</b>`:''}</button>
-  </div>`;
+  const d=BONOS||{};
+  return `<div class="bo-pest" id="bonosPestanas">`+
+    PESTANAS.map(([k,rot,cuenta])=>{
+      const n=cuenta(d)||0;
+      return `<button type="button" class="${bonosPestana===k?'on':''}" data-pest="${k}">`+
+        `${rot}${n?` <b>${n}</b>`:''}</button>`;}).join('')+
+  `</div>`;
 }
 function ponerPestanas(){
   const c=$('#bonosPestanas');if(!c)return;
@@ -3589,7 +3806,10 @@ function ponerPestanas(){
 }
 /* Un solo punto de entrada para las dos vistas: si no, el que llama tiene que
    acordarse de cual toca, y ahi es donde se cuelan los estados imposibles. */
-function pintarBonos(){bonosPestana==='ons'?renderOns():renderBonos();}
+function pintarBonos(){
+  ({sob:renderBonos, ars:renderPesos, fut:renderFuturos, ons:renderOns}
+    [bonosPestana]||renderBonos)();
+}
 
 function renderBonos(){
   const d=BONOS, cuerpo=$('#bonosCuerpo');
