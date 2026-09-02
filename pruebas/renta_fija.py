@@ -340,6 +340,25 @@ ok(f"y cae en {spot3:.2f}, cerca del A3500 real (1509,47)",
 ok("mucho mejor que el contrato mas corto",
    abs(spot3 - 1509.47) < abs(1534.5 - 1509.47), spot3)
 
+print("\n== los futuros, contra la pantalla de referencia del usuario ==")
+# Cuatro contratos de la captura, con su TNA y su TEM publicadas. Fija las dos
+# convenciones que se pueden hacer mal: la TNA anualiza en DIAS (x365/d) y la
+# TEM CAPITALIZA (no es la directa dividida por los meses). Si alguien las
+# cambia por "lo que parece razonable", esto se pone en rojo.
+REF_FUT = [  # (contrato, precio, dias, TNA%, TEM%)
+    ("DLR092026", 1536.50,  30, 22.58, 1.86),
+    ("DLR102026", 1562.50,  60, 21.78, 1.77),
+    ("DLR122026", 1619.50, 121, 22.20, 1.78),
+    ("DLR072027", 1834.00, 333, 23.65, 1.78),
+]
+SPOT_REF = 1508.50
+for tk, precio, dias, tna_ref, tem_ref in REF_FUT:
+    directa = precio / SPOT_REF - 1
+    tna = directa * 365.0 / dias
+    tem = (1 + directa) ** (30.0 / dias) - 1
+    ok(f"{tk}: TNA {tna*100:.2f}% (ref {tna_ref}%)", cerca(tna * 100, tna_ref, 0.01))
+    ok(f"{tk}: TEM {tem*100:.2f}% (ref {tem_ref}%)", cerca(tem * 100, tem_ref, 0.01))
+
 print("\n== una linea rota del CSV se saltea, no rompe el archivo ==")
 with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as f:
     f.write("# comentario\nZZ99,2027-01-09,1.0,10,1\nZZ99,ROTA\n"

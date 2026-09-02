@@ -1007,6 +1007,28 @@ Filtrar por familia y **después** agrupar por índice da las dos cosas bien. La
 familias que terminan en `-USD` se excluyen por el sufijo de la familia, no por
 una lista de tickers.
 
+#### Las dos convenciones de tasa que se pueden hacer mal
+
+Verificado contra cuatro contratos de la pantalla de referencia del usuario, y
+**dan exacto**:
+
+| Contrato | Precio | Días | TNA calculada | TNA referencia | TEM calculada | TEM ref |
+|---|---|---|---|---|---|---|
+| SEP26 | 1.536,50 | 30 | 22,58% | 22,58% | 1,86% | 1,86% |
+| OCT26 | 1.562,50 | 60 | 21,78% | 21,78% | 1,77% | 1,77% |
+| DIC26 | 1.619,50 | 121 | 22,20% | 22,20% | 1,78% | 1,78% |
+| JUL27 | 1.834,00 | 333 | 23,65% | 23,65% | 1,78% | 1,78% |
+
+Las dos que se prestan a error:
+
+- **La TNA anualiza en DÍAS**: `directa × 365/días`. No en meses.
+- **La TEM CAPITALIZA**: `(1+directa)^(30/días) − 1`. **No** es la directa
+  dividida por los meses — con 7,36% en 121 días, dividir daría 1,84% y
+  capitalizar da 1,78%.
+
+`pruebas/renta_fija.py` fija las dos contra esa tabla: si alguien las cambia por
+"lo que parece razonable", se pone en rojo.
+
 #### El spot de los futuros: se deduce, no se adivina
 
 La tasa directa es `precio_futuro / spot − 1`, así que un spot malo corrompe
