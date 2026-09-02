@@ -44,8 +44,15 @@ const ok=(n,c,x)=>{if(c)console.log('  ok     '+n);else{fallas++;
    como lo ve el usuario. Con file:// el fetch de datos.json falla por origen
    opaco y la pagina no llega a cargar. */
 const TIPOS={'.html':'text/html','.json':'application/json'};
+/* `fixtura.py` arma tmp/sitio con la pagina y los precios, pero el payload de
+   bonos vive aparte -- las pruebas de jsdom lo inyectan por fetch. Aca se
+   sirven archivos de verdad, asi que hay que mapearlo o la vista de bonos
+   queda en "todavia no hay datos" y no se dibuja ninguna curva. */
 const srv=http.createServer((q,r)=>{
-  const f=path.join(S, q.url==='/'?'index.html':q.url.split('?')[0]);
+  const pedido=q.url==='/'?'index.html':q.url.split('?')[0];
+  const f=/bonos\.json$/.test(pedido)
+    ? path.join(__dirname,'bonos_fixtura.json')
+    : path.join(S, pedido);
   fs.readFile(f,(e,d)=>{ if(e){r.writeHead(404);r.end();return;}
     r.writeHead(200,{'Content-Type':TIPOS[path.extname(f)]||'text/plain'});r.end(d);});
 });
