@@ -97,6 +97,17 @@ jobs:
       # Mejor los datos de ayer que un sitio roto: si la descarga vino
       # incompleta o con medio universo atrasado, no se publica y queda en pie
       # lo que ya estaba. No aflojes estos dos umbrales.
+      # La nocturna publica con force_orphan, o sea que la rama gh-pages queda
+      # con SOLO lo que hay en ./sitio. Si no se arman los bonos aca, cada noche
+      # bonos.json desaparecia del sitio publicado y la seccion Argentina
+      # quedaba diciendo "todavia no hay datos" hasta la primera corrida
+      # intradia de la mañana -- y todo el fin de semana.
+      #
+      # No corta la publicacion si falla: los precios son lo principal.
+      - name: Armar los bonos, que tambien viajan en el sitio
+        run: |
+          python bonos.py --salida sitio || echo "(bonos: no salio, sigo)"
+
       - name: Revisar que el sitio tenga sentido
         run: |
           python - <<'PY'

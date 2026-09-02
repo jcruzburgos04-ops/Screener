@@ -127,7 +127,7 @@ jobs:
           # Los bonos van al lado de los precios: misma corrida, mismo publicado.
           # Si data912 no contesta NO se corta la vuelta -- las acciones son lo
           # principal y no tienen por que caerse porque falle la renta fija.
-          bonos(){ python bonos.py --salida sitio || echo "      (bonos: no salio, sigo)"; }
+          bonos(){ python bonos.py --salida sitio --cache-ons estado/ons.json || echo "      (bonos: no salio, sigo)"; }
 
           vuelta=0
           exitos=0

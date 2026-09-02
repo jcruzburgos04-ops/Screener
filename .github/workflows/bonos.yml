@@ -1,5 +1,7 @@
-# Prueba y publica el payload de bonos. Por ahora a mano: mientras la seccion
-# se esta armando conviene mirar la salida antes de que entre al sitio.
+# Prueba el payload de renta fija contra las fuentes de verdad y lo imprime
+# entero. A mano, no en cron: el que publica es intradia.yml, que lo arma junto
+# con los precios. Este sirve para mirar la salida cuando se toca bonos.py o el
+# cronograma, que es donde estan los numeros que despues nadie vuelve a revisar.
 name: Bonos
 on:
   workflow_dispatch:
@@ -13,21 +15,44 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - name: Armar el payload
+      - name: La cuenta y los cronogramas, contra la referencia
+        run: python pruebas/renta_fija.py
+      - name: Armar el payload con datos de verdad
         run: |
           python bonos.py --salida /tmp/sitio
-          echo "--- bonos.json ---"
-          python -c "
+          python - <<'PY'
           import json
           d=json.load(open('/tmp/sitio/bonos.json'))
-          print('fecha',d['fecha'],'| bonos',len(d['bonos']),'| pares',len(d['canje']))
+          print(f"fecha {d['fecha']} | bonos {len(d['bonos'])} | pares {len(d['canje'])} "
+                f"| con TIR {d['con_tir']} | verificados {d['verificados']} "
+                f"| ONs {len(d.get('ons',[]))}")
           print()
-          print(f\"{'bono':<6}{'pesos':>12}{'MEP':>9}{'cable':>9}{'tc MEP':>10}{'tc cable':>10}{'brecha':>9}\")
+          print(f"{'bono':<6}{'pesos':>12}{'MEP':>9}{'cable':>9}{'tc MEP':>10}{'tc cable':>10}{'brecha':>9}")
           for b in d['bonos']:
-              print(f\"{b['t']:<6}{b['pesos']:>12,.0f}{(b['usd_mep'] or 0):>9.2f}{(b['usd_cable'] or 0):>9.2f}\"
-                    f\"{(b['tc_mep'] or 0):>10,.0f}{(b['tc_cable'] or 0):>10,.0f}{(b.get('brecha') or 0)*100:>8.2f}%\")
+              print(f"{b['t']:<6}{b['pesos']:>12,.0f}{(b['usd_mep'] or 0):>9.2f}"
+                    f"{(b['usd_cable'] or 0):>9.2f}{(b['tc_mep'] or 0):>10,.0f}"
+                    f"{(b['tc_cable'] or 0):>10,.0f}{(b.get('brecha') or 0)*100:>8.2f}%")
           print()
-          print('canje de leyes (NY / ARG, en dolares MEP):')
-          for p in d['canje']:
-              print(f\"  {p['arg']} vs {p['ny']}  ({p['vto']}):  {p['ratio']}\")
-          "
+          print("rendimientos (sobre el precio en dolares MEP):")
+          print(f"{'bono':<6}{'TIR':>8}{'TNA':>8}{'paridad':>9}{'durat':>7}"
+                f"{'DV01':>8}{'vivo':>7}{'pagos':>7}  prox pago")
+          for b in d['bonos']:
+              if b.get('tir') is None:
+                  print(f"{b['t']:<6}  (sin cronograma cargado)"); continue
+              print(f"{b['t']:<6}{b['tir']*100:>7.2f}%{b['tna']*100:>7.2f}%"
+                    f"{b['paridad']*100:>8.1f}%{b['duration']:>7.2f}{b['dv01']:>8.4f}"
+                    f"{b['vivo']:>7.0f}{b['pagos']:>7}  {b['prox_pago']}"
+                    + ('' if b.get('verificado') else '   [PROVISORIO]'))
+          print()
+          print("canje de leyes (NY / ARG, en dolares MEP):")
+          for pr in d['canje']:
+              print(f"  {pr['arg']} vs {pr['ny']}  ({pr['vto']}):  {pr['ratio']}")
+          print()
+          print("obligaciones negociables por emisor (TIR de bonistas, no propia):")
+          for e in d.get('emisores', [])[:25]:
+              t = f"{e['tir_med']*100:.2f}%" if e['tir_med'] is not None else '   ·  '
+              print(f"  {t:>7}  {e['papeles']:>3} especies   {e['emisor']}")
+          faltan = len(d.get('emisores', [])) - 25
+          if faltan > 0:
+              print(f"  ... y {faltan} emisores mas")
+          PY
