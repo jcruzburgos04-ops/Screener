@@ -11,7 +11,9 @@ jobs:
           p(){ c=$(curl -s -o /tmp/r -w "%{http_code}" -m 15 -H 'User-Agent: Mozilla/5.0' "$1" 2>/dev/null||echo ERR)
                n=$(wc -c </tmp/r 2>/dev/null||echo 0)
                printf "%-5s %8s  %s\n" "$c" "$n" "$2"
-               [ "$c" = "200" ] && [ "$n" -gt 30 ] && echo "      $(head -c 300 /tmp/r|tr -d '\n')"; }
+               # el || true es necesario: el runner corre con bash -e y sin esto
+               # el primer 404 aborta la sonda entera
+               { [ "$c" = "200" ] && [ "$n" -gt 30 ] && echo "      $(head -c 300 /tmp/r|tr -d '\n')"; } || true; }
           echo "== data912: otros endpoints =="
           for e in arg_bonds_flows bonds_flows flows arg_bonds_info cashflow arg_notes arg_bills; do
             p "https://data912.com/live/$e" "live/$e"; done

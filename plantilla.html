@@ -90,6 +90,25 @@ aside .interior{width:calc(var(--panel-ancho) - var(--barra-sc))}
 /* Las secciones del panel se leen como navegacion, no como un formulario
    comprimido: texto normal en vez de versalita monoespaciada, mas alto de
    linea y una flechita en vez del +/- , que es lo que hace la referencia. */
+/* La navegacion del panel. Es el primer nivel de la pagina, asi que pesa mas
+   que las secciones de abajo: mas alto, texto mas grande y el activo relleno
+   en vez de sólo coloreado. */
+.nav-lat{padding:var(--e3) var(--e2);display:flex;flex-direction:column;gap:2px;
+  border-bottom:1px solid var(--borde)}
+.nav-item{display:flex;align-items:center;gap:.65rem;padding:.55rem .7rem;
+  border-radius:var(--r);font-size:var(--t2);font-weight:500;color:var(--tenue);
+  cursor:pointer;user-select:none;white-space:nowrap;
+  transition:background .12s,color .12s}
+.nav-item:hover{background:var(--panel2);color:var(--hueso)}
+.nav-item.on{background:var(--panel3);color:var(--hueso)}
+.nav-ico{font-style:normal;width:1.15em;text-align:center;flex:none;opacity:.85;
+  font-size:.95em}
+/* El apartado de filtros es lo que se ajusta DENTRO de la vista tabla, asi que
+   se lo separa con un rotulo: si no, las ocho secciones de abajo parecen ocho
+   items de navegacion mas. */
+.nav-rotulo{font-size:var(--t0);letter-spacing:.1em;text-transform:uppercase;
+  font-weight:600;color:var(--apagado);padding:var(--e4) var(--e4) .35rem}
+
 details{border-bottom:1px solid var(--borde)}
 summary{font-size:var(--t2);font-weight:500;letter-spacing:.005em;
   color:var(--tenue);padding:.7rem var(--e4);cursor:pointer;user-select:none;list-style:none;
@@ -705,6 +724,22 @@ body.cajon #velo{display:block}
     <button class="icono" id="btnCerrar" title="Ocultar el panel  ·  tecla [">‹</button>
   </div>
 
+  <!-- La navegacion va arriba del panel, no en la barra: las vistas son el
+       primer nivel —donde estoy parado— y los filtros son un ajuste de la
+       vista tabla. Mezclados en la misma barra se leian como controles del
+       mismo rango. Se conservan los IDs de los chips para no tocar la logica
+       ni las pruebas. -->
+  <nav class="nav-lat" id="navVistas">
+    <span class="nav-item on" id="chipTabla" title="La tabla del screener · tecla P">
+      <i class="nav-ico">▤</i>Tabla</span>
+    <span class="nav-item" id="chipVista" title="Tarjetas de índices y sectores · tecla P">
+      <i class="nav-ico">◫</i>Panorama</span>
+    <span class="nav-item" id="chipBonos" title="Bonos soberanos argentinos · tecla B">
+      <i class="nav-ico">🇦🇷</i>Argentina</span>
+  </nav>
+
+  <div class="nav-rotulo">Ajustes de la tabla</div>
+
   <details open><summary>ASH</summary><div class="cuerpo">
     <label>Indicator Method</label>
     <select id="ashModo"><option>RSI</option><option>STOCHASTIC</option><option>ADX</option></select>
@@ -1035,11 +1070,6 @@ body.cajon #velo{display:block}
          interruptores que van y vienen; la tercera abre menus. Estando todos
          en la misma capsula, "Panorama" y "★ favoritos" prendidos a la vez se
          leian como dos opciones elegidas del mismo control, que no existe. -->
-    <div class="tf grupo-chips seg" id="segVista">
-      <span class="chip on" id="chipTabla" title="La tabla del screener · tecla P">Tabla</span>
-      <span class="chip" id="chipVista" title="Tarjetas de índices y sectores · tecla P">Panorama</span>
-      <span class="chip" id="chipBonos" title="Soberanos argentinos · tecla B">Bonos</span>
-    </div>
     <div class="tf grupo-chips inter">
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
