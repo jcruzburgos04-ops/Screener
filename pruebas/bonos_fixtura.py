@@ -174,7 +174,9 @@ def main():
         "pesos": bonos.armar_pesos(CRUDO_PESOS),
     }
     import futuros
-    fut, spot, fuente = futuros.armar(CRUDO_FUT, hoy, 1508.5, "A3500 del 2026-09-01")
+    # Sin spot explicito: se deduce de las implicitas de A3, que es lo que pasa
+    # en produccion cuando el BCRA no contesta. Asi la prueba ve el aviso.
+    fut, spot, fuente = futuros.armar(CRUDO_FUT, hoy)
     payload["futuros"] = fut
     payload["spot"] = spot
     payload["spot_fuente"] = fuente

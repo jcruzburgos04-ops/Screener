@@ -197,8 +197,13 @@ console.log('== el interruptor de tres posiciones ==');
  ok('los nombra como el mercado',/DLR\/SEP26/.test(tf),tf.slice(0,120));
  /* La pantalla escribe en es-AR: 1508.5 sale como "1.508,50". */
  const arSpot=pay.spot.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
- ok('muestra el spot y de donde salio',
-    tf.indexOf(arSpot)>=0&&/A3500/.test(tf),arSpot);
+ ok('muestra el spot',tf.indexOf(arSpot)>=0,arSpot);
+ /* De donde salio el spot NO es un detalle: la tasa directa es precio/spot-1,
+    asi que un spot deducido y uno oficial no son lo mismo y la pantalla tiene
+    que decir cual es. */
+ ok('y dice de donde salio',tf.indexOf(pay.spot_fuente)>=0,pay.spot_fuente);
+ ok('con el aviso que corresponde a ESA fuente',
+    /despej.|A3500|contrato más corto/.test(tf));
  ok('trae tasa directa, TNA y TEM',
     ['directa','TNA','TEM'].every(h=>tf.indexOf(h)>=0));
  ok('y la implicita de A3 aparte',/A3/.test(tf));

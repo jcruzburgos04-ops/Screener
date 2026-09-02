@@ -3593,6 +3593,20 @@ function renderPesos(){
 }
 
 /* ---------- futuros de dolar ---------- */
+/* El spot decide TODAS las tasas (la directa es precio/spot - 1), asi que de
+   donde salio no es un detalle. El aviso dice lo que REALMENTE paso y no un
+   texto fijo: antes decia "se usó el contrato más corto" aunque el spot se
+   hubiera deducido de las tasas de A3, que es otra cosa y mucho mejor. */
+function avisoSpot(d){
+  const f=d.spot_fuente||'';
+  if(f.indexOf('A3500')>=0)return '';
+  if(f.indexOf('deducido')>=0)return ' <b>Sobre el spot</b>: el BCRA no contestó, '+
+    'así que se despejó de las tasas implícitas que publica A3. Da muy cerca del '+
+    'A3500 pero no es el dato oficial.';
+  return ' <b>Ojo con el spot</b>: no hubo ni A3500 ni tasas implícitas, así que se '+
+    'usó el contrato más corto como aproximación. Converge al spot, pero puede estar '+
+    'más de un punto arriba, y ese punto se le suma a la tasa de todos los contratos.';
+}
 function renderFuturos(){
   const d=BONOS, cuerpo=$('#bonosCuerpo');
   const f=(d&&d.futuros)||[];
@@ -3668,9 +3682,7 @@ function renderFuturos(){
       ${tablaSimple(f,cols,'bo-grande')}</div>`+
     `<div class="bo-falta"><b>Los contratos y sus vencimientos salen de A3, no de una
       lista de acá.</b> Cuando uno vence deja de venir y desaparece solo; cuando listan
-      uno nuevo, aparece solo.${d.spot_fuente&&d.spot_fuente.indexOf('A3500')<0
-      ?' <b>Ojo con el spot</b>: el BCRA no contestó, así que se usó el contrato más '+
-       'corto como aproximación (converge al spot, pero no es el dato oficial).':''}</div>`;
+      uno nuevo, aparece solo.${avisoSpot(d)}</div>`;
   ponerPestanas();
   cuerpo.onclick=null;cuerpo.onkeydown=null;
 }
