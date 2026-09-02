@@ -550,6 +550,58 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
   border-radius:var(--r2);color:var(--tenue);font-size:var(--t1);line-height:1.7}
 .bo-falta b{color:var(--ambar)}
 .bo-vacio{padding:3rem 1.6rem;color:var(--tenue);text-align:center}
+.bo-scroll{overflow-x:auto}
+.bo-grande{min-width:820px}
+.bo-tabla td.fuerte{color:var(--hueso);font-weight:600}
+/* La fila se abre al tocarla: el cursor y la flecha lo tienen que decir antes
+   de que la toque, o nadie descubre que hay un cronograma adentro. */
+.bo-fila{cursor:pointer}
+.bo-fila:focus-visible{outline:2px solid var(--ambar);outline-offset:-2px}
+.bo-flecha{font-style:normal;color:var(--tenue);margin-left:.4rem;font-size:.8em}
+.bo-fila.abierta td{background:var(--panel2)!important}
+.bo-fila.abierta .bo-flecha{color:var(--ambar)}
+.bo-prov{font-family:var(--sans);font-size:var(--t0);color:var(--ambar);
+  background:var(--ambar-t);border-radius:3px;padding:.05rem .3rem;margin-left:.35rem;
+  letter-spacing:.03em;font-weight:500}
+.bo-det td{padding:0!important;background:none!important}
+.bo-det-caja{background:var(--fondo);border:1px solid var(--borde2);
+  border-radius:var(--r2);margin:.5rem 0 1rem;padding:var(--e4)}
+.bo-det-cab{display:grid;gap:var(--e4);margin-bottom:var(--e4);
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.bo-det-cab>div{display:flex;flex-direction:column;gap:.15rem}
+.bo-det-cab span{color:var(--tenue);font-size:var(--t0);letter-spacing:.085em;
+  text-transform:uppercase}
+.bo-det-cab b{font-family:var(--mono);font-size:var(--t5);font-weight:600;
+  font-variant-numeric:tabular-nums}
+.bo-det-cab em{font-style:normal;color:var(--tenue);font-size:var(--t1);line-height:1.5}
+/* Cuanto de lo que se cobra es renta y cuanto es capital propio volviendo. */
+.bo-mix{height:4px;border-radius:2px;background:#2A3442;margin-top:.35rem;overflow:hidden}
+.bo-mix i{display:block;height:100%;background:var(--ambar)}
+.bo-flujo{margin-top:.2rem}
+.bo-flujo tr.amortiza td{color:var(--hueso)}
+.bo-flujo tr.amortiza td:first-child{box-shadow:inset 2px 0 0 var(--ambar)}
+
+/* ---------- la curva ---------- */
+.cv-caja{width:100%;overflow:hidden}
+.cv{width:100%;height:auto;display:block;font-family:var(--mono)}
+.cv-grid{stroke:var(--borde2);stroke-width:1}
+.cv-marco{stroke:var(--borde);stroke-width:1}
+.cv-eje{fill:var(--tenue);font-size:15px}
+.cv-rot{fill:var(--tenue);font-size:15px;letter-spacing:.08em}
+.cv-linea{fill:none;stroke-width:2}
+.cv-linea.pt-arg{stroke:var(--ambar)}
+.cv-linea.pt-ny{stroke:#5FA8D3}
+.cv-pt{cursor:pointer}
+.cv-pt circle{stroke:var(--fondo);stroke-width:2}
+.cv-pt text{font-size:16px;font-weight:600}
+.cv-pt.pt-arg circle{fill:var(--ambar)} .cv-pt.pt-arg text{fill:var(--ambar)}
+.cv-pt.pt-ny  circle{fill:#5FA8D3}      .cv-pt.pt-ny  text{fill:#5FA8D3}
+.cv-pt:hover circle{r:8}
+.bo-leyenda{margin-left:auto;font-family:var(--mono);font-size:var(--t1);
+  color:var(--tenue);font-weight:400;display:flex;align-items:center;gap:.4rem}
+.bo-leyenda i{width:9px;height:9px;border-radius:50%;display:inline-block;
+  margin-left:.7rem}
+.bo-leyenda i.pt-arg{background:var(--ambar)} .bo-leyenda i.pt-ny{background:#5FA8D3}
 
 /* ------------------------------- panorama ---------------------------------
    La vista de tarjetas: un vistazo al mercado sin leer una tabla. Cada tarjeta
@@ -3134,71 +3186,246 @@ async function verBonos(){
   }finally{bajandoBonos=false;}
 }
 
+/* Que bono esta abierto en el detalle. Es uno solo: abrir dos cronogramas a la
+   vez no sirve para comparar (no quedan alineados) y estira la pagina. */
+let bonoAbierto=null;
+
+const bnum=(v,dec)=>isFinite(v)?v.toLocaleString('es-AR',
+  {minimumFractionDigits:dec,maximumFractionDigits:dec}):'·';
+const bpc=(v,dec)=>isFinite(v)?(v*100).toFixed(dec===undefined?2:dec)+'%':'·';
+const bsig=v=>isFinite(v)?(v>0?'+':'')+v.toFixed(2)+'%':'·';
+const bcol=v=>isFinite(v)?(v>0?'up':(v<0?'dn':'')):'';
+/* 2027-01-09 -> 9 ene 27. Se corta el año a dos digitos porque la columna
+   entra en una tabla que ya es ancha, y el siglo no aporta nada. */
+const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function bfecha(iso){
+  if(!iso)return '·';
+  const p=String(iso).split('-');
+  if(p.length<3)return esc(String(iso));
+  return (+p[2])+' '+(MESES[(+p[1])-1]||'?')+' '+p[0].slice(2);
+}
+
+/* ---------- la curva de rendimientos ----------
+   TIR contra duration, que es como la mira el mercado: la duration dice cuanta
+   plata esta expuesta a la tasa, y es lo unico que hace comparables a un bono
+   que vence en 2029 y a uno que vence en 2046. Contra el año de vencimiento la
+   curva sale deformada, porque un bono que amortiza temprano tiene mucha menos
+   duration que lo que su vencimiento sugiere.
+
+   Se dibuja en SVG y no en canvas: escala sola con el ancho, se puede leer con
+   el inspector (o con jsdom, que es como se prueba acá) y no hace falta
+   redibujarla cuando cambia el tamaño de la ventana. */
+function curvaBonos(filas){
+  const p=filas.filter(b=>isFinite(b.tir)&&isFinite(b.duration));
+  if(p.length<2)return '';
+  const W=1000,H=400,ml=64,mr=96,mt=24,mb=52;
+  const xs=p.map(b=>b.duration), ys=p.map(b=>b.tir*100);
+  let x0=0, x1=Math.max(...xs)*1.12;
+  let y0=Math.min(...ys), y1=Math.max(...ys);
+  const pad=Math.max((y1-y0)*0.28,0.4); y0-=pad; y1+=pad;
+  const X=v=>ml+(v-x0)/(x1-x0)*(W-ml-mr);
+  const Y=v=>mt+(y1-v)/(y1-y0)*(H-mt-mb);
+
+  /* Las marcas del eje se eligen para que caigan en numeros redondos: una
+     grilla en 8,3333 no se lee. */
+  const pasoLindo=(rango,cuantas)=>{
+    const bruto=rango/cuantas, exp=Math.pow(10,Math.floor(Math.log10(bruto)));
+    return [1,2,2.5,5,10].find(m=>bruto<=m*exp)*exp;
+  };
+  const py=pasoLindo(y1-y0,5), px=pasoLindo(x1-x0,6);
+  let ejes='';
+  for(let v=Math.ceil(y0/py)*py; v<=y1+1e-9; v+=py){
+    ejes+=`<line class="cv-grid" x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`+
+      `<text class="cv-eje" x="${ml-10}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${v.toFixed(py<1?1:0)}%</text>`;
+  }
+  for(let v=Math.ceil(x0/px)*px; v<=x1+1e-9; v+=px){
+    ejes+=`<line class="cv-grid" y1="${mt}" y2="${H-mb}" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}"/>`+
+      `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${v.toFixed(px<1?1:0)}</text>`;
+  }
+
+  /* Una linea por ley: la distancia entre las dos ES el canje, dibujado. */
+  const serie=(ley,clase)=>{
+    const s=p.filter(b=>b.ley===ley).sort((a,b)=>a.duration-b.duration);
+    if(!s.length)return '';
+    const d=s.map((b,i)=>(i?'L':'M')+X(b.duration).toFixed(1)+' '+Y(b.tir*100).toFixed(1)).join(' ');
+    return `<path class="cv-linea ${clase}" d="${d}"/>`+
+      s.map(b=>`<g class="cv-pt ${clase}" data-t="${esc(b.t)}">`+
+        `<circle cx="${X(b.duration).toFixed(1)}" cy="${Y(b.tir*100).toFixed(1)}" r="6"/>`+
+        `<text x="${X(b.duration).toFixed(1)}" y="${(Y(b.tir*100)-13).toFixed(1)}" text-anchor="middle">${esc(b.t)}</text>`+
+        `<title>${esc(b.t)} · TIR ${(b.tir*100).toFixed(2)}% · duration ${b.duration.toFixed(2)} años</title>`+
+        `</g>`).join('');
+  };
+
+  return `<div class="bo-tarjeta">
+    <div class="bo-tit">Curva de rendimientos
+      <span class="bo-leyenda"><i class="pt-arg"></i>ley Argentina<i class="pt-ny"></i>ley Nueva York</span></div>
+    <p class="bo-nota">Cada punto es un bono: a la derecha, más plazo expuesto a la tasa
+      (<b>duration</b>); arriba, más rendimiento (<b>TIR</b> anual en dólares). Se usa la
+      duration y no el año de vencimiento porque un bono que amortiza temprano devuelve
+      la plata mucho antes de lo que su vencimiento sugiere.
+      <b>La distancia vertical entre las dos líneas es el canje de leyes</b>.</p>
+    <div class="cv-caja"><svg viewBox="0 0 ${W} ${H}" class="cv" preserveAspectRatio="xMidYMid meet">
+      ${ejes}
+      <line class="cv-marco" x1="${ml}" x2="${W-mr}" y1="${H-mb}" y2="${H-mb}"/>
+      <line class="cv-marco" x1="${ml}" x2="${ml}" y1="${mt}" y2="${H-mb}"/>
+      ${serie('Argentina','pt-arg')}${serie('Nueva York','pt-ny')}
+      <text class="cv-rot" x="${(ml+W-mr)/2}" y="${H-8}" text-anchor="middle">duration modificada · años</text>
+    </svg></div></div>`;
+}
+
+/* ---------- la tabla grande ---------- */
+function filaBono(b,abierto){
+  const prov=b.tir!==undefined&&b.tir!==null&&!b.verificado
+    ?'<span class="bo-prov" title="El cronograma de este bono todavía no se contrastó contra una referencia externa">prov.</span>':'';
+  const cuerpo=`<tr class="bo-fila ${abierto?'abierta':''}" data-bono="${esc(b.t)}" tabindex="0">
+    <td class="tk">${esc(b.t)}<i class="bo-flecha">${abierto?'▾':'▸'}</i></td>
+    <td>${b.vto}</td>
+    <td>${bnum(b.pesos,0)}</td>
+    <td>${bnum(b.usd_mep,2)}</td>
+    <td class="${bcol(b.var)}">${bsig(b.var)}</td>
+    <td class="fuerte">${isFinite(b.tir)?bpc(b.tir):'·'}${prov}</td>
+    <td>${isFinite(b.tna)?bpc(b.tna):'·'}</td>
+    <td>${isFinite(b.paridad)?bpc(b.paridad,1):'·'}</td>
+    <td>${isFinite(b.duration)?bnum(b.duration,2):'·'}</td>
+    <td>${isFinite(b.dv01)?bnum(b.dv01,4):'·'}</td>
+    <td>${isFinite(b.vivo)?bnum(b.vivo,0):'·'}</td>
+    <td>${bfecha(b.prox_pago)}</td></tr>`;
+  return cuerpo+(abierto?detalleBono(b):'');
+}
+
+/* El cronograma abierto. Es lo que contesta "¿cuándo cobro y cuánto?", que es
+   la pregunta que hace el que arma una cartera para un cliente. */
+function detalleBono(b){
+  const f=b.flujo||[];
+  if(!f.length)return `<tr class="bo-det"><td colspan="12"><div class="bo-det-caja">
+    <p class="bo-nota">De este bono todavía no está cargado el cronograma.</p></div></td></tr>`;
+  const renta=f.reduce((a,x)=>a+x.renta,0), amort=f.reduce((a,x)=>a+x.amort,0);
+  const total=renta+amort;
+  /* Cuanto de lo que se cobra es renta y cuanto es devolucion de capital.
+     Importa: un bono que paga casi todo capital no "rinde" 10% en el sentido
+     de un plazo fijo, te esta devolviendo lo tuyo. */
+  const barra=`<div class="bo-mix"><i style="width:${(renta/total*100).toFixed(1)}%"></i></div>`;
+  return `<tr class="bo-det"><td colspan="12"><div class="bo-det-caja">
+    <div class="bo-det-cab">
+      <div><span>Cobra en total</span><b>US$ ${bnum(total,2)}</b>
+        <em>por cada 100 de valor nominal, si lo tenés hasta el final</em></div>
+      <div><span>De eso, renta</span><b>US$ ${bnum(renta,2)}</b>
+        <em>${bnum(renta/total*100,0)}% · el resto es devolución de capital</em>${barra}</div>
+      <div><span>Pagos que faltan</span><b>${f.length}</b>
+        <em>cada 9 de enero y 9 de julio</em></div>
+      <div><span>Puesto hoy</span><b>US$ ${bnum(b.usd_mep,2)}</b>
+        <em>lo multiplicás por ${bnum(total/b.usd_mep,2)} si cobrás todo</em></div>
+    </div>
+    <table class="bo-tabla bo-flujo"><thead><tr>
+      <th>fecha</th><th>cupón</th><th>renta</th><th>amortiza</th>
+      <th>cobra</th><th>queda vivo</th></tr></thead><tbody>`+
+    f.map(x=>`<tr class="${x.amort>0?'amortiza':''}">
+      <td>${bfecha(x.f)}</td><td>${bnum(x.cupon,3)}%</td>
+      <td>${bnum(x.renta,3)}</td>
+      <td>${x.amort>0?bnum(x.amort,2):'·'}</td>
+      <td class="fuerte">${bnum(x.total,3)}</td>
+      <td>${bnum(x.vivo,0)}</td></tr>`).join('')+
+    `</tbody></table></div></td></tr>`;
+}
+
 function renderBonos(){
   const d=BONOS, cuerpo=$('#bonosCuerpo');
   if(!d||!d.bonos||!d.bonos.length){
     cuerpo.innerHTML='<p class="bo-vacio">No vino ningún bono con precio.</p>';return;}
-  const num=(v,dec)=>isFinite(v)?v.toLocaleString('es-AR',
-    {minimumFractionDigits:dec,maximumFractionDigits:dec}):'·';
-  const pc=v=>isFinite(v)?(v>0?'+':'')+ (v*100).toFixed(2)+'%':'·';
-  const col=v=>isFinite(v)?(v>0?'up':(v<0?'dn':'')):'';
+  const filas=d.bonos;
+
+  /* Se ordena por duration y no por vencimiento: es el orden en que se lee una
+     curva, y deja juntos a los que de verdad compiten entre si. */
+  const orden=[...filas].sort((a,b)=>
+    (isFinite(a.duration)?a.duration:99)-(isFinite(b.duration)?b.duration:99)||
+    a.vto-b.vto||a.t.localeCompare(b.t));
 
   const tabla=(titulo,nota,ley)=>{
-    const f=d.bonos.filter(b=>b.ley===ley);
+    const f=orden.filter(b=>b.ley===ley);
     if(!f.length)return '';
     return `<div class="bo-tarjeta"><div class="bo-tit">${esc(titulo)}</div>
       <p class="bo-nota">${nota}</p>
-      <table class="bo-tabla"><thead><tr>
-        <th>bono</th><th>vence</th><th>pesos</th><th>USD MEP</th>
-        <th>USD cable</th><th>var</th></tr></thead><tbody>`+
-      f.map(b=>`<tr>
-        <td class="tk">${esc(b.t)}</td>
-        <td>${b.vto}</td>
-        <td>${num(b.pesos,0)}</td>
-        <td>${num(b.usd_mep,2)}</td>
-        <td>${num(b.usd_cable,2)}</td>
-        <td class="${col(b.var/100)}">${isFinite(b.var)?(b.var>0?'+':'')+b.var.toFixed(2)+'%':'·'}</td>
-      </tr>`).join('')+'</tbody></table></div>';};
+      <div class="bo-scroll"><table class="bo-tabla bo-grande"><thead><tr>
+        <th>bono</th><th>vence</th><th>pesos</th><th>USD MEP</th><th>var</th>
+        <th title="Tasa interna de retorno anual, en dólares, si lo tenés hasta el final">TIR</th>
+        <th title="Tasa nominal anual equivalente, capitalizada cada seis meses. Es la que se compara contra un plazo fijo">TNA</th>
+        <th title="Precio contra valor técnico. Abajo de 100% el bono cotiza con descuento sobre lo que contractualmente vale">paridad</th>
+        <th title="Duration modificada: cuánto cae el precio, en %, si la tasa sube un punto">durat.</th>
+        <th title="Cuántos dólares se mueve el precio por cada punto básico de tasa">DV01</th>
+        <th title="Cuánto del nominal original queda sin amortizar">vivo</th>
+        <th>próx. pago</th></tr></thead><tbody>`+
+      f.map(b=>filaBono(b,bonoAbierto===b.t)).join('')+
+      '</tbody></table></div></div>';};
 
-  // El tipo de cambio implicito de cada bono, que es lo que se mira para saber
-  // por donde conviene salir a dolares.
-  const conTc=d.bonos.filter(b=>b.tc_mep&&b.tc_cable);
+  const conTc=orden.filter(b=>b.tc_mep&&b.tc_cable);
   const tc=conTc.length?`<div class="bo-tarjeta"><div class="bo-tit">Tipo de cambio por bono</div>
       <p class="bo-nota">Cuántos pesos por dólar sale comprar el bono en pesos y
         venderlo en dólares. <b>MEP</b> liquida acá; <b>cable</b>, afuera.</p>
-      <table class="bo-tabla"><thead><tr>
+      <div class="bo-scroll"><table class="bo-tabla"><thead><tr>
         <th>bono</th><th>MEP</th><th>cable</th><th>brecha</th></tr></thead><tbody>`+
     conTc.map(b=>`<tr><td class="tk">${esc(b.t)}</td>
-        <td>$${num(b.tc_mep,0)}</td><td>$${num(b.tc_cable,0)}</td>
-        <td>${pc(b.brecha)}</td></tr>`).join('')+'</tbody></table></div>':'';
+        <td>$${bnum(b.tc_mep,0)}</td><td>$${bnum(b.tc_cable,0)}</td>
+        <td>${bpc(b.brecha)}</td></tr>`).join('')+'</tbody></table></div></div>':'';
 
-  // El canje de leyes: arriba de 1 el de Nueva York cuesta mas caro.
   const c=d.canje||[];
   const med=c.length?[...c.map(x=>x.ratio)].sort((a,b)=>a-b)[Math.floor(c.length/2)]:NaN;
   const canje=c.length?`<div class="bo-tarjeta"><div class="bo-tit">Canje de leyes</div>
       <p class="bo-nota">Cuánto cuesta el ley Nueva York contra su gemelo argentino,
         comparado en dólares para que el tipo de cambio no ensucie la relación.
         Arriba de 1 quiere decir que <b>el tribunal de Nueva York se paga</b>:
-        hoy la mediana es <b>${num(med,4)}</b>, o sea
-        <b>${num((med-1)*100,1)}%</b> de más.</p>
-      <table class="bo-tabla"><thead><tr>
+        hoy la mediana es <b>${bnum(med,4)}</b>, o sea
+        <b>${bnum((med-1)*100,1)}%</b> de más.</p>
+      <div class="bo-scroll"><table class="bo-tabla"><thead><tr>
         <th>par</th><th>vence</th><th>ratio</th><th>sobreprecio</th></tr></thead><tbody>`+
     c.map(x=>`<tr><td class="tk">${esc(x.arg)} vs ${esc(x.ny)}</td>
-        <td>${x.vto}</td><td>${num(x.ratio,4)}</td>
-        <td>${num((x.ratio-1)*100,2)}%</td></tr>`).join('')+'</tbody></table></div>':'';
+        <td>${x.vto}</td><td>${bnum(x.ratio,4)}</td>
+        <td>${bnum((x.ratio-1)*100,2)}%</td></tr>`).join('')+'</tbody></table></div></div>':'';
 
-  const falta=d.sin_cronograma?`<div class="bo-falta">
-      <b>Todavía sin TIR, paridad ni duration.</b> Los cuatro necesitan el
-      cronograma de cupones y amortización de cada bono, que es dato del
-      prospecto y no se deduce de un precio. Van a entrar cuando estén cargados
-      uno por uno con la fuente anotada: una TIR calculada sobre un cronograma
-      mal recordado se ve perfecta y está mal.</div>`:'';
+  /* Lo que falta se dice, no se disimula. Y se dice CUANTO falta: "faltan 7 de
+     11" es accionable, "faltan datos" no. */
+  const sinTir=filas.filter(b=>!isFinite(b.tir)).map(b=>b.t);
+  const provis=filas.filter(b=>isFinite(b.tir)&&!b.verificado).map(b=>b.t);
+  let falta='';
+  if(sinTir.length||provis.length){
+    falta='<div class="bo-falta">';
+    if(sinTir.length)falta+=`<b>Sin TIR todavía: ${sinTir.map(esc).join(', ')}.</b> `+
+      'El rendimiento sale del cronograma de cupones y amortización, que es dato '+
+      'del prospecto y no se deduce de un precio. Se cargan uno por uno; hasta '+
+      'entonces estos bonos muestran precio pero no rendimiento. ';
+    if(provis.length)falta+=`<b>Provisorios: ${provis.map(esc).join(', ')}.</b> `+
+      'Su cronograma está cargado pero todavía no se contrastó contra una '+
+      'referencia externa, así que la TIR puede moverse.';
+    falta+='</div>';
+  }
 
-  cuerpo.innerHTML=
-    tabla('Ley Argentina','Se rigen por tribunales locales. Suelen cotizar más '+
-      'barato que su gemelo: es lo que el mercado descuenta por el fuero.','Argentina')+
-    tabla('Ley Nueva York','Mismo emisor, mismo flujo, otro tribunal.','Nueva York')+
+  cuerpo.innerHTML=curvaBonos(orden)+
+    tabla('Ley Argentina','Se rigen por tribunales locales. Suelen rendir más que su '+
+      'gemelo: es lo que el mercado cobra por el fuero.','Argentina')+
+    tabla('Ley Nueva York','Mismo emisor, mismo flujo de fondos, otro tribunal.','Nueva York')+
     tc+canje+falta;
+
+  /* Abrir y cerrar el detalle. Delegado, porque la tabla se rehace entera en
+     cada render y los manejadores por fila se perderian. */
+  cuerpo.onclick=e=>{
+    const pt=e.target.closest('.cv-pt');
+    const fila=pt||e.target.closest('.bo-fila');
+    if(!fila)return;
+    const t=(pt?pt.dataset.t:fila.dataset.bono);
+    bonoAbierto = bonoAbierto===t ? null : t;
+    renderBonos();
+    if(bonoAbierto){
+      const el=cuerpo.querySelector(`.bo-fila[data-bono="${bonoAbierto}"]`);
+      if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
+    }
+  };
+  cuerpo.onkeydown=e=>{
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    const fila=e.target.closest&&e.target.closest('.bo-fila');
+    if(!fila)return;
+    e.preventDefault();
+    bonoAbierto = bonoAbierto===fila.dataset.bono ? null : fila.dataset.bono;
+    renderBonos();
+  };
 }
 
 /* ---------- chips ---------- */

@@ -26,19 +26,21 @@ Cada bono cotiza en TRES especies del mismo papel:
 De ahi salen los dos tipos de cambio implicitos, que es lo que mira todo el
 mundo: MEP = precio_pesos / precio_D, y cable = precio_pesos / precio_C.
 
-LO QUE ESTA VERSION NO CALCULA, Y POR QUE
------------------------------------------
-TIR, paridad, duration y DV01 NO estan. Todos ellos necesitan el cronograma de
-cupones y amortizacion de cada bono, que es un dato contractual del prospecto,
-no algo que se pueda deducir de un precio.
+RENDIMIENTOS
+------------
+TIR, TNA, paridad, duration y DV01 salen del cronograma de cupones y
+amortizacion de cada bono, que es dato contractual del prospecto y no se deduce
+de un precio. Viven en bonos_cronograma.csv, uno por linea, con una columna
+`verificado` que dice si esa linea se contrasto contra una referencia externa.
 
-Poner esos cronogramas de memoria seria justo lo que el proyecto no hace: una
-TIR calculada sobre un cronograma mal recordado se ve perfecta y esta mal, que
-es peor que no mostrarla. Van a entrar cuando esten cargados uno por uno con la
-fuente anotada, en bonos_cronograma.csv.
+Mientras un bono tenga alguna linea sin verificar, el payload lo marca y la
+pantalla muestra su TIR como PROVISORIA. Una TIR calculada sobre un cronograma
+mal recordado se ve perfecta y esta mal, que es peor que no mostrarla.
 
-Lo que si esta —precios, los dos dolares implicitos y el canje de leyes— sale
-entero de la rueda y no depende de ningun cronograma.
+Ningun endpoint publico gratuito publica estos cronogramas: se probaron los 16
+de data912 (solo precios y OHLC) y los de BYMA con POST (government-bonds,
+corporate-bonds y negotiable-obligations dan 401). Por eso van a mano.
+
 ================================================================================
 """
 
@@ -108,6 +110,32 @@ def flujos(pagos, desde):
         out.append((p["fecha"], renta + p["amortiza"]))
         r -= p["amortiza"]
     return out, residual
+
+
+def desglose(pagos, desde):
+    """
+    Lo mismo que `flujos` pero abierto, para la pantalla de detalle: en cada
+    fecha, cuanto es renta, cuanto es amortizacion y cuanto queda vivo despues.
+
+    Es el mismo recorrido y las mismas cuentas; se separa para no cambiarle la
+    firma a `flujos`, que la usan tir() y duration() y ya esta probada.
+    """
+    futuros = sorted((p for p in pagos if p["fecha"] > desde),
+                     key=lambda x: x["fecha"])
+    r = sum(p["amortiza"] for p in futuros)
+    out = []
+    for p in futuros:
+        renta = p["cupon_anual"] / 2.0 * r / 100.0
+        r -= p["amortiza"]
+        out.append({
+            "f": p["fecha"].isoformat(),
+            "cupon": p["cupon_anual"],
+            "renta": round(renta, 4),
+            "amort": round(p["amortiza"], 4),
+            "total": round(renta + p["amortiza"], 4),
+            "vivo": round(r, 4),
+        })
+    return out
 
 
 def tir(precio, flujo, desde):
@@ -274,6 +302,9 @@ def armar(crudo, cronogramas=None, hoy=None):
                     # la pantalla lo tiene que decir: una TIR provisoria que se
                     # muestra como firme es peor que no mostrarla.
                     "verificado": all(p.get("verificado") for p in pagos),
+                    # El cronograma abierto, para la pantalla de detalle. Son
+                    # ~30 filas por bono en el peor caso: no pesa.
+                    "flujo": desglose(pagos, hoy),
                 })
         salida.append(fila)
     return salida

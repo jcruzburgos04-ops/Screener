@@ -1,207 +1,126 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SONDA TEMPORAL -- se borra cuando conteste.
+SONDA TEMPORAL (2) -- se borra cuando conteste.
 
-Busca tres cosas, en orden de importancia:
+La primera sonda encontro la punta: bonistas.com/api/bonds contesta 200 con
+1,6 MB y la primera fila ya trae `bond_family: ONS / Obligaciones Negociables`,
+`bond_law`, `coupon` y `coupon_yield`. O sea que ahi hay soberanos Y
+obligaciones negociables, con cupon.
 
-  1. UNA FUENTE CON LOS CRONOGRAMAS de los soberanos. Es lo unico que falta
-     para que los 11 bonos tengan TIR. Ni data912 ni BYMA los publican en los
-     endpoints que ya se probaron, asi que aca se prueban los oficiales
-     (Ministerio de Economia, datos.gob.ar) y los del mercado (IAMC, Rava,
-     Bolsar, bonistas).
+Falta saber dos cosas:
+  1. Si ademas del cupon publica el CRONOGRAMA (fechas y amortizaciones). Es lo
+     unico que le falta al screener para tener TIR en los once soberanos.
+  2. Que campos trae en total, para saber que se puede mostrar de las ONs
+     (calificacion de riesgo, emisor, vencimiento).
 
-  2. LA FORMA DE LOS DATOS de data912 que todavia no se uso: arg_corp (las
-     obligaciones negociables), arg_notes (las letras) y el historico de bonos.
-     Hace falta saber que campos trae antes de escribir el parser.
-
-  3. BYMA CON MAS VARIANTES. Con POST y cuerpo {excludeZeroPxAndQty,T2} el
-     endpoint `cedears` contesto 1,19 MB pero `government-bonds` dio 401 y
-     `public-bonds` un sobre paginado vacio. Eso no huele a "no se puede":
-     huele a que cada endpoint quiere otro cuerpo. Se prueban varios.
+Se prueba tambien Rava, que en la pagina de perfil de cada especie muestra el
+flujo de fondos: si lo trae incrustado en el HTML se puede leer.
 """
 import json
+import re
 import ssl
 import urllib.request
 import urllib.error
 
-SIN_VERIFICAR = ssl.create_default_context()
-SIN_VERIFICAR.check_hostname = False
-SIN_VERIFICAR.verify_mode = ssl.CERT_NONE
-
-NAVEGADOR = {
-    "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "es-AR,es;q=0.9",
-}
+CTX = ssl.create_default_context()
+CTX.check_hostname = False
+CTX.verify_mode = ssl.CERT_NONE
+H = {"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/126 Safari/537.36"),
+     "Accept": "application/json, text/plain, */*"}
 
 
-def pedir(url, cuerpo=None, cabeceras=None, metodo=None, tiempo=25):
-    """Devuelve (estado, bytes) o (0, mensaje de error). Nunca lanza."""
-    h = dict(NAVEGADOR)
-    if cabeceras:
-        h.update(cabeceras)
-    datos = None
-    if cuerpo is not None:
-        datos = json.dumps(cuerpo).encode()
-        h["Content-Type"] = "application/json"
-    try:
-        req = urllib.request.Request(url, headers=h, data=datos, method=metodo)
-        with urllib.request.urlopen(req, timeout=tiempo, context=SIN_VERIFICAR) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        cuerpo_err = b""
+def pedir(u, reintentos=2):
+    """Reintenta: en la sonda anterior varios ERR fueron el DNS del runner
+    fallando un momento, no el servidor."""
+    ultimo = ""
+    for _ in range(reintentos):
         try:
-            cuerpo_err = e.read()[:200]
-        except Exception:
-            pass
-        return e.code, cuerpo_err
-    except Exception as e:
-        return 0, f"{type(e).__name__}: {e}".encode()[:200]
+            with urllib.request.urlopen(
+                    urllib.request.Request(u, headers=H), timeout=30, context=CTX) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, b""
+        except Exception as e:
+            ultimo = f"{type(e).__name__}: {e}"
+    return 0, ultimo.encode()[:120]
 
 
 def titulo(t):
-    print()
-    print("=" * 78)
-    print(t)
-    print("=" * 78)
-
-
-def linea(estado, cuerpo, etiqueta, muestra=200):
-    marca = "OK " if estado == 200 else "   "
-    n = len(cuerpo) if isinstance(cuerpo, bytes) else 0
-    print(f"  {marca}{estado:<4} {n:>9}  {etiqueta}")
-    if cuerpo:
-        txt = cuerpo[:muestra].decode("utf-8", "replace").replace("\n", " ")
-        print(f"        {txt}")
+    print("\n" + "=" * 78 + f"\n{t}\n" + "=" * 78)
 
 
 # ---------------------------------------------------------------------------
-# 1. CRONOGRAMAS
-# ---------------------------------------------------------------------------
-def cronogramas():
-    titulo("1. FUENTES CON EL CRONOGRAMA DE PAGOS")
-
-    print("\n-- Ministerio de Economia / datos abiertos --")
-    for u in (
-        "https://apis.datos.gob.ar/series/api/search?q=deuda&limit=20",
-        "https://apis.datos.gob.ar/series/api/search?q=bonar&limit=20",
-        "https://www.argentina.gob.ar/economia/finanzas/deuda",
-        "https://www.argentina.gob.ar/economia/finanzas/graficos-deuda",
-    ):
-        e, c = pedir(u)
-        linea(e, c, u, 260)
-
-    print("\n-- IAMC (publica el flujo de fondos de cada bono) --")
-    for u in (
-        "https://www.iamc.com.ar/",
-        "https://www.iamc.com.ar/EstadisticasDiarias/",
-        "https://api.iamc.com.ar/api/instrumentos",
-    ):
-        e, c = pedir(u)
-        linea(e, c, u, 160)
-
-    print("\n-- Rava (tiene pestaña de flujo de fondos por especie) --")
-    for u in (
-        "https://clasico.rava.com/lib/restapi/v3/publico/perfil/AL30",
-        "https://clasico.rava.com/empresas/perfil.php?e=AL30",
-        "https://www.rava.com/perfil/AL30",
-    ):
-        e, c = pedir(u)
-        linea(e, c, u, 200)
-
-    print("\n-- Bolsar / bonistas / otros --")
-    for u in (
-        "https://bolsar.info/api/Titulos/GetTitulo?simbolo=AL30",
-        "https://bonistas.com/api/bonds",
-        "https://bonistas.com/api/flujos/AL30",
-        "https://api.bonistas.com/bonds",
-    ):
-        e, c = pedir(u)
-        linea(e, c, u, 200)
-
+titulo("1. bonistas.com/api/bonds -- QUE TRAE EXACTAMENTE")
+e, b = pedir("https://bonistas.com/api/bonds")
+print(f"[{e}] {len(b)} bytes")
+datos = None
+if e == 200:
+    datos = json.loads(b)
+    print(f"{len(datos)} filas")
+    print("\nCAMPOS:")
+    for k in sorted(datos[0]):
+        print(f"   {k}")
+    familias = {}
+    for f in datos:
+        familias.setdefault(f.get("bond_family_label") or f.get("bond_family"), []).append(f)
+    print("\nFAMILIAS:")
+    for fam, fs in sorted(familias.items(), key=lambda x: -len(x[1])):
+        print(f"   {len(fs):>4}  {fam}")
+    print("\nUNA FILA COMPLETA DE CADA FAMILIA:")
+    for fam, fs in sorted(familias.items()):
+        print(f"\n--- {fam} ---")
+        print(json.dumps(fs[0], ensure_ascii=False, indent=1)[:1800])
+    print("\nLOS SOBERANOS DEL CANJE:")
+    for f in datos:
+        n = str(f.get("bond_name") or "")
+        if n in ("AL29", "AL30", "AL35", "AE38", "AL41",
+                 "GD29", "GD30", "GD35", "GD38", "GD41", "GD46"):
+            print("  " + json.dumps(f, ensure_ascii=False)[:900])
 
 # ---------------------------------------------------------------------------
-# 2. data912: lo que todavia no se leyo
-# ---------------------------------------------------------------------------
-def campos(url, cuantos=2):
-    e, c = pedir(url)
-    print(f"\n  [{e}] {url}   {len(c) if isinstance(c, bytes) else 0} bytes")
-    if e != 200:
-        print(f"      {c[:200].decode('utf-8','replace')}")
-        return
-    try:
-        d = json.loads(c)
-    except Exception as ex:
-        print(f"      no es JSON: {ex}")
-        return
-    if isinstance(d, dict):
-        print(f"      dict con claves: {sorted(d)[:25]}")
-        return
-    print(f"      {len(d)} filas")
-    if d:
-        print(f"      campos: {sorted(d[0])}")
-        for f in d[:cuantos]:
-            print(f"      {json.dumps(f, ensure_ascii=False)[:400]}")
-        # los simbolos, que es lo que hace falta para armar el universo
-        simbolos = sorted({str(x.get('symbol') or x.get('ticker') or '') for x in d})
-        print(f"      simbolos ({len(simbolos)}): {' '.join(s for s in simbolos if s)[:900]}")
+titulo("2. bonistas: ¿hay endpoint de flujo de fondos?")
+e, b = pedir("https://bonistas.com/")
+print(f"[{e}] home {len(b)} bytes")
+if e == 200:
+    txt = b.decode("utf-8", "replace")
+    rutas = sorted(set(re.findall(r'["\'](/api/[a-zA-Z0-9_\-/\[\]{}.]{2,60})["\']', txt)))
+    print(f"rutas /api/ en el HTML: {rutas}")
+    # Next.js publica sus rutas en el build manifest
+    for m in sorted(set(re.findall(r'/_next/static/[^"\']+_buildManifest\.js', txt)))[:2]:
+        e2, b2 = pedir("https://bonistas.com" + m)
+        print(f"\n[{e2}] {m}")
+        if e2 == 200:
+            paginas = sorted(set(re.findall(r'"(/[a-zA-Z0-9_\-/\[\]]{1,50})"',
+                                            b2.decode("utf-8", "replace"))))
+            print(f"  paginas: {paginas[:60]}")
 
-
-def data912():
-    titulo("2. data912: LOS ENDPOINTS QUE FALTABA MIRAR")
-    for u in (
-        "https://data912.com/live/arg_corp",       # obligaciones negociables
-        "https://data912.com/live/arg_notes",      # letras
-        "https://data912.com/live/arg_bonds",      # soberanos (para ver campos)
-        "https://data912.com/live/mep",
-        "https://data912.com/historical/bonds/AL30",
-    ):
-        campos(u)
-
+for u in ("https://bonistas.com/api/bonds/AL30",
+          "https://bonistas.com/api/bond/AL30",
+          "https://bonistas.com/api/cashflow/AL30",
+          "https://bonistas.com/api/cashflows",
+          "https://bonistas.com/api/flows/AL30",
+          "https://bonistas.com/api/payments/AL30",
+          "https://bonistas.com/api/curve",
+          "https://bonistas.com/api/soberanos",
+          "https://bonistas.com/api/ons"):
+    e, b = pedir(u)
+    marca = "OK " if e == 200 else "   "
+    print(f"  {marca}{e:<4} {len(b):>8}  {u}")
+    if e == 200 and len(b) < 400000:
+        print(f"        {b[:300].decode('utf-8','replace')}")
 
 # ---------------------------------------------------------------------------
-# 3. BYMA con mas variantes
-# ---------------------------------------------------------------------------
-def byma():
-    titulo("3. BYMA: MISMO ENDPOINT, DISTINTO CUERPO")
-    base = "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/"
-    cuerpos = [
-        ("T2", {"excludeZeroPxAndQty": True, "T2": True}),
-        ("T1", {"excludeZeroPxAndQty": True, "T1": True, "T0": False}),
-        ("T0", {"excludeZeroPxAndQty": False, "T0": True}),
-        ("vacio", {}),
-    ]
-    endpoints = [
-        "government-bonds", "public-bonds", "negotiable-obligations",
-        "corporate-bonds", "short-term-government-bonds", "leading-equity",
-        "general-equity", "bluechips", "galpones", "index", "indices",
-    ]
-    for ep in endpoints:
-        for nombre, cuerpo in cuerpos:
-            e, c = pedir(base + ep, cuerpo=cuerpo)
-            # solo se imprime lo que aporta: un 200 con contenido, o un error nuevo
-            interesante = (e == 200 and len(c) > 200) or e not in (200, 401, 404)
-            if interesante:
-                linea(e, c, f"{ep}  [{nombre}]", 200)
-                break
-        else:
-            print(f"     {e:<4}         -  {ep}  (ningun cuerpo sirvio)")
+titulo("3. Rava: el flujo de fondos, ¿viene incrustado en el HTML?")
+e, b = pedir("https://www.rava.com/perfil/AL30")
+print(f"[{e}] {len(b)} bytes")
+if e == 200:
+    txt = b.decode("utf-8", "replace")
+    for palabra in ("flujo", "amortiz", "cupon", "cronograma", "renta"):
+        i = txt.lower().find(palabra)
+        print(f"  '{palabra}': {'no aparece' if i < 0 else f'pos {i} -> ' + txt[max(0,i-120):i+260]!r}"[:460])
+    rutas = sorted(set(re.findall(r'["\'](/[a-zA-Z0-9_\-/]*(?:flujo|api|perfil)[a-zA-Z0-9_\-/]{0,40})["\']', txt)))
+    print(f"  rutas candidatas: {rutas[:40]}")
 
-    print("\n-- ¿hay documentacion de la API? --")
-    for u in (
-        "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/swagger.json",
-        "https://open.bymadata.com.ar/v3/api-docs",
-        "https://open.bymadata.com.ar/swagger-ui/index.html",
-        "https://open.bymadata.com.ar/assets/config/config.json",
-    ):
-        e, c = pedir(u)
-        linea(e, c, u, 300)
-
-
-if __name__ == "__main__":
-    cronogramas()
-    data912()
-    byma()
-    print("\n[fin]")
+print("\n[fin]")
