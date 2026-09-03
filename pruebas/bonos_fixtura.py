@@ -209,6 +209,8 @@ def main():
     # La tira de tipos de cambio va DESPUES del spot: lo necesita para la
     # brecha contra el oficial.
     payload["tc"] = bonos.tipos_de_cambio(filas, spot)
+    # Los sinteticos necesitan las dos patas ya armadas y el spot.
+    payload["sinteticos"] = bonos.sinteticos(payload["pesos"], fut, spot)
     salida = Path(__file__).resolve().parent / "bonos_fixtura.json"
     salida.write_text(json.dumps(payload, separators=(",", ":"), allow_nan=False),
                       encoding="utf-8")

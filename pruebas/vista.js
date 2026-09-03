@@ -162,6 +162,29 @@ const srv=http.createServer((q,r)=>{
  ok('y en la tabla vuelven los tres', (await seVe()).length===3, (await seVe()).join(' '));
  await pg.click('#chipBonos'); await pg.waitForTimeout(600);
 
+ /* Los sinteticos viven en Futuros, que es donde se mira el carry. */
+ console.log('\n== la tasa sintetica en dolares ==');
+ for(const x of await pg.$$('.bo-pest button')){
+   if(/Futuros/i.test(await x.textContent())){await x.click();break;} }
+ await pg.waitForTimeout(800);
+ const sint=await pg.evaluate(()=>{
+   const t=[...document.querySelectorAll('#bonosCuerpo .bo-tarjeta')]
+     .find(c=>/sintética/i.test(c.querySelector('.bo-tit').textContent));
+   if(!t)return null;
+   return {filas:t.querySelectorAll('tbody tr').length,
+           cols:[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim()),
+           vacias:[...t.querySelectorAll('tbody td')].filter(d=>!d.textContent.trim()).length};
+ });
+ ok('la tabla de sinteticos esta en Futuros', !!sint);
+ if(sint){
+   ok('con filas', sint.filas>0, sint.filas);
+   ok('y las columnas que importan',
+      ['letra','futuro','descalce','efectiva','TNA']
+        .every(c=>sint.cols.some(x=>x.toLowerCase()===c.toLowerCase())),
+      sint.cols.join(' '));
+   ok('sin celdas vacias', sint.vacias===0, sint.vacias);
+ }
+
  console.log('\n== las otras vistas tampoco explotan ==');
  for(const [n,sel] of [['Soberanos','.cv-pt'],['Futuros','.fu-pt'],
                        ['Corporativos','.bo-tabla']]){

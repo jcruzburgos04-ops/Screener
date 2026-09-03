@@ -923,6 +923,69 @@ def tipos_de_cambio(filas, oficial=None):
     return tc
 
 
+def sinteticos(pesos, futs, spot):
+    """
+    La tasa en dolares que sale de combinar una letra en pesos con un futuro:
+    comprar la letra hoy con dolares y vender los pesos del vencimiento al
+    futuro deja un rendimiento EN DOLARES, sin riesgo de tipo de cambio.
+
+    Es la tabla "Sinteticos tasa fija" del informe de referencia, y la cuenta
+    es la de ellos, verificada contra sus seis filas:
+
+        entra  = precio / spot          dolares que cuesta un nominal hoy
+        sale   = cobro  / futuro        dolares que se cobran al vencer
+        efectiva = sale/entra - 1       y TNA = efectiva * 365/dias
+
+    El spot es el OFICIAL, no el MEP. Se ve en su propia tabla: la columna
+    "USD Oficiales" del informe da 0,08 para el S30S6, que es 115,46/1512,7.
+
+    SOLO SE ARMA CON LO QUE CAPITALIZA Y PAGA TODO JUNTO -- las de tasa fija --
+    porque hace falta saber CUANTO se cobra al vencimiento, y eso solo se puede
+    afirmar cuando no amortiza. Si el `pago` no trae `cobra`, esa letra no
+    entra: inventar el residual seria inventar la tasa.
+
+    EL FUTURO SE ELIGE POR CERCANIA de vencimiento y se informa el DESCALCE en
+    dias. Un descalce grande no invalida la cuenta pero la ensucia -- entre el
+    vencimiento de la letra y el del futuro quedas en pesos --, asi que se
+    muestra y el que mira decide.
+    """
+    fija = next((c for c in pesos if c.get("clave") == "Fijo"), None)
+    if not fija or not futs or not spot:
+        return []
+    vivos = [f for f in futs if f.get("precio") and (f.get("dias") or 0) > 0]
+    if not vivos:
+        return []
+
+    salida = []
+    for x in fija["filas"]:
+        pg = x.get("pago") or {}
+        # Sin cobro afirmable no hay sintetico. Es la mitad de la cuenta.
+        if not pg.get("cobra") or not x.get("precio") or not x.get("dias"):
+            continue
+        f = min(vivos, key=lambda v: abs((v["dias"] or 0) - x["dias"]))
+        entra = x["precio"] / spot
+        sale = pg["cobra"] / f["precio"]
+        if entra <= 0:
+            continue
+        efectiva = sale / entra - 1
+        salida.append({
+            "t": x["t"],
+            "futuro": f["t"],
+            "px_fija": x["precio"],
+            "px_futuro": f["precio"],
+            "cobra": pg["cobra"],
+            "vto": x["vto"],
+            "dias": x["dias"],
+            # Cuantos dias quedas en pesos entre que cobra la letra y liquida
+            # el futuro. Cero es lo ideal; grande, la cuenta se ensucia.
+            "descalce": (f["dias"] or 0) - x["dias"],
+            "efectiva": round(efectiva, 6),
+            "tna": round(efectiva * 365 / x["dias"], 6),
+        })
+    salida.sort(key=lambda r: r["dias"])
+    return salida
+
+
 def canje_de_leyes(filas):
     """
     Cuanto cuesta el ley argentina contra su gemelo de Nueva York, por par.
@@ -1041,6 +1104,9 @@ def main():
         # La tira de arriba: por donde sale mas caro el dolar. No baja nada
         # nuevo, resume lo que ya se calculo bono por bono.
         "tc": tipos_de_cambio(filas, spot),
+        # Letra en pesos + futuro de dolar = tasa en dolares sin riesgo de
+        # tipo de cambio. Las dos patas ya estan bajadas.
+        "sinteticos": sinteticos(pesos, futs, spot),
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)

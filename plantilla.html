@@ -3936,6 +3936,41 @@ function graficoFuturos(futs, fija){
     </svg></div></div>`;
 }
 
+/* ---------- sinteticos: letra en pesos + futuro ----------
+   Comprar una letra en pesos con dolares y vender los pesos del vencimiento al
+   futuro deja un rendimiento EN DOLARES sin riesgo de tipo de cambio. Es
+   contra ESTA tasa que se compara un bono en dolares: si el sintetico paga mas
+   que un soberano corto, el soberano no esta barato.
+
+   El descalce se muestra siempre. Entre que cobra la letra y liquida el
+   futuro quedas en pesos, y esos dias no estan cubiertos: con cero da igual,
+   con veinte la tasa que dice la tabla no es la que vas a sacar. */
+const COLS_SINT=[
+  {h:'letra',   cl:'tk', v:x=>esc(x.t)},
+  {h:'futuro',  v:x=>esc(x.futuro)},
+  {h:'vence',   v:x=>bfecha(x.vto)},
+  {h:'días',    v:x=>bnum(x.dias,0)},
+  {h:'descalce',tit:'Días entre que cobra la letra y liquida el futuro. Esos días quedás en pesos',
+   v:x=>x.descalce?`<span class="bo-raros">${x.descalce>0?'+':''}${bnum(x.descalce,0)}</span>`:'0'},
+  {h:'px letra',v:x=>bnum(x.px_fija,2)},
+  {h:'cobra',   tit:'Lo que se cobra al vencimiento, capital incluido', v:x=>bnum(x.cobra,2)},
+  {h:'px futuro',v:x=>bnum(x.px_futuro,2)},
+  {h:'efectiva',tit:'Lo que rinde en dólares hasta el vencimiento', v:x=>bpc(x.efectiva,2)},
+  {h:'TNA',     cl:'fuerte', tit:'Esa misma tasa anualizada', v:x=>bpc(x.tna)},
+];
+function tablaSinteticos(){
+  const s=(BONOS||{}).sinteticos||[];
+  if(!s.length)return '';
+  return `<div class="bo-tarjeta"><div class="bo-tit">Tasa sintética en dólares
+      <span class="bo-leyenda">${s.length} combinaciones</span></div>
+    <p class="bo-nota">Comprás la letra en pesos con dólares y vendés los pesos del
+      vencimiento al futuro: el resultado es un rendimiento <b>en dólares</b>, sin
+      riesgo de tipo de cambio. <b>Es contra esta tasa que se compara un bono en
+      dólares</b>: si el sintético paga más que un soberano corto, el soberano no
+      está barato. La entrada se cuenta al <b>dólar oficial</b>.</p>
+    ${tablaSimple(s,COLS_SINT,'bo-grande')}</div>`;
+}
+
 /* ---------- futuros de dolar ---------- */
 /* El spot decide TODAS las tasas (la directa es precio/spot - 1), asi que de
    donde salio no es un detalle. El aviso dice lo que REALMENTE paso y no un
@@ -4016,6 +4051,7 @@ function renderFuturos(){
         anualizada y mensualizada. La columna <b>A3</b> es la implícita que publica
         el mercado, para contrastar.</p>
       ${tablaSimple(f,cols,'bo-grande')}</div>`+
+    tablaSinteticos()+
     `<div class="bo-falta"><b>Los contratos y sus vencimientos salen de A3, no de una
       lista de acá.</b> Cuando uno vence deja de venir y desaparece solo; cuando listan
       uno nuevo, aparece solo.${avisoSpot(d)}</div>`;

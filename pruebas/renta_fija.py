@@ -297,6 +297,52 @@ ok("sin oficial hay canje pero no brecha",
 ok("un tc en cero o negativo no cuenta",
    bonos.tipos_de_cambio([{"tc_mep": 0, "tc_cable": -1}], 1500)["mep"] is None)
 
+print("\n== sinteticos: letra en pesos + futuro = tasa en dolares ==")
+# Las SEIS filas de la tabla "Sinteticos tasa fija" del informe de referencia,
+# con sus numeros. La cuenta es la de ellos:
+#   entra = precio/spot · sale = cobro/futuro · efectiva = sale/entra - 1
+# y el spot es el OFICIAL, no el MEP: su columna "USD Oficiales" da 0,08 para
+# el S30S6, que es 115,46/1512,7.
+SFIJA = {"clave": "Fijo", "titulo": "Tasa fija", "filas": [
+    {"t": "S30S6", "precio": 115.46, "dias": 28, "vto": "2026-09-30", "pago": {"cobra": 117.54}},
+    {"t": "S30O6", "precio": 130.29, "dias": 58, "vto": "2026-10-30", "pago": {"cobra": 135.28}},
+    {"t": "S30N6", "precio": 122.27, "dias": 89, "vto": "2026-11-30", "pago": {"cobra": 129.89}},
+    {"t": "T30A7", "precio": 133.05, "dias": 240, "vto": "2027-04-30", "pago": {"cobra": 157.34}},
+    {"t": "T31Y7", "precio": 124.99, "dias": 271, "vto": "2027-05-31", "pago": {"cobra": 151.56}},
+    {"t": "T30J7", "precio": 126.40, "dias": 301, "vto": "2027-06-30", "pago": {"cobra": 156.04}},
+]}
+SFUT = [{"t": "DLR/SEP26", "precio": 1534.0, "dias": 28},
+        {"t": "DLR/OCT26", "precio": 1559.5, "dias": 58},
+        {"t": "DLR/NOV26", "precio": 1586.5, "dias": 89},
+        {"t": "DLR/ABR27", "precio": 1730.0, "dias": 240},
+        {"t": "DLR/MAY27", "precio": 1761.0, "dias": 271},
+        {"t": "DLR/JUN27", "precio": 1765.0, "dias": 301}]
+SREF = {"S30S6": 0.004, "S30O6": 0.007, "S30N6": 0.013,
+        "T30A7": 0.034, "T31Y7": 0.042, "T30J7": 0.058}
+sin_ = bonos.sinteticos([SFIJA], SFUT, 1512.7)
+ok("salen los seis", len(sin_) == 6, len(sin_))
+malos = [f"{x['t']} {x['efectiva']:.4f} != {SREF[x['t']]}"
+         for x in sin_ if not cerca(x["efectiva"], SREF[x["t"]], 6e-4)]
+ok("y la efectiva da la del informe en los seis", not malos, malos)
+# El futuro se elige POR CERCANIA de vencimiento, no por una lista.
+ok("cada letra se empareja con el futuro de su plazo",
+   all(x["descalce"] == 0 for x in sin_), [x["descalce"] for x in sin_])
+ok("y van ordenados por plazo",
+   [x["dias"] for x in sin_] == sorted(x["dias"] for x in sin_))
+
+# SIN COBRO AFIRMABLE NO HAY SINTETICO: la mitad de la cuenta es cuanto se
+# cobra al vencimiento, y eso solo se sabe cuando el papel no amortiza.
+sin_cobro = {"clave": "Fijo", "filas": [
+    {"t": "X", "precio": 100, "dias": 30, "vto": "2026-10-02", "pago": {"cobra": None}}]}
+ok("una letra sin cobro afirmable no entra",
+   bonos.sinteticos([sin_cobro], SFUT, 1512.7) == [])
+ok("sin spot no se arma nada", bonos.sinteticos([SFIJA], SFUT, None) == [])
+ok("sin futuros tampoco", bonos.sinteticos([SFIJA], [], 1512.7) == [])
+# Solo la curva de tasa fija: lo que ajusta por CER o por dolar no sirve para
+# esto, porque su cobro en pesos no se conoce de antemano.
+ok("solo se arma con la curva de tasa fija",
+   bonos.sinteticos([{"clave": "CER", "filas": SFIJA["filas"]}], SFUT, 1512.7) == [])
+
 print("\n== fechas: vencimiento habil, plazos y proximo pago ==")
 # Contra el informe de cierre del 01/09/2026 nuestros dias daban UNO MENOS en
 # los once papeles de tasa fija. NO era un error: ese informe liquida el 02-09
