@@ -563,10 +563,28 @@ def proximo_pago(fila, hoy):
         d = (f - liq).days
     monto = fila.get("coupon")
     rinde = fila.get("coupon_yield")
+    # EL ULTIMO PAGO DEVUELVE TAMBIEN EL CAPITAL. `coupon` es solo la RENTA:
+    # en el S30S6 trae 17,54 y lo que se cobra al vencimiento es 117,54. Sin
+    # sumarle el residual, la columna "cobra" decia el interes y se leia como
+    # el cobro -- un error de 100 sobre 117 en el papel mas operado del panel.
+    #
+    # El residual se toma como 100 y eso vale para las letras que capitalizan,
+    # que es donde `capitaliza` es cierto: no amortizan, devuelven todo junto.
+    # Verificado contra el informe de referencia en los DIEZ papeles de tasa
+    # fija: 100+cupon da su "Pago final" exacto en los diez. Para lo que SI
+    # amortiza el residual no es 100, asi que ahi no se suma nada y se deja el
+    # numero de la fuente, que es lo unico que se sabe.
+    capitaliza = str(fila.get("bond_family") or "").upper() in FAMILIAS_CAPITALIZAN
+    total = None
+    if ultimo and capitaliza and isinstance(monto, (int, float)):
+        total = round(monto + 100.0, 4)
     return {
         "fecha": f.isoformat(),
         "dias": d,
         "monto": round(monto, 4) if isinstance(monto, (int, float)) else None,
+        # Lo que se cobra DE VERDAD ese dia: renta mas capital cuando es el
+        # ultimo de una letra que capitaliza. None cuando no se puede afirmar.
+        "cobra": total,
         # Sobre el valor tecnico, no sobre el precio. Lo publica la fuente.
         "sobre_vt": (round(rinde, 6)
                      if isinstance(rinde, (int, float)) and rinde else None),
@@ -702,6 +720,12 @@ CURVAS_PESOS = [
 
 # Familias que NO son de esta pestaña: los soberanos hard dollar tienen la suya
 # con cronograma verificado, las ONs la suya, y los BOPREAL son otra cosa.
+# Las que NO amortizan: devuelven todo junto al vencimiento, asi que su ultimo
+# pago es renta MAS los 100 de capital. Es la unica condicion bajo la que se
+# puede afirmar cuanto se cobra sin tener el cronograma.
+FAMILIAS_CAPITALIZAN = {"LETRAS-FIJO", "BONO-FIJA", "BONO-CAPITALIZABLE",
+                        "LETRAS-CER", "TAMAR", "BONO-TAMAR", "BONO-BADLAR"}
+
 PREFIJOS_AJENOS = ("ONS", "BONO-USD-", "BOPREAL")
 
 # Y las que terminan en -USD son la MISMA letra liquidada en dolares: la S30S6

@@ -398,6 +398,41 @@ ok("el ultimo pago cae exactamente en el vencimiento de su fila",
    (p_ult["fecha"], p_ult["dias"]) == (v_ult, d_ult), (p_ult, v_ult, d_ult))
 ok("y ese vencimiento es el lunes, no el sabado", p_ult["fecha"] == "2026-10-19")
 
+# EL ULTIMO PAGO DEVUELVE TAMBIEN EL CAPITAL. `coupon` es solo la renta: en el
+# S30S6 trae 17,54 y lo que se cobra al vencimiento son 117,54. Los DIEZ
+# papeles de tasa fija del informe de referencia dan exacto con 100+cupon.
+CAPITAL = [("S15S6", "LETRAS-FIJO", 7.21, 107.21),
+           ("S30S6", "LETRAS-FIJO", 17.54, 117.54),
+           ("TO26",  "BONO-FIJA",   7.75, 107.75),
+           ("S30O6", "LETRAS-FIJO", 35.28, 135.28),
+           ("T15E7", "LETRAS-FIJO", 61.10, 161.10),
+           ("T30J7", "LETRAS-FIJO", 56.04, 156.04)]
+malos = []
+for tk, fam, cup, esperado in CAPITAL:
+    q = bonos.proximo_pago({"end_date": "2026-09-30", "days_to_finish": 27,
+                            "days_to_coupon": 27, "settlement": "24hs",
+                            "coupon": cup, "bond_family": fam}, HOY)
+    if not cerca(q["cobra"], esperado, 0.005):
+        malos.append(f"{tk} {q['cobra']} != {esperado}")
+ok("el ultimo pago de una letra suma los 100 de capital", not malos, malos)
+ok("y la renta sola sigue disponible aparte",
+   cerca(bonos.proximo_pago({"end_date": "2026-09-30", "days_to_finish": 27,
+                             "days_to_coupon": 27, "settlement": "24hs",
+                             "coupon": 17.54, "bond_family": "LETRAS-FIJO"},
+                            HOY)["monto"], 17.54, 1e-9))
+# Lo que amortiza NO se puede afirmar sin el cronograma: queda vacio.
+ok("un instrumento que amortiza no inventa el residual",
+   bonos.proximo_pago({"end_date": "2028-11-09", "days_to_finish": 798,
+                       "days_to_coupon": 798, "settlement": "24hs",
+                       "coupon": 20.6, "bond_family": "BONO-CER"},
+                      HOY)["cobra"] is None)
+# Y un pago que NO es el ultimo tampoco devuelve capital.
+ok("un pago intermedio tampoco",
+   bonos.proximo_pago({"end_date": "2030-05-30", "days_to_finish": 1365,
+                       "days_to_coupon": 88, "settlement": "24hs",
+                       "coupon": 14.75, "bond_family": "BONO-FIJA"},
+                      HOY)["cobra"] is None)
+
 ok("sin days_to_coupon no hay proximo pago",
    bonos.proximo_pago({"end_date": "2027-01-01", "days_to_finish": 100}, HOY) is None)
 # Un days_to_coupon mayor que el plazo al vencimiento es un dato roto, y en

@@ -3723,8 +3723,18 @@ const pagoDias=p=>!p?'·':bnum(p.dias,0);
 /* La variacion del dia. Viene en tanto por uno y bsig espera puntos, asi que
    se multiplica aca y no en cada columna. */
 const bvar=v=>hay(v)?`<span class="${bcol(v*100)}">${bsig(v*100)}</span>`:'·';
-const pagoMonto=p=>!p||!hay(p.monto)?'·'
-  :bnum(p.monto,2)+(p.ultimo?'':'<span class="bo-mas">+</span>');
+/* Lo que se cobra ese dia. Cuando es el ULTIMO de una letra que capitaliza,
+   se cobra tambien el capital: en el S30S6 la fuente trae 17,54 de renta y lo
+   que entra son 117,54. Mostrar el cupon solo se leia como el cobro -- un
+   error de 100 sobre 117 en el papel mas operado del panel. Cuando el
+   instrumento amortiza no se puede afirmar el residual sin el cronograma, asi
+   que ahi se muestra el numero de la fuente, que es la renta. */
+const pagoMonto=p=>{
+  if(!p)return '·';
+  if(hay(p.cobra))return bnum(p.cobra,2);
+  if(!hay(p.monto))return '·';
+  return bnum(p.monto,2)+(p.ultimo?'':'<span class="bo-mas">+</span>');
+};
 
 const COLS_PESOS=[
   {h:'ticker', cl:'tk', v:f=>esc(f.t)},
