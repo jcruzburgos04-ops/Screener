@@ -349,9 +349,15 @@ console.log('== el interruptor de tres posiciones ==');
  const tf=d.querySelector('#bonosCuerpo').textContent;
  const futs=pay.futuros;
  ok('el payload trae contratos',futs.length>=3,futs.length);
- const filasF=d.querySelectorAll('#bonosCuerpo .bo-grande tbody tr');
+ /* La vista de Futuros tiene DOS tablas: los contratos y los sinteticos.
+    Contar `.bo-grande tbody tr` a secas sumaba las dos y daba 8 sobre 4. Cada
+    tabla lleva su clase propia justamente para que esto no vuelva a pasar. */
+ const filasF=d.querySelectorAll('#bonosCuerpo .t-futuros tbody tr');
  ok('un renglon por contrato vivo',filasF.length===futs.length,
     filasF.length+' vs '+futs.length);
+ ok('los sinteticos van en su propia tabla, aparte de los contratos',
+    d.querySelectorAll('#bonosCuerpo .t-sinteticos').length===1&&
+    d.querySelectorAll('#bonosCuerpo .t-futuros').length===1);
  ok('los nombra como el mercado',/DLR\/SEP26/.test(tf),tf.slice(0,120));
  /* La pantalla escribe en es-AR: 1508.5 sale como "1.508,50". */
  const arSpot=pay.spot.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});

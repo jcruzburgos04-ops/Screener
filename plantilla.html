@@ -3968,7 +3968,7 @@ function tablaSinteticos(){
       riesgo de tipo de cambio. <b>Es contra esta tasa que se compara un bono en
       dólares</b>: si el sintético paga más que un soberano corto, el soberano no
       está barato. La entrada se cuenta al <b>dólar oficial</b>.</p>
-    ${tablaSimple(s,COLS_SINT,'bo-grande')}</div>`;
+    ${tablaSimple(s,COLS_SINT,'bo-grande t-sinteticos')}</div>`;
 }
 
 /* ---------- futuros de dolar ---------- */
@@ -4050,7 +4050,7 @@ function renderFuturos(){
         vencimiento, contra el spot. <b>TNA</b> y <b>TEM</b> son esa misma tasa
         anualizada y mensualizada. La columna <b>A3</b> es la implícita que publica
         el mercado, para contrastar.</p>
-      ${tablaSimple(f,cols,'bo-grande')}</div>`+
+      ${tablaSimple(f,cols,'bo-grande t-futuros')}</div>`+
     tablaSinteticos()+
     `<div class="bo-falta"><b>Los contratos y sus vencimientos salen de A3, no de una
       lista de acá.</b> Cuando uno vence deja de venir y desaparece solo; cuando listan
