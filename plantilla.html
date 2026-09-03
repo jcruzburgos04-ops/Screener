@@ -584,6 +584,17 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-scroll{overflow-x:auto}
 /* Las dos pestañas de la vista de bonos. Botones y no chips: son navegacion,
    no filtros, y confundir las dos cosas ya paso con los chips de vistas. */
+/* La tira de tipos de cambio. Va arriba de las pestañas porque es de la
+   seccion entera, no de una: mires bonos, pesos o futuros, la pregunta
+   "cuanto vale el dolar por donde lo saque" es la misma. */
+.bo-tc{display:flex;gap:.45rem;margin:0 1.1rem .7rem;flex-wrap:wrap}
+.tc-caja{background:var(--panel);border:1px solid var(--borde);
+  border-radius:var(--r2);padding:.4rem .75rem;min-width:0}
+.tc-caja span{display:block;font-size:var(--t0);color:var(--tenue);
+  letter-spacing:.085em;text-transform:uppercase}
+.tc-caja b{display:block;font-family:var(--mono);font-size:var(--t4);
+  font-variant-numeric:tabular-nums;line-height:1.35}
+.tc-caja em{display:block;font-size:var(--t0);color:var(--tenue);font-style:normal}
 .bo-pest{display:flex;gap:.3rem;margin:0 1.1rem .7rem;border-bottom:1px solid var(--borde)}
 .bo-pest button{background:none;border:0;border-bottom:2px solid transparent;
   color:var(--tenue);font-family:var(--sans);font-size:var(--t2);font-weight:500;
@@ -4139,9 +4150,34 @@ const PESTANAS=[
   ['fut','Futuros',       d=>(d.futuros||[]).length],
   ['ons','Corporativos',  d=>(d.ons||[]).length],
 ];
+/* LA TIRA DE TIPOS DE CAMBIO, arriba de las pestañas: es lo primero que se
+   mira al entrar y vale para las cuatro, no para una. Sale de lo que ya se
+   calculo bono por bono, no baja nada nuevo.
+
+   Cada numero se muestra SOLO si existe. Sin oficial hay canje pero no brecha,
+   y en ese caso la casilla no aparece en vez de mostrar un guion que se lee
+   como "la brecha es cero". */
+function tiraTC(){
+  const t=(BONOS||{}).tc;
+  if(!t||!t.mep)return '';
+  const caja=(rot,val,nota,cl)=>(val===null||val===undefined||val==='')?'':
+    `<div class="tc-caja"><span>${rot}</span><b class="${cl||''}">${val}</b>`+
+    (nota?`<em>${nota}</em>`:'')+`</div>`;
+  const pesos=v=>bnum(v,2);
+  return `<div class="bo-tc">`+
+    caja('oficial', hay(t.oficial)?pesos(t.oficial):null,
+         BONOS.spot_fuente?esc(BONOS.spot_fuente):'')+
+    caja('MEP', pesos(t.mep), `mediana de ${t.bonos} soberanos`)+
+    caja('cable', hay(t.ccl)?pesos(t.ccl):null, 'liquida afuera')+
+    caja('brecha', hay(t.brecha)?bpc(t.brecha,1):null,
+         'contra el oficial', t.brecha>0?'up':'')+
+    caja('canje', hay(t.canje)?bpc(t.canje,1):null, 'cable sobre MEP')+
+    `</div>`;
+}
+
 function pestanas(){
   const d=BONOS||{};
-  return `<div class="bo-pest" id="bonosPestanas">`+
+  return tiraTC()+`<div class="bo-pest" id="bonosPestanas">`+
     PESTANAS.map(([k,rot,cuenta])=>{
       const n=cuenta(d)||0;
       return `<button type="button" class="${bonosPestana===k?'on':''}" data-pest="${k}">`+

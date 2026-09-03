@@ -266,6 +266,37 @@ ok("LECAP y BONCAP caen en la MISMA curva de tasa fija",
    len(j) == 1 and sorted(f["t"] for f in j[0]["filas"]) == ["S30S6", "TO26"],
    [(x["clave"], [f["t"] for f in x["filas"]]) for x in j])
 
+print("\n== la tira de tipos de cambio ==")
+# Las dos formulas estan verificadas contra el informe de referencia del
+# 01/09/2026, que publica oficial 1512,7 / MEP 1532,7 / CCL 1594,9 y de ahi
+# saca brecha promedio 3,38% y canje 4,06%.
+t = bonos.tipos_de_cambio(
+    [{"tc_mep": 1532.7, "tc_cable": 1594.9}], 1512.7)
+ok("el canje es CCL sobre MEP", cerca(t["canje"], 0.0406, 5e-5), t["canje"])
+ok("la brecha promedia las dos contra el oficial",
+   cerca(t["brecha"], 0.0338, 5e-5), t["brecha"])
+
+# Se usa la MEDIANA: un bono con la punta vieja no puede correr el tipo de
+# cambio de todo el mercado.
+CON_RARO = [{"tc_mep": 1530, "tc_cable": 1590},
+            {"tc_mep": 1532, "tc_cable": 1592},
+            {"tc_mep": 1534, "tc_cable": 1594},
+            {"tc_mep": 9999, "tc_cable": 9999}]
+r = bonos.tipos_de_cambio(CON_RARO, 1500)
+ok("un tipo de cambio absurdo no mueve la mediana",
+   1530 <= r["mep"] <= 1534, r["mep"])
+ok("y se dice de cuantos bonos salio", r["bonos"] == 4, r["bonos"])
+
+# Sin datos NO se inventa un numero: se deja vacio.
+v = bonos.tipos_de_cambio([], None)
+ok("sin bonos no hay tipo de cambio", v["mep"] is None and v["ccl"] is None)
+ok("ni brecha ni canje", v["brecha"] is None and v["canje"] is None)
+sin_of = bonos.tipos_de_cambio([{"tc_mep": 1500, "tc_cable": 1600}], None)
+ok("sin oficial hay canje pero no brecha",
+   sin_of["canje"] is not None and sin_of["brecha"] is None)
+ok("un tc en cero o negativo no cuenta",
+   bonos.tipos_de_cambio([{"tc_mep": 0, "tc_cable": -1}], 1500)["mep"] is None)
+
 print("\n== fechas: vencimiento habil, plazos y proximo pago ==")
 # Contra el informe de cierre del 01/09/2026 nuestros dias daban UNO MENOS en
 # los once papeles de tasa fija. NO era un error: ese informe liquida el 02-09

@@ -849,6 +849,56 @@ def armar_pesos(crudo, hoy=None):
     return salida
 
 
+def tipos_de_cambio(filas, oficial=None):
+    """
+    La tira de arriba: cuantos pesos vale un dolar segun por donde lo saques.
+
+    NO baja nada nuevo. El MEP y el cable ya salen bono por bono -- comprar el
+    bono en pesos y venderlo en dolares -- y el oficial es el mismo spot que ya
+    usan los futuros. Aca solo se resumen.
+
+    SE USA LA MEDIANA, no el promedio. Un soberano con la punta vieja te corre
+    el promedio de todo el mercado; la mediana no se mueve. Es el mismo
+    criterio que el resto del proyecto (los atrasos, la fecha del panel).
+
+    Las dos formulas verificadas contra el informe de referencia del
+    01/09/2026, que publica oficial 1512,7 / MEP 1532,7 / CCL 1594,9:
+
+      brecha promedio = promedio de (MEP/oficial - 1) y (CCL/oficial - 1)
+                      = 3,38%, que es lo que dice
+      canje           = CCL/MEP - 1 = 4,06%, idem
+
+    (Un test mio afirmaba que promediar las dos brechas y sacar la brecha del
+    promedio daban distinto. Es falso: con el mismo denominador las dos cuentas
+    son la misma, ((a/c-1)+(b/c-1))/2 = (a+b)/(2c)-1. Queda anotado porque la
+    afirmacion sonaba razonable y no lo era.)
+    """
+    def mediana(vs):
+        vs = sorted(v for v in vs if isinstance(v, (int, float)) and v > 0)
+        if not vs:
+            return None
+        m = len(vs) // 2
+        return vs[m] if len(vs) % 2 else (vs[m - 1] + vs[m]) / 2
+
+    mep = mediana(f.get("tc_mep") for f in filas)
+    ccl = mediana(f.get("tc_cable") for f in filas)
+    tc = {
+        "oficial": round(oficial, 2) if oficial else None,
+        "mep": round(mep, 2) if mep else None,
+        "ccl": round(ccl, 2) if ccl else None,
+        "brecha": None,
+        "canje": None,
+        # De cuantos bonos salio cada mediana: con dos o tres no es una
+        # mediana, es un promedio con pretensiones, y la pantalla lo dice.
+        "bonos": sum(1 for f in filas if f.get("tc_mep")),
+    }
+    if mep and ccl:
+        tc["canje"] = round(ccl / mep - 1, 6)
+    if oficial and mep and ccl:
+        tc["brecha"] = round(((mep / oficial - 1) + (ccl / oficial - 1)) / 2, 6)
+    return tc
+
+
 def canje_de_leyes(filas):
     """
     Cuanto cuesta el ley argentina contra su gemelo de Nueva York, por par.
@@ -964,6 +1014,9 @@ def main():
         # El dia al que corresponde el panel de renta fija, segun la fuente.
         # Lo usa el diagnostico para verificar que los plazos no se corrieron.
         "fecha_panel": fecha_panel,
+        # La tira de arriba: por donde sale mas caro el dolar. No baja nada
+        # nuevo, resume lo que ya se calculo bono por bono.
+        "tc": tipos_de_cambio(filas, spot),
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)

@@ -120,6 +120,26 @@ const srv=http.createServer((q,r)=>{
       Math.round(m.alto)+' vs tabla '+Math.round(m.altoTabla));
  }
 
+ /* La tira de tipos de cambio: cinco cajas con NUMEROS, no vacias. Nacio
+    rota y en el DOM se veia perfecta -- las cajas se filtraban con hay(), que
+    pide un numero, y les llegaba el valor YA FORMATEADO ("1.529,99"), asi que
+    isFinite daba false y las cinco se caian en silencio. */
+ console.log('\n== la tira de tipos de cambio ==');
+ const tc=await pg.evaluate(()=>[...document.querySelectorAll('.tc-caja')]
+   .map(c=>({rot:c.querySelector('span').textContent.trim(),
+             val:c.querySelector('b').textContent.trim()})));
+ ok('estan las cinco cajas', tc.length===5, tc.length);
+ ok('y ninguna vacia', tc.every(c=>c.val.length>0), JSON.stringify(tc));
+ ok('con oficial, MEP, cable, brecha y canje',
+    ['oficial','MEP','cable','brecha','canje']
+      .every(r=>tc.some(c=>c.rot.toLowerCase()===r.toLowerCase())),
+    tc.map(c=>c.rot).join(' '));
+ /* Y esta arriba de las pestañas, porque vale para las cuatro. */
+ ok('va antes de las pestañas',
+    await pg.evaluate(()=>{const t=document.querySelector('.bo-tc'),
+      p=document.querySelector('.bo-pest');
+      return !!(t&&p)&&(t.compareDocumentPosition(p)&Node.DOCUMENT_POSITION_FOLLOWING)>0;}));
+
  /* LOS CONTROLES DE LA TABLA SE VAN CON ELLA. `hidden` lo pone el JS, pero
     quien decide si algo se ve es el CSS: `[hidden]{display:none}` viene de la
     hoja del navegador y PIERDE contra cualquier regla del autor, y aca habia
