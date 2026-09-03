@@ -461,7 +461,8 @@ console.log('== el interruptor de tres posiciones ==');
     por posicion que ya se pago cara con `aside input`. */
  const colDe=(nombre)=>{
    const th=[...d.querySelectorAll('#bonosCuerpo .bo-tabla thead th')];
-   const i=th.findIndex(x=>x.textContent.trim().toLowerCase()===nombre);
+   const limpio=x=>x.textContent.replace(/[▾▴]/g,'').trim().toLowerCase();
+   const i=th.findIndex(x=>limpio(x)===nombre);
    if(i<0)throw new Error('no existe la columna '+nombre);
    return i;};
  const iTir=colDe('tir');
@@ -484,6 +485,51 @@ console.log('== el interruptor de tres posiciones ==');
  await esperar(150);
  ok('se puede ordenar por emisor',
     d.querySelector('#bonosCuerpo th[data-ord="emisor"]').classList.contains('on'));
+
+ /* TODAS las columnas, no solo las tres que se probaban. La clave de orden
+    salia de la POSICION de la cabecera, con una lista suelta de diez nombres:
+    al agregar las tres del proximo pago y la de variacion quedaron catorce
+    columnas contra diez claves, y de "cupon" en adelante cada cabecera
+    ordenaba por otra cosa o por undefined. Ahora cada columna declara su `k`,
+    y esto verifica que NINGUNA se quede sin ella. */
+ {
+  const ths=[...d.querySelectorAll('#bonosCuerpo thead th')];
+  const sin=ths.filter(t=>!t.dataset.ord).map(t=>t.textContent.trim());
+  ok('todas las columnas declaran por que campo ordenan',
+     sin.length===0, sin.join(' '));
+  ok('y son tantas como columnas hay',
+     ths.length===pay.ons.length?ths.length:ths.length>=14, ths.length);
+  /* Y ordenan de verdad: tocar cada una tiene que dejarla marcada y cambiar
+     el contenido de su propia columna respecto del orden anterior. */
+  /* La cabecera se vuelve a buscar POR INDICE en cada vuelta: tocar una
+     rehace toda la tabla, asi que el <th> que se tenia guardado queda
+     desprendido del documento y hacerle clic no dispara nada. Esto ya me hizo
+     ver "no ordena" en trece columnas que ordenaban perfecto. */
+  const malas=[];
+  const celda=n=>[...d.querySelectorAll('#bonosCuerpo tbody tr')]
+    .map(tr=>tr.children[n].textContent.trim());
+  const especies=()=>[...d.querySelectorAll('#bonosCuerpo tbody tr')]
+    .map(tr=>tr.children[0].textContent.trim()).join('|');
+  const tocar=n=>d.querySelectorAll('#bonosCuerpo thead th')[n]
+    .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+  ths.forEach((_,n)=>{
+    /* Dos clics: el primero ordena descendente, el segundo lo da vuelta. Si
+       la columna ORDENA DE VERDAD, las dos listas tienen que ser distintas.
+       Comparar contra el orden anterior no sirve: con cuatro filas, ordenar
+       por una columna puede devolver el mismo orden que ya habia y eso no es
+       una falla. Y si todos los valores son iguales no hay nada que ordenar,
+       asi que esa columna se saltea. */
+    tocar(n);
+    const th2=d.querySelectorAll('#bonosCuerpo thead th')[n];
+    const nombre=th2.textContent.replace(/[▾▴]/g,'').trim();
+    if(!th2.classList.contains('on')){malas.push(nombre+':no marca');return;}
+    if(new Set(celda(n)).size<2)return;          // todos iguales: nada que ordenar
+    const desc=especies();
+    tocar(n);
+    if(especies()===desc)malas.push(nombre+':asc y desc dan lo mismo');
+  });
+  ok('y tocar cualquiera reordena por ESA columna', malas.length===0, malas.join(' '));
+ }
 
  console.log('\n== buscar en la tabla plana ==');
  const inp=d.querySelector('#buscaOns');

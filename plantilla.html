@@ -518,6 +518,12 @@ kbd{font-family:var(--mono);font-size:var(--t0);background:var(--panel3);
 .detalle .meta{color:var(--tenue);font-size:var(--t2);flex:1;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .tf{display:flex;gap:.3rem;flex:none}
+/* `hidden` tiene que ganarle a CUALQUIER display del autor. El del navegador
+   es `[hidden]{display:none}` de la hoja de usuario-agente, que pierde contra
+   `.tf{display:flex}`: por eso los menus de la tabla seguian a la vista en
+   Bonos aunque el JS les pusiera hidden=true. Es un modo silencioso de romper
+   -- el codigo dice que esconde y no esconde -- asi que va con !important. */
+[hidden]{display:none!important}
 canvas{display:block;width:100%;cursor:crosshair}
 #globo{position:absolute;pointer-events:none;background:#080C11;
   border:1px solid var(--borde2);border-radius:4px;padding:.45rem .6rem;
@@ -1001,7 +1007,7 @@ body.cajon #velo{display:block}
          interruptores que van y vienen; la tercera abre menus. Estando todos
          en la misma capsula, "Panorama" y "★ favoritos" prendidos a la vez se
          leian como dos opciones elegidas del mismo control, que no existe. -->
-    <div class="tf grupo-chips inter">
+    <div class="tf grupo-chips inter" id="interTabla">
       <span class="chip" id="chipFav" title="Sólo favoritos · tecla F">★ favoritos</span>
       <span class="chip on" id="chipGrafico" title="Mostrar u ocultar el gráfico · tecla G">Gráfico</span>
     </div>
@@ -3335,8 +3341,14 @@ function verVista(cual){
      controles a la vista invita a tocarlos y despues a no entender por que no
      pasa nada. Se esconden, y de paso se cierran, que si no quedaba un menu
      flotando sobre una vista que ya no era la suya. */
+  /* TODO lo que opera sobre la tabla se va con ella, no solo los tres menus:
+     tambien los filtros guardados y los interruptores de favoritos y grafico.
+     Mirando la seccion de bonos, un desplegable que dice "SOBRE W, 75 RSI, 60
+     RS, SIN DAILY" no significa nada -- y peor, sugiere que esa vista esta
+     filtrada por eso, que no lo esta. */
   const enTabla = cual === 't';
-  $('#menusTabla').hidden = !enTabla;
+  for(const id of ['#menusTabla','#interTabla','#selRapido','#selRapidoLindo'])
+    { const e=$(id); if(e)e.hidden = !enTabla; }
   if(!enTabla)cerrarMenus();
   /* Salir a otra vista suelta el engranaje: es un panel de la pagina, no de la
      vista, pero tenerlo abierto tapando la mitad al cambiar de pantalla es
@@ -3997,26 +4009,35 @@ function renderFuturos(){
    rendimiento ni comparar dos emisores al mismo plazo sin abrir y cerrar
    emisores. Plana se lee como el panel de tasas, que es de donde vino el
    pedido. El emisor queda como columna y como buscador. */
+/* Cada columna dice POR QUE CAMPO se ordena (`k`). Antes la clave salia de la
+   POSICION, con una lista suelta de diez nombres al lado de la cabecera; al
+   agregar las tres columnas del proximo pago y la de variacion quedaron
+   catorce columnas contra diez claves, asi que de "cupon" en adelante cada
+   cabecera ordenaba por otra cosa o por `undefined` -- que es lo que se veia:
+   "no me deja ordenar por la columna que elijo". Es la misma trampa que ya
+   costo caro con `aside input` y con el `td[7]` de las pruebas. */
 const COLS_ONS=[
-  {h:'especie', cl:'tk', v:o=>esc(o.t)+(o.cable
+  {h:'especie', k:'t', cl:'tk', v:o=>esc(o.t)+(o.cable
     ?'<span class="bo-cable" title="Liquida afuera (cable)">C</span>':'')},
-  {h:'emisor',  cl:'corto', v:o=>`<span title="${esc(o.emisor)}">${esc(o.emisor)}</span>`},
-  {h:'ley',     v:o=>o.ley==='Argentina'?'Arg':'NY'},
-  {h:'vence',   v:o=>bfecha(o.vto)},
-  {h:'días',    v:o=>bnum(o.dias,0)},
-  {h:'cupón',   tit:'Tasa nominal anual del cupón. Vacío si es step-up: ahí no hay una sola tasa',
+  {h:'emisor',  k:'emisor', cl:'corto', v:o=>`<span title="${esc(o.emisor)}">${esc(o.emisor)}</span>`},
+  {h:'ley',     k:'ley', v:o=>o.ley==='Argentina'?'Arg':'NY'},
+  {h:'vence',   k:'vto', v:o=>bfecha(o.vto)},
+  {h:'días',    k:'dias', v:o=>bnum(o.dias,0)},
+  {h:'cupón',   k:'cupon', tit:'Tasa nominal anual del cupón. Vacío si es step-up: ahí no hay una sola tasa',
    v:o=>hay(o.cupon)?bnum(o.cupon,2)+'%':'·'},
-  {h:'próx. pago', tit:'Cuándo cobra el que la compra hoy',
+  /* Las tres del pago ordenan por dentro del objeto `pago`, que es donde
+     viven. Sin esto habria que aplanarlo solo para poder ordenar. */
+  {h:'próx. pago', k:'pago.fecha', tit:'Cuándo cobra el que la compra hoy',
    v:o=>pagoFecha(o.pago)},
-  {h:'en',      tit:'Días hasta ese pago, contados desde la liquidación',
+  {h:'en',      k:'pago.dias', tit:'Días hasta ese pago, contados desde la liquidación',
    v:o=>pagoDias(o.pago)},
-  {h:'cobra',   tit:'Importe de ese pago cada 100 nominales. El + marca que faltan más pagos después',
+  {h:'cobra',   k:'pago.monto', tit:'Importe de ese pago cada 100 nominales. El + marca que faltan más pagos después',
    v:o=>pagoMonto(o.pago)},
-  {h:'precio',  v:o=>bnum(o.precio,2)},
-  {h:'TIR',     cl:'fuerte', tit:'La calcula bonistas.com, no este programa', v:o=>bpc(o.tir)},
-  {h:'durat.',  v:o=>bnum(o.duration,2)},
-  {h:'paridad', v:o=>bpc(o.paridad,1)},
-  {h:'var',     tit:'Cuánto se movió el precio hoy', v:o=>bvar(o.var)},
+  {h:'precio',  k:'precio', v:o=>bnum(o.precio,2)},
+  {h:'TIR',     k:'tir', cl:'fuerte', tit:'La calcula bonistas.com, no este programa', v:o=>bpc(o.tir)},
+  {h:'durat.',  k:'duration', v:o=>bnum(o.duration,2)},
+  {h:'paridad', k:'paridad', v:o=>bpc(o.paridad,1)},
+  {h:'var',     k:'var', tit:'Cuánto se movió el precio hoy', v:o=>bvar(o.var)},
 ];
 
 /* Ordenar es la razon de aplanarla: sin esto una tabla de 600 filas es peor
@@ -4038,8 +4059,10 @@ function renderOns(){
   const filas=todas.filter(o=>!q||
     (o.t+' '+o.emisor+' '+(o.resumen||'')).toLowerCase().indexOf(q)>=0);
   const k=ordenOns.k, signo=ordenOns.desc?-1:1;
+  // `pago.dias` y compañia viven adentro de un objeto: se baja por el punto.
+  const val=(o,c)=>c.split('.').reduce((v,p)=>v==null?v:v[p], o);
   filas.sort((a,b)=>{
-    const x=a[k], y=b[k];
+    const x=val(a,k), y=val(b,k);
     if(typeof x==='string'||typeof y==='string')
       return String(x||'').localeCompare(String(y||''))*signo;
     /* Los que no tienen dato van SIEMPRE al fondo, se ordene como se ordene:
@@ -4050,9 +4073,9 @@ function renderOns(){
     return (x-y)*signo;
   });
 
-  const cab=COLS_ONS.map((c,i)=>{
-    const clave=['t','emisor','ley','vto','dias','cupon','precio','tir','duration','paridad'][i];
-    const act=ordenOns.k===clave;
+  const cab=COLS_ONS.map(c=>{
+    const clave=c.k, act=ordenOns.k===clave;
+    if(!clave)return `<th>${esc(c.h)}</th>`;
     return `<th class="orden ${act?'on':''}" data-ord="${clave}"${c.tit?` title="${esc(c.tit)}"`:''}>`+
       `${esc(c.h)}${act?(ordenOns.desc?' ▾':' ▴'):''}</th>`;
   }).join('');
@@ -4300,6 +4323,11 @@ function selectorLindo(sel,ancho){
   const lista=document.createElement('div');
   lista.className='sel-lista';lista.setAttribute('role','listbox');
   cont.appendChild(boton);cont.appendChild(lista);
+  /* El contenedor hereda el id del select con el sufijo `Lindo`, para que se
+     lo pueda esconder desde afuera: el <select> original queda tapado y lo que
+     se ve en la barra es ESTE div, asi que esconder solo el select no saca
+     nada de la pantalla. */
+  if(sel.id)cont.id=sel.id+'Lindo';
   sel.parentNode.insertBefore(cont,sel.nextSibling);
   if(sel.id!=='selRapido')sel.classList.add('oculto-sel');
   sel._selector={cont,boton,lista,sel};

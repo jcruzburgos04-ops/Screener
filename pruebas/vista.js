@@ -120,6 +120,28 @@ const srv=http.createServer((q,r)=>{
       Math.round(m.alto)+' vs tabla '+Math.round(m.altoTabla));
  }
 
+ /* LOS CONTROLES DE LA TABLA SE VAN CON ELLA. `hidden` lo pone el JS, pero
+    quien decide si algo se ve es el CSS: `[hidden]{display:none}` viene de la
+    hoja del navegador y PIERDE contra cualquier regla del autor, y aca habia
+    un `.tf{display:flex}`. Resultado: el codigo decia que escondia, no
+    escondia, y en la seccion de bonos seguian a la vista los filtros, los
+    indicadores, las columnas y hasta el desplegable de filtros guardados
+    diciendo "SOBRE W, 75 RSI, 60 RS, SIN DAILY" -- que ademas sugiere que esa
+    vista esta filtrada por eso, y no lo esta.
+
+    jsdom no puede ver esto: para el, hidden=true es hidden=true. Hay que
+    preguntarle al navegador si el elemento OCUPA LUGAR. */
+ console.log('\n== los controles de la tabla no aparecen en otras vistas ==');
+ const seVe=()=>pg.evaluate(()=>['#menusTabla','#interTabla','#selRapidoLindo']
+   .filter(s=>{const e=document.querySelector(s); if(!e)return false;
+     const r=e.getBoundingClientRect(); return r.width>0&&r.height>0;}));
+ ok('en bonos no se ve ninguno', (await seVe()).length===0, (await seVe()).join(' '));
+ await pg.click('#chipVista'); await pg.waitForTimeout(600);
+ ok('en panorama tampoco', (await seVe()).length===0, (await seVe()).join(' '));
+ await pg.click('#chipTabla'); await pg.waitForTimeout(600);
+ ok('y en la tabla vuelven los tres', (await seVe()).length===3, (await seVe()).join(' '));
+ await pg.click('#chipBonos'); await pg.waitForTimeout(600);
+
  console.log('\n== las otras vistas tampoco explotan ==');
  for(const [n,sel] of [['Soberanos','.cv-pt'],['Futuros','.fu-pt'],
                        ['Corporativos','.bo-tabla']]){
