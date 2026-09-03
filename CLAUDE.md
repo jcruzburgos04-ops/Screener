@@ -753,6 +753,26 @@ mejor cara que tenga (SF Mono en Mac, Cascadia en Windows 11).
 agrupa según `GRUPOS_COL`. La selección viaja en la sesión, en la URL y dentro de
 los perfiles guardados.
 
+### Una sola convención decimal: coma
+
+La interfaz escribe en **es-AR**, o sea con coma decimal y punto de miles. Los
+números sueltos ya salían así (`bnum` usa `toLocaleString`), pero los
+porcentajes salían con `toFixed`, que **siempre** pone punto. Resultado: la
+misma fila mostraba `54,31` al lado de `7.76%`, y en la tabla de futuros la
+columna **A3** —la única que usa `bnum`— quedaba con `17,57%` pegada a `17.94%`
+de la columna de al lado. Dos convenciones decimales en columnas contiguas de
+la misma tabla.
+
+`bpc` y `bsig` pasan ahora por `bnum`, y lo mismo los **textos** del gráfico
+(los rótulos de cada punto, el globito, el spread entre las dos líneas). **Las
+coordenadas SVG siguen con `toFixed` y tienen que seguir así**: un `cx="1,5"`
+no es un número para el navegador. Por eso la prueba mira los `<text>` y no los
+atributos.
+
+`pruebas/bonos.js` lo verifica pestaña por pestaña buscando `\.\d{1,2}%`, que
+sirve de detección porque en es-AR el punto separa miles y los miles van de a
+tres: `1.234%` no matchea, `7.76%` sí.
+
 ### Escapado
 
 Los nombres, sectores e industrias vienen de Yahoo y se insertan como HTML.

@@ -96,16 +96,17 @@ console.log('== el interruptor de tres posiciones ==');
  ok('el payload de prueba trae bonos con TIR',conTir.length>=4,conTir.length);
  ok('la cabecera tiene TIR, TNA, paridad, duration y DV01',
     ['TIR','TNA','paridad','durat','DV01'].every(h=>txt.indexOf(h)>=0));
- /* La pantalla escribe en es-AR: la coma es el decimal. Los porcentajes salen
-    con toFixed (punto) y los numeros sueltos con toLocaleString (coma), asi
-    que hay que buscar cada uno como se escribe de verdad. */
+ /* La pantalla escribe TODO en es-AR: la coma es el decimal, tambien en los
+    porcentajes. Antes no era asi -- salian con toFixed, o sea con punto -- y
+    esta prueba lo daba por bueno. Ahora hay una sola forma de escribir un
+    numero en esta seccion, y es esta. */
  const ar=(v,dec)=>v.toFixed(dec).replace('.',',');
  const al30=conTir.find(b=>b.t==='AL30');
  const filaAl30=[...filas].find(tr=>tr.dataset.bono==='AL30').textContent;
  ok('la fila del AL30 muestra su TIR',
-    filaAl30.indexOf((al30.tir*100).toFixed(2))>=0,filaAl30);
+    filaAl30.indexOf(ar(al30.tir*100,2))>=0,filaAl30);
  ok('y su duration',filaAl30.indexOf(ar(al30.duration,2))>=0,filaAl30);
- ok('y su paridad',filaAl30.indexOf((al30.paridad*100).toFixed(1))>=0,filaAl30);
+ ok('y su paridad',filaAl30.indexOf(ar(al30.paridad*100,1))>=0,filaAl30);
 
  console.log('\n== la curva de rendimientos ==');
  const pts=d.querySelectorAll('#bonosCuerpo .cv-pt');
@@ -266,7 +267,7 @@ console.log('== el interruptor de tres posiciones ==');
  ok('y de quien son los rendimientos',/bonistas/i.test(tp));
  const s30=curvas[0].filas.find(x=>x.t==='S30S6');
  ok('la TEM que muestra es la del payload',
-    tp.indexOf((s30.tem*100).toFixed(2))>=0,(s30.tem*100).toFixed(2));
+    tp.indexOf(ar(s30.tem*100,2))>=0,ar(s30.tem*100,2));
 
  /* Los papeles que hoy no operaron. Su "precio" es una punta que puede ser de
     hace dias, y uno solo abre el eje de toda la curva: en el panel real un
@@ -557,6 +558,30 @@ console.log('== el interruptor de tres posiciones ==');
  ok('vuelve la curva',!!d.querySelector('#bonosCuerpo svg.cv'));
  ok('y la tabla por ley',
     /Ley Nueva York/.test(d.querySelector('#bonosCuerpo').textContent));
+
+ /* ---- una sola convencion decimal en toda la seccion ----
+    La interfaz escribe en es-AR, o sea con COMA. Los porcentajes salian con
+    toFixed, que siempre pone punto, asi que la misma fila mostraba "54,31" al
+    lado de "7.76%"; y en la tabla de futuros la columna A3 (que si usa bnum)
+    quedaba con "17,57%" pegada a "17.94%" de la de al lado -- dos convenciones
+    en columnas contiguas de la misma tabla.
+
+    `\.\d{1,2}%` sirve de deteccion porque en es-AR el punto SIEMPRE separa
+    miles y los miles van de a tres: "1.234%" no matchea, "7.76%" si. */
+ console.log('\n== los porcentajes se escriben en es-AR, con coma ==');
+ for(const [nom,vista] of [['soberanos','sob'],['pesos','ars'],['futuros','fut'],['corporativos','ons']]){
+   await irA(vista);
+   const malas=[...d.querySelectorAll('#bonosCuerpo table td')]
+     .map(c=>c.textContent.trim())
+     .filter(t=>/^[+\-]?\d+\.\d{1,2}%$/.test(t));
+   ok(nom+': ningun porcentaje con punto decimal',malas.length===0,malas.slice(0,4).join(' '));
+ }
+ /* Y en el grafico igual: los rotulos de los puntos y los globitos son texto
+    que se lee, no coordenadas. Las coordenadas SI van con punto, por eso se
+    miran los <text> y no los atributos. */
+ {const malas=[...d.querySelectorAll('#bonosCuerpo svg text')]
+    .map(t=>t.textContent.trim()).filter(t=>/^[+\-]?\d+\.\d{1,2}%?$/.test(t));
+  ok('el grafico tampoco',malas.length===0,malas.slice(0,4).join(' '));}
 
  console.log('\n== la vista se recuerda ==');
  const alm2=w.localStorage;

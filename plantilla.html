@@ -3412,8 +3412,13 @@ let bonoAbierto=null;
 const hay=v=>v!=null&&isFinite(v);
 const bnum=(v,dec)=>hay(v)?v.toLocaleString('es-AR',
   {minimumFractionDigits:dec,maximumFractionDigits:dec}):'·';
-const bpc=(v,dec)=>hay(v)?(v*100).toFixed(dec===undefined?2:dec)+'%':'·';
-const bsig=v=>hay(v)?(v>0?'+':'')+v.toFixed(2)+'%':'·';
+/* Los porcentajes se escriben en es-AR igual que los numeros, con COMA.
+   Estaban con toFixed, que siempre pone punto, asi que la misma fila mostraba
+   "54,31" al lado de "7.76%" -- y en la tabla de futuros la columna A3, que si
+   usa bnum, quedaba con "17,57%" pegada a "17.94%" de la de al lado. Dos
+   convenciones decimales en columnas contiguas de la misma tabla. */
+const bpc=(v,dec)=>hay(v)?bnum(v*100,dec===undefined?2:dec)+'%':'·';
+const bsig=v=>hay(v)?(v>0?'+':'')+bnum(v,2)+'%':'·';
 const bcol=v=>hay(v)?(v>0?'up':(v<0?'dn':'')):'';
 /* 2027-01-09 -> 9 ene 27. Se corta el año a dos digitos porque la columna
    entra en una tabla que ya es ancha, y el siglo no aporta nada. */
@@ -3511,10 +3516,10 @@ function curvaXY(puntos,op){
   let ejes='';
   for(let v=Math.ceil(y0/py)*py; v<=y1+1e-9; v+=py)
     ejes+=`<line class="cv-grid" x1="${ml}" x2="${W-mr}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`+
-      `<text class="cv-eje" x="${ml-10}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${v.toFixed(dec(py))}${op.sufijoY||'%'}</text>`;
+      `<text class="cv-eje" x="${ml-10}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${bnum(v,dec(py))}${op.sufijoY||'%'}</text>`;
   for(let v=Math.ceil(x0/px)*px; v<=x1+1e-9; v+=px)
     ejes+=`<line class="cv-grid" y1="${mt}" y2="${H-mb}" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}"/>`+
-      `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${v.toFixed(dec(px))}</text>`;
+      `<text class="cv-eje" y="${H-mb+22}" x="${X(v).toFixed(1)}" text-anchor="middle">${bnum(v,dec(px))}</text>`;
 
   /* LOS ROTULOS NO SE PUEDEN PISAR. En la curva de tasa fija hay diez papeles
      abajo de 300 dias y uno a 1365: los diez primeros caen amontonados sobre
@@ -3586,7 +3591,7 @@ function curvaXY(puntos,op){
       s.map(q=>`<g class="cv-pt ${clase}" data-t="${esc(q.t||'')}">`+
         `<circle cx="${X(q.x).toFixed(1)}" cy="${Y(q.y).toFixed(1)}" r="4"/>`+
         rotulo(q)+
-        `<title>${esc(q.t||'')}${n?' · '+esc(n):''} · ${q.y.toFixed(2)}${op.sufijoY||'%'} · ${esc(op.rotuloX||'x')} ${q.x.toFixed(2)}</title>`+
+        `<title>${esc(q.t||'')}${n?' · '+esc(n):''} · ${bnum(q.y,2)}${op.sufijoY||'%'} · ${esc(op.rotuloX||'x')} ${bnum(q.x,2)}</title>`+
         `</g>`).join('');
   }).join('');
 
@@ -3597,7 +3602,7 @@ function curvaXY(puntos,op){
   const aviso=raros.length?`<p class="bo-nota bo-raros">Quedaron
     ${raros.length===1?'1 papel fuera del gráfico':raros.length+' papeles fuera del gráfico'}
     por estar muy lejos del resto de la curva
-    (${raros.map(q=>esc(q.t||'')+' '+q.y.toFixed(1)+(op.sufijoY||'%')).join(', ')}).
+    (${raros.map(q=>esc(q.t||'')+' '+bnum(q.y,1)+(op.sufijoY||'%')).join(', ')}).
     Casi siempre es una cotización vieja de algo que no opera.
     <b>Están igual en la tabla</b>.</p>`:'';
 
@@ -3888,7 +3893,7 @@ function graficoFuturos(futs, fija){
     return `<rect class="fu-spread" x="${(X(i)-paso*0.26).toFixed(1)}" y="${a.toFixed(1)}" `+
       `width="${(paso*0.52).toFixed(1)}" height="${Math.max(1,b-a).toFixed(1)}"/>`+
       (Math.abs(b-a)>16?`<text class="fu-sp" x="${X(i).toFixed(1)}" y="${((a+b)/2+4).toFixed(1)}" `+
-        `text-anchor="middle">${dif>0?'+':''}${dif.toFixed(1)}</text>`:'');
+        `text-anchor="middle">${dif>0?'+':''}${bnum(dif,1)}</text>`:'');
   }).join('');
 
   const linea=(clave,clase,arriba)=>{
@@ -3898,7 +3903,7 @@ function graficoFuturos(futs, fija){
         (j?'L':'M')+X(x.i).toFixed(1)+' '+Y(x.v).toFixed(1)).join(' ')}"/>`+
       s.map(x=>`<circle class="fu-pt ${clase}" cx="${X(x.i).toFixed(1)}" cy="${Y(x.v).toFixed(1)}" r="4"/>`+
         `<text class="fu-val ${clase}" x="${X(x.i).toFixed(1)}" `+
-        `y="${(Y(x.v)+(arriba?-11:16)).toFixed(1)}" text-anchor="middle">${x.v.toFixed(1)}%</text>`).join('');
+        `y="${(Y(x.v)+(arriba?-11:16)).toFixed(1)}" text-anchor="middle">${bnum(x.v,1)}%</text>`).join('');
   };
 
   /* El volumen abajo, en su propia franja. Sin el no se sabe cuales de estos
