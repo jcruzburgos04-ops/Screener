@@ -1113,6 +1113,57 @@ tabla, con un corte contra la mediana y el rango intercuartil (que no se mueven
 por tener un outlier adentro, un promedio sí), y **la tarjeta dice cuántos y
 cuáles quedaron afuera**.
 
+#### La tira de tipos de cambio y la tasa sintética
+
+Las dos salen de datos que **ya se bajaban**; no agregan ninguna fuente.
+
+**La tira** (oficial, MEP, cable, brecha, canje) va arriba de las pestañas
+porque vale para las cuatro. El MEP y el cable ya salían bono por bono —comprar
+en pesos y vender en dólares— y el oficial es el mismo spot que usan los
+futuros. Se usa la **mediana**, no el promedio: un soberano con la punta vieja
+corre el promedio de todo el mercado. Verificado contra el informe del
+01/09/2026 (oficial 1512,7 / MEP 1532,7 / CCL 1594,9): brecha = promedio de
+`MEP/oficial−1` y `CCL/oficial−1` = **3,38%**, canje = `CCL/MEP−1` = **4,06%**,
+las dos exactas.
+
+**La tasa sintética**: comprás la letra en pesos con dólares y vendés los pesos
+del vencimiento al futuro. El resultado es un rendimiento **en dólares sin
+riesgo de tipo de cambio**, y es contra esa tasa que se compara un bono en
+dólares.
+
+```
+entra = precio / spot        sale = cobro / futuro
+efectiva = sale/entra − 1    TNA = efectiva × 365/días
+```
+
+> **El spot es el OFICIAL, no el MEP.** Se ve en la propia tabla del informe: su
+> columna «USD Oficiales» da 0,08 para el S30S6, que es 115,46/1512,7.
+
+Verificado contra las seis filas del informe: la efectiva da idéntica en las
+seis. **El futuro se elige por cercanía** de vencimiento —sin lista— y se
+muestra el **descalce**: entre que cobra la letra y liquida el futuro quedás en
+pesos, y esos días no están cubiertos. Sólo se arma con la curva de tasa fija,
+porque hace falta saber cuánto se cobra al vencimiento.
+
+#### `coupon` es la RENTA, no lo que se cobra
+
+Salió publicado mal y en el papel más operado del panel: el `S30S6` mostraba
+**17,54** cuando al vencimiento entran **117,54**. Faltaba el capital.
+
+Cuando el pago es el **último** de una letra que **capitaliza** —no amortiza,
+devuelve todo junto— lo que se cobra es renta **más los 100 de residual**.
+Verificado contra el informe en los **diez** papeles de tasa fija: `100+cupón`
+da su «Pago final» exacto en los diez.
+
+> **Donde no se puede afirmar, no se afirma.** Si el instrumento amortiza, el
+> residual no es 100 y sin cronograma no hay forma de saberlo: ahí se sigue
+> mostrando el número de la fuente, que es la renta. Y un pago intermedio nunca
+> devuelve capital, sea la familia que sea. La lista de las que capitalizan es
+> `FAMILIAS_CAPITALIZAN`.
+
+Lo encontré armando los sintéticos, porque esa tabla pide el cobro al
+vencimiento y el mío daba 100 menos.
+
 #### El próximo pago: lo único del cronograma que publica la fuente
 
 El pedido fue «que todo lo que sea renta fija me aparezca cuáles son sus pagos,
