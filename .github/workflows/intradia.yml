@@ -58,7 +58,8 @@ concurrency:
 jobs:
   refrescar:
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    # 5h30 de bucle + margen. El tope duro de un job en Actions son 6 horas.
+    timeout-minutes: 350
 
     steps:
       - uses: actions/checkout@v4
@@ -104,9 +105,35 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -u
-          MINUTOS=50
+          # UNA CORRIDA TIENE QUE CUBRIR LA RUEDA ENTERA, NO 50 MINUTOS.
+          # Con el bucle de 50 minutos seguia habiendo agujeros de horas, porque
+          # el cron horario tampoco se cumple: el 4/9 se pidieron 8 disparos y
+          # GitHub largo UNO, a las 12:18 UTC, o sea que la unica corrida del dia
+          # termino 27 minutos ANTES de que abriera Nueva York. A las 15:18 lo
+          # publicado tenia 2h15 y era de antes de la apertura.
+          #
+          # Pedir mas disparos empeora el estrangulamiento (ya esta medido), asi
+          # que lo que se estira es la corrida: con 5h30, un solo disparo que
+          # caiga en la mañana cubre casi toda la rueda.
+          #
+          # El RITMO no cambia: sigue siendo un refresco cada 10 minutos, y el
+          # grupo de concurrencia deja UNA sola corrida viva, asi que Yahoo no
+          # recibe ni un pedido mas por unidad de tiempo. Lo unico que se achica
+          # son los huecos.
+          MINUTOS=330
           PASO=600                       # 10 minutos entre refrescos
           FIN=$(( $(date +%s) + MINUTOS * 60 ))
+
+          # Pero no se sigue de largo toda la noche. El after-hours cierra 00:00
+          # UTC y la corrida PESADA (actualizar.yml) arranca 01:30: si las dos le
+          # pegan a Yahoo a la vez aparecen las descargas parciales, que es
+          # justamente lo que no se puede permitir en la nocturna. Un disparo de
+          # las 23:00 se corta a las 00:30 en vez de llegar hasta las 04:30.
+          TOPE=$(date -u -d 'tomorrow 00:30' +%s)
+          if [ "$FIN" -gt "$TOPE" ]; then
+            FIN=$TOPE
+            echo "recorto el bucle hasta las 00:30 UTC para no pisar la corrida nocturna"
+          fi
 
           mkdir -p estado
           cp sitio_previo/datos.json estado/datos.json
