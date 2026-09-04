@@ -3925,39 +3925,138 @@ function graficoFuturos(futs, fija){
     </svg></div></div>`;
 }
 
-/* ---------- sinteticos: letra en pesos + futuro ----------
-   Comprar una letra en pesos con dolares y vender los pesos del vencimiento al
-   futuro deja un rendimiento EN DOLARES sin riesgo de tipo de cambio. Es
-   contra ESTA tasa que se compara un bono en dolares: si el sintetico paga mas
-   que un soberano corto, el soberano no esta barato.
+/* ---------- las dos sinteticas ----------
+   Son las dos mitades del mismo triangulo -- pesos, dolares y el futuro que los
+   une -- y por eso van juntas:
 
-   El descalce se muestra siempre. Entre que cobra la letra y liquida el
-   futuro quedas en pesos, y esos dias no estan cubiertos: con cero da igual,
-   con veinte la tasa que dice la tabla no es la que vas a sacar. */
+     letra en pesos + comprar futuro  -> tasa en DOLARES
+     dolar linked   + vender futuro   -> tasa en PESOS
+
+   EL DOLAR DE CADA PATA VA EN LA TABLA. Sin eso la tasa sale de dos numeros
+   que no estan a la vista y no hay como auditarla; con eso se lee de un
+   vistazo cuanto es tasa y cuanto es el dolar.
+
+   EL DESCALCE MANDA. Entre que cobra el bono y liquida el futuro quedas sin
+   cubrir, y ahi corre la diferencia entre la tasa en pesos y la de dolares
+   -- hoy unos 22 puntos anuales, 0,06% por dia. Cuando se come un cuarto del
+   plazo, la fila va SIN TASA y con el motivo: publicar el numero igual seria
+   inventar una tasa que nadie puede sacar. */
+function sinMotivo(x,v){
+  return x.motivo?`<span class="bo-raros" title="${esc(x.motivo)}">·</span>`:v;
+}
+const COL_DESCALCE={h:'descalce',
+  tit:'Días entre que cobra el bono y liquida el futuro. Esos días quedás sin cubrir',
+  v:x=>x.descalce?`<span class="${x.motivo?'bo-raros':''}">${x.descalce>0?'+':''}${bnum(x.descalce,0)}</span>`:'0'};
+
 const COLS_SINT=[
   {h:'letra',   cl:'tk', v:x=>esc(x.t)},
   {h:'futuro',  v:x=>esc(x.futuro)},
   {h:'vence',   v:x=>bfecha(x.vto)},
   {h:'días',    v:x=>bnum(x.dias,0)},
-  {h:'descalce',tit:'Días entre que cobra la letra y liquida el futuro. Esos días quedás en pesos',
-   v:x=>x.descalce?`<span class="bo-raros">${x.descalce>0?'+':''}${bnum(x.descalce,0)}</span>`:'0'},
+  COL_DESCALCE,
   {h:'px letra',v:x=>bnum(x.px_fija,2)},
   {h:'cobra',   tit:'Lo que se cobra al vencimiento, capital incluido', v:x=>bnum(x.cobra,2)},
-  {h:'px futuro',v:x=>bnum(x.px_futuro,2)},
-  {h:'efectiva',tit:'Lo que rinde en dólares hasta el vencimiento', v:x=>bpc(x.efectiva,2)},
-  {h:'TNA',     cl:'fuerte', tit:'Esa misma tasa anualizada', v:x=>bpc(x.tna)},
+  {h:'$ entrada',tit:'El dólar al que entrás: el oficial de hoy',
+   v:x=>bnum(x.tc_entrada,2)},
+  {h:'$ salida', tit:'El dólar al que salís: el futuro que cubre ese vencimiento',
+   v:x=>bnum(x.tc_salida,2)},
+  {h:'deval.',  tit:'Lo que se lleva el dólar entre las dos puntas. La tasa en pesos menos esto es lo que queda en dólares',
+   v:x=>bpc(x.devaluacion,2)},
+  {h:'efectiva',tit:'Lo que rinde en dólares hasta el vencimiento',
+   v:x=>sinMotivo(x,bpc(x.efectiva,2))},
+  {h:'TNA',     tit:'Esa misma tasa anualizada de forma lineal',
+   v:x=>sinMotivo(x,bpc(x.tna))},
+  {h:'TEA',     cl:'fuerte',
+   tit:'Anualizada componiendo. Es la que se compara contra la TIR de un soberano, que también es efectiva',
+   v:x=>sinMotivo(x,bpc(x.tea))},
 ];
+
+const COLS_SINT_DL=[
+  {h:'bono',    cl:'tk', v:x=>esc(x.t)},
+  {h:'futuro',  v:x=>esc(x.futuro)},
+  {h:'vence',   v:x=>bfecha(x.vto)},
+  {h:'días',    v:x=>bnum(x.dias,0)},
+  COL_DESCALCE,
+  {h:'precio',  tit:'En pesos, cada 100 de nominal (que son 100 dólares)',
+   v:x=>bnum(x.precio,0)},
+  {h:'$ del bono',cl:'fuerte',
+   tit:'Los pesos por dólar que estás pagando al comprar el bono: precio ÷ 100',
+   v:x=>bnum(x.tc_bono,2)},
+  {h:'$ futuro',tit:'El mismo dólar, al vencimiento, según el futuro',
+   v:x=>bnum(x.tc_futuro,2)},
+  {h:'dif.',    tit:'Cuánto más caro está el dólar del futuro que el del bono. Positivo = el bono compra dólares más barato',
+   v:x=>bpc(x.dif_tc,2)},
+  {h:'TEA USD', tit:'Su propia tasa en dólares, sin cubrir: paga 100 dólares al A3500 del vencimiento',
+   v:x=>bpc(x.tea_usd)},
+  {h:'TEA $ cub.',tit:'Vendiendo el futuro contra el bono, la tasa EN PESOS que queda cerrada',
+   v:x=>sinMotivo(x,bpc(x.tea_ars))},
+  {h:'fija',    tit:'La curva de tasa fija interpolada a ese mismo plazo',
+   v:x=>sinMotivo(x,bpc(x.fija))},
+  {h:'contra',  cl:'fuerte',
+   tit:'Cubierto menos tasa fija. Positivo = conviene el dólar linked cubierto; negativo = conviene la LECAP',
+   v:x=>x.motivo?sinMotivo(x,''):`<span class="${bcol(x.contra_fija)}">${bpc(x.contra_fija,2)}</span>`},
+];
+
+/* La advertencia que faltaba. La tasa se cierra SOLO para quien entra y sale
+   por el oficial, porque el futuro liquida contra el A3500. El que pone
+   dolares MEP cobra pesos cubiertos contra el oficial y para volver a sus
+   dolares necesita el MEP del vencimiento, que no lo fija ningun futuro: le
+   queda abierta la BRECHA, que es varias veces la tasa de la tabla. Antes esto
+   decia "sin riesgo de tipo de cambio" a secas. */
+function avisoBrecha(dias){
+  const tc=(BONOS||{}).tc||{};
+  if(!hay(tc.brecha))return '';
+  const anual=dias?` Sobre un sintético de ${bnum(dias,0)} días eso es
+    <b>${bpc(tc.brecha*365/dias,0)} anualizado</b>, varias veces la tasa de la tabla.`:'';
+  return `<p class="bo-nota"><b>Ojo con qué dólar tenés.</b> Esto queda cerrado
+    para el que entra y sale por el <b>oficial</b>, que es contra lo que liquida
+    el futuro (A3500). Si ponés dólares <b>MEP</b>, cobrás pesos cubiertos contra
+    el oficial y para volver a tus dólares necesitás el MEP del vencimiento, que
+    no lo fija ningún futuro: lo que te queda abierto es la <b>brecha</b>, hoy
+    ${bpc(tc.brecha,1)}.${anual}</p>`;
+}
+
 function tablaSinteticos(){
   const s=(BONOS||{}).sinteticos||[];
   if(!s.length)return '';
-  return `<div class="bo-tarjeta"><div class="bo-tit">Tasa sintética en dólares
+  const flojas=s.filter(x=>x.motivo).length;
+  const corto=s.find(x=>!x.motivo);
+  return `<div class="bo-tarjeta"><div class="bo-tit">Letra en pesos + futuro: tasa en dólares
       <span class="bo-leyenda">${s.length} combinaciones</span></div>
     <p class="bo-nota">Comprás la letra en pesos con dólares y vendés los pesos del
-      vencimiento al futuro: el resultado es un rendimiento <b>en dólares</b>, sin
-      riesgo de tipo de cambio. <b>Es contra esta tasa que se compara un bono en
-      dólares</b>: si el sintético paga más que un soberano corto, el soberano no
-      está barato. La entrada se cuenta al <b>dólar oficial</b>.</p>
-    ${tablaSimple(s,COLS_SINT,'bo-grande t-sinteticos')}</div>`;
+      vencimiento al futuro: el resultado es un rendimiento <b>en dólares</b>.
+      <b>Es contra esta tasa que se compara un bono en dólares</b>: si el sintético
+      paga más que un soberano corto, el soberano no está barato — y la comparación
+      va por <b>TEA</b>, que es efectiva como la TIR del soberano.</p>
+    ${avisoBrecha(corto?corto.dias:0)}
+    ${tablaSimple(s,COLS_SINT,'bo-grande t-sinteticos')}
+    ${flojas?`<p class="bo-nota"><b>${bnum(flojas,0)} ${flojas===1?'fila va':'filas van'}
+      sin tasa</b> porque no hay futuro que cubra ese vencimiento: el más cercano
+      vence demasiado lejos y esos días quedás descubierto. La fila queda igual,
+      con el descalce a la vista.</p>`:''}</div>`;
+}
+
+function tablaSinteticosDL(){
+  const s=(BONOS||{}).sinteticos_dl||[];
+  if(!s.length)return '';
+  const flojas=s.filter(x=>x.motivo).length;
+  return `<div class="bo-tarjeta"><div class="bo-tit">Dólar linked + futuro: tasa en pesos
+      <span class="bo-leyenda">${s.length} bonos</span></div>
+    <p class="bo-nota">Un dólar linked paga <b>100 dólares al A3500 del vencimiento</b>,
+      así que <b>ya es un instrumento en dólares</b>: su tasa sale sola, sin futuro.
+      El futuro entra por dos lados. Como <b>referencia del mismo dólar</b>: si el
+      dólar del bono está por debajo del futuro, el bono compra dólares más barato,
+      y esa es la señal sin pasar por ninguna tasa. Y como <b>cobertura</b>:
+      vendiendo el futuro se cancela la exposición al A3500 y lo que queda es un
+      cobro cierto en pesos, o sea una <b>tasa fija sintética</b> — que es contra
+      la curva de LECAPs que hay que compararla.</p>
+    ${tablaSimple(s,COLS_SINT_DL,'bo-grande t-sinteticos-dl')}
+    <p class="bo-nota">La columna <b>contra</b> es la decisión: en verde, el dólar
+      linked cubierto paga más que la LECAP del mismo plazo; en rojo, conviene la
+      LECAP. La curva fija se <b>interpola</b> al plazo de cada bono y no se
+      extrapola: sin letras que lo rodeen, esa columna queda vacía en vez de
+      inventada.${flojas?` <b>${bnum(flojas,0)} ${flojas===1?'bono queda':'bonos quedan'}
+      sin cubrir</b>: no hay futuro que llegue a ese vencimiento.`:''}</p></div>`;
 }
 
 /* ---------- futuros de dolar ---------- */
@@ -4041,6 +4140,7 @@ function renderFuturos(){
         el mercado, para contrastar.</p>
       ${tablaSimple(f,cols,'bo-grande t-futuros')}</div>`+
     tablaSinteticos()+
+    tablaSinteticosDL()+
     `<div class="bo-falta"><b>Los contratos y sus vencimientos salen de A3, no de una
       lista de acá.</b> Cuando uno vence deja de venir y desaparece solo; cuando listan
       uno nuevo, aparece solo.${avisoSpot(d)}</div>`;

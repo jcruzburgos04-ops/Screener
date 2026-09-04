@@ -108,7 +108,7 @@ CRUDO_PESOS = [
      "last_price": 147.2, "tir": 0.2787, "tna": 0.2484, "mtir": 0.0207,
      "modified_duration": 0.29, "parity": 0.984, "volume": 8.94,
      "settlement": "24hs", "short_description": "Bono Tasa Fija ARS - vto. 01/2027"},
-    {"ticker": "T30A7", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2027-04-30", "day_difference": -0.0021, "days_to_coupon": 240, "coupon": 33.4, "days_to_finish": 240,
+    {"ticker": "T30A7", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2027-04-30", "day_difference": -0.0021, "days_to_coupon": 240, "coupon": 57.34, "days_to_finish": 240,
      "last_price": 132.99, "tir": 0.2913, "tna": 0.2784, "mtir": 0.0212,
      "modified_duration": 0.62, "parity": 1.0, "volume": 157.34,
      "settlement": "24hs", "short_description": "Bono Tasa Fija ARS - vto. 04/2027"},
@@ -119,7 +119,10 @@ CRUDO_PESOS = [
     # El caso real que rompia el grafico: un papel que NO OPERO (volumen 0) y
     # que igual publica precio. Su TEM es negativa y sola le abria el eje a
     # toda la curva CER. Tiene que quedar en la tabla y fuera del dibujo.
-    {"ticker": "X30S6", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2026-09-30", "day_difference": 0.0, "days_to_coupon": 27, "coupon": 15.6, "days_to_finish": 27,
+    # `coupon` 0 como las letras CER de verdad: el capital ajusta por CER, asi
+    # que 100+cupon daria 100 cuando lo que se cobra son ~115,7. Es el bug que
+    # salio publicado en OCHO letras y por eso la fixtura lo lleva.
+    {"ticker": "X30S6", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2026-09-30", "day_difference": 0.0, "days_to_coupon": 27, "coupon": 0.0, "days_to_finish": 27,
      "last_price": 115.6, "tir": -0.0139, "tna": -0.014, "mtir": -0.0012,
      "modified_duration": 0.07, "parity": 1.0, "volume": 0.0,
      "settlement": "24hs", "short_description": "Bono CER - vto. 09/2026"},
@@ -131,6 +134,20 @@ CRUDO_PESOS = [
      "last_price": 147790, "tir": 0.026, "tna": 0.0257, "mtir": 0.0021,
      "modified_duration": 0.801, "parity": 0.979, "volume": 0.078,
      "settlement": "24hs", "short_description": "Bono DL (sin cupón) - vto. 06/2027"},
+    # Un dolar linked CORTO, adentro del tramo que cubre la curva de tasa fija:
+    # con este `contra_fija` se puede calcular, y es la unica columna del cuadro
+    # que sale de cruzar las dos curvas.
+    {"ticker": "D31D6", "bond_family": "DOLAR-LINKED", "index": "USDL", "end_date": "2026-12-31", "day_difference": 0.0011, "days_to_coupon": 121, "coupon": 0.0, "days_to_finish": 121,
+     "last_price": 149500, "tir": 0.031, "tna": 0.0306, "mtir": 0.0025,
+     "modified_duration": 0.33, "parity": 0.991, "volume": 812.4,
+     "settlement": "24hs", "short_description": "Bono DL (sin cupón) - vto. 12/2026"},
+    # Y uno LARGO, mas alla del ultimo futuro que existe: no hay con que
+    # cubrirlo, asi que la tasa en pesos no se puede afirmar y la fila va sin
+    # numero y con el motivo, en vez de con una tasa que nadie puede sacar.
+    {"ticker": "TZVD8", "bond_family": "DOLAR-LINKED", "index": "USDL", "end_date": "2028-12-15", "day_difference": 0.0004, "days_to_coupon": 835, "coupon": 0.0, "days_to_finish": 835,
+     "last_price": 118850, "tir": 0.1117, "tna": 0.1059, "mtir": 0.0089,
+     "modified_duration": 2.2, "parity": 0.79, "volume": 55.2,
+     "settlement": "24hs", "short_description": "Bono DL (sin cupón) - vto. 12/2028"},
     # Una familia entera sin una sola operacion, como la BADLAR del panel real:
     # no se puede dibujar nada y la pantalla lo tiene que decir, no quedarse
     # muda ni inventar una curva de un punto.
@@ -138,8 +155,11 @@ CRUDO_PESOS = [
      "last_price": 100.9, "tir": 0.3014, "tna": 0.2664, "mtir": 0.0222,
      "modified_duration": 1.2, "parity": 1.0, "volume": 0.0,
      "settlement": "24hs", "short_description": "Bono BADLAR - vto. 02/2028"},
+    # Un dual: capitaliza y paga todo junto, igual que una LECAP. El precio es
+    # el cobro (168,8) descontado a su propia TIR, para que la verificacion de
+    # _cobro_final cierre como cierra con los duales de verdad.
     {"ticker": "TTS26", "bond_family": "DUAL", "index": "Dual", "end_date": "2026-09-15", "day_difference": 0.0026, "days_to_coupon": 12, "coupon": 68.8, "days_to_finish": 12,
-     "last_price": 168.8, "tir": 0.3123, "tna": 0.2749, "mtir": 0.0229,
+     "last_price": 167.3, "tir": 0.3123, "tna": 0.2749, "mtir": 0.0229,
      "modified_duration": 0.025, "parity": 0.9996, "volume": 10568.7,
      "settlement": "24hs", "short_description": "Bono Dual - vto. 09/2026"},
     # pata sintetica: TIR de -95%, no es comprable
@@ -211,6 +231,7 @@ def main():
     payload["tc"] = bonos.tipos_de_cambio(filas, spot)
     # Los sinteticos necesitan las dos patas ya armadas y el spot.
     payload["sinteticos"] = bonos.sinteticos(payload["pesos"], fut, spot)
+    payload["sinteticos_dl"] = bonos.sinteticos_dl(payload["pesos"], fut, spot)
     salida = Path(__file__).resolve().parent / "bonos_fixtura.json"
     salida.write_text(json.dumps(payload, separators=(",", ":"), allow_nan=False),
                       encoding="utf-8")

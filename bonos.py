@@ -522,6 +522,63 @@ def vencimiento_y_dias(fila, hoy):
     return v.isoformat(), (v - liquidacion(hoy, fila.get("settlement"))).days
 
 
+# Cuanto tiene que desviarse el precio implicito del real para no creerle al
+# cobro. Con datos de verdad los que valen dan menos de 0,05% y los que no dan
+# 13% o mas, asi que 1% separa las dos poblaciones con muchisimo aire.
+TOLERANCIA_COBRO = 0.01
+
+
+def _cobro_final(fila, monto):
+    """
+    Lo que se cobra al vencimiento cada 100 nominales, o None si no se puede
+    afirmar.
+
+    EL CANDIDATO ES `monto + 100`: la renta mas el capital, que es lo correcto
+    para lo que no amortiza y paga todo junto. Pero antes esto se decidia con
+    una LISTA DE FAMILIAS a mano y esa lista se equivoco de las dos maneras
+    posibles, las dos publicadas:
+
+      - de mas: `LETRAS-CER` estaba adentro, y el capital de un CER NO es 100,
+        es 100 ajustado por inflacion. El X30S6 mostraba que cobrabas 100
+        cuando cobrabas 115,8 -- 14% menos -- y habia OCHO letras CER asi.
+      - de menos: los duales no estaban, asi que siete papeles que capitalizan
+        y pagan todo junto mostraban la columna vacia sin motivo.
+
+    Asi que no se le pregunta a la familia, SE LE PREGUNTA AL PRECIO. La fuente
+    publica la TIR de cada papel; si el cobro candidato es el de verdad, tiene
+    que reproducir el precio al descontarlo a esa TIR. La cuenta contesta, en
+    realidad, si la TIR de la fuente esta expresada en pesos nominales:
+
+      - tasa fija, TAMAR, BADLAR, duales -> si, y el descuento cierra al 0,05%
+      - CER  -> la TIR es REAL, en unidades de CER; descontar 100 nominales con
+                ella no cierra ni cerca, y ahi es donde la lista mentia
+      - dolar linked -> la TIR es en DOLARES; el capital son 100 dolares al
+                A3500 del vencimiento, que hoy no se sabe
+
+    Los dos ultimos casos no son un error de la fuente ni de esta funcion: son
+    instrumentos cuyo cobro final NO SE PUEDE AFIRMAR HOY, y para esos la
+    columna queda vacia, que es lo que este proyecto hace siempre.
+
+    La ventaja de preguntarle al precio es que no hay lista que envejezca:
+    cuando el Tesoro emita una familia nueva, entra sola si la cuenta cierra.
+    """
+    if not isinstance(monto, (int, float)):
+        return None
+    precio = fila.get("last_price")
+    y = fila.get("tir")
+    dias = _entero(fila.get("days_to_finish"))
+    if not precio or y is None or not dias or dias <= 0:
+        return None
+    total = monto + 100.0
+    try:
+        implicito = total / (1.0 + y) ** (dias / 365.0)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return None
+    if abs(implicito / precio - 1.0) > TOLERANCIA_COBRO:
+        return None
+    return round(total, 4)
+
+
 def proximo_pago(fila, hoy):
     """
     El proximo servicio del instrumento: cuando, cuanto, y si es el ultimo.
@@ -564,20 +621,10 @@ def proximo_pago(fila, hoy):
     monto = fila.get("coupon")
     rinde = fila.get("coupon_yield")
     # EL ULTIMO PAGO DEVUELVE TAMBIEN EL CAPITAL. `coupon` es solo la RENTA:
-    # en el S30S6 trae 17,54 y lo que se cobra al vencimiento es 117,54. Sin
-    # sumarle el residual, la columna "cobra" decia el interes y se leia como
-    # el cobro -- un error de 100 sobre 117 en el papel mas operado del panel.
-    #
-    # El residual se toma como 100 y eso vale para las letras que capitalizan,
-    # que es donde `capitaliza` es cierto: no amortizan, devuelven todo junto.
-    # Verificado contra el informe de referencia en los DIEZ papeles de tasa
-    # fija: 100+cupon da su "Pago final" exacto en los diez. Para lo que SI
-    # amortiza el residual no es 100, asi que ahi no se suma nada y se deja el
-    # numero de la fuente, que es lo unico que se sabe.
-    capitaliza = str(fila.get("bond_family") or "").upper() in FAMILIAS_CAPITALIZAN
-    total = None
-    if ultimo and capitaliza and isinstance(monto, (int, float)):
-        total = round(monto + 100.0, 4)
+    # en el S30S6 trae 17,54 y lo que se cobra al vencimiento es 117,54. Cuanto
+    # vale ese capital y si se puede afirmar lo decide _cobro_final(), que NO
+    # se cree la familia: le pregunta al precio.
+    total = _cobro_final(fila, monto) if ultimo else None
     return {
         "fecha": f.isoformat(),
         "dias": d,
@@ -723,9 +770,6 @@ CURVAS_PESOS = [
 # Las que NO amortizan: devuelven todo junto al vencimiento, asi que su ultimo
 # pago es renta MAS los 100 de capital. Es la unica condicion bajo la que se
 # puede afirmar cuanto se cobra sin tener el cronograma.
-FAMILIAS_CAPITALIZAN = {"LETRAS-FIJO", "BONO-FIJA", "BONO-CAPITALIZABLE",
-                        "LETRAS-CER", "TAMAR", "BONO-TAMAR", "BONO-BADLAR"}
-
 PREFIJOS_AJENOS = ("ONS", "BONO-USD-", "BOPREAL")
 
 # Y las que terminan en -USD son la MISMA letra liquidada en dolares: la S30S6
@@ -923,33 +967,108 @@ def tipos_de_cambio(filas, oficial=None):
     return tc
 
 
+# Cuanto descalce se tolera antes de dejar de llamarlo tasa. No es un numero
+# de gusto: entre que cobra el bono y liquida el futuro quedas SIN cubrir, y
+# ahi corre la diferencia entre la tasa en pesos y la tasa en dolares -- hoy
+# unos 22 puntos anuales, o sea 0,06% por dia. En un sintetico de 42 dias cuyo
+# margen entero son 0,3%, once dias de descubierto se comen el negocio. Con un
+# cuarto del plazo ya no queda tasa que mirar, asi que se muestra la fila, se
+# dice por que, y NO se publica un numero que no se puede sostener.
+FRACCION_DESCALCE = 0.25
+
+
+def _elegir_futuro(vivos, vto):
+    """
+    El futuro que mejor cubre un vencimiento, y el descalce EN DIAS DE CALENDARIO.
+
+    El descalce se mide entre las dos FECHAS, no entre los dos plazos. Parece lo
+    mismo y no lo es: los dias del bono se cuentan desde la LIQUIDACION (24hs,
+    o sea el habil siguiente) y los del futuro desde hoy, asi que restarlos
+    metia el desfasaje de la liquidacion adentro del descalce. Un viernes daba
+    TRES DIAS de descalce en pares que vencen EL MISMO DIA -- seis de los diez
+    sinteticos del panel del 4/9 -- y ademas tapaba los descalces de verdad:
+    el S13N6 decia 11 dias cuando eran 14.
+    """
+    if not vto:
+        return None, None
+    try:
+        v = date.fromisoformat(vto)
+    except ValueError:
+        return None, None
+    conf = [(f, (date.fromisoformat(f["vto"]) - v).days)
+            for f in vivos if f.get("vto")]
+    if not conf:
+        return None, None
+    return min(conf, key=lambda x: abs(x[1]))
+
+
+def _anual(efectiva, dias):
+    """TNA lineal y TEA compuesta de un rendimiento de `dias`."""
+    if not dias or dias <= 0 or efectiva is None or efectiva <= -1:
+        return None, None
+    return (round(efectiva * 365.0 / dias, 6),
+            round((1.0 + efectiva) ** (365.0 / dias) - 1.0, 6))
+
+
+def _interpolar(filas, dias, campo="tir"):
+    """
+    El valor de una curva a un plazo cualquiera. INTERPOLA Y NO EXTRAPOLA: si
+    el plazo cae fuera de los papeles que hay, no existe y se devuelve None.
+    Inventar el tramo largo de la curva de pesos seria justo lo que este
+    proyecto no hace. Es la misma regla que ya usa el grafico de futuros.
+    """
+    p = sorted((x for x in filas
+                if x.get("dias") and x.get(campo) is not None and x.get("opero")),
+               key=lambda x: x["dias"])
+    if len(p) < 2 or dias < p[0]["dias"] or dias > p[-1]["dias"]:
+        return None
+    for i in range(1, len(p)):
+        if dias <= p[i]["dias"]:
+            a, b = p[i - 1], p[i]
+            t = (dias - a["dias"]) / ((b["dias"] - a["dias"]) or 1)
+            return a[campo] + (b[campo] - a[campo]) * t
+    return None
+
+
+def _curva(pesos, clave):
+    return next((c for c in pesos if c.get("clave") == clave), None)
+
+
 def sinteticos(pesos, futs, spot):
     """
-    La tasa en dolares que sale de combinar una letra en pesos con un futuro:
+    La tasa EN DOLARES que sale de combinar una letra en pesos con un futuro:
     comprar la letra hoy con dolares y vender los pesos del vencimiento al
-    futuro deja un rendimiento EN DOLARES, sin riesgo de tipo de cambio.
-
-    Es la tabla "Sinteticos tasa fija" del informe de referencia, y la cuenta
-    es la de ellos, verificada contra sus seis filas:
+    futuro deja un rendimiento en dolares.
 
         entra  = precio / spot          dolares que cuesta un nominal hoy
         sale   = cobro  / futuro        dolares que se cobran al vencer
-        efectiva = sale/entra - 1       y TNA = efectiva * 365/dias
+        efectiva = sale/entra - 1
 
-    El spot es el OFICIAL, no el MEP. Se ve en su propia tabla: la columna
-    "USD Oficiales" del informe da 0,08 para el S30S6, que es 115,46/1512,7.
+    Es la tabla "Sinteticos tasa fija" del informe de referencia, verificada
+    contra sus seis filas.
 
-    SOLO SE ARMA CON LO QUE CAPITALIZA Y PAGA TODO JUNTO -- las de tasa fija --
-    porque hace falta saber CUANTO se cobra al vencimiento, y eso solo se puede
-    afirmar cuando no amortiza. Si el `pago` no trae `cobra`, esa letra no
-    entra: inventar el residual seria inventar la tasa.
+    QUE DOLAR SE TOMA, QUE ES LA MITAD DE LA CUENTA Y AHORA SE PUBLICA. La
+    entrada se valua al OFICIAL y la salida al futuro, y los dos van en la
+    tabla (`tc_entrada`, `tc_salida`). Tiene que ser el oficial porque el
+    futuro de A3 LIQUIDA CONTRA EL A3500, o sea contra el oficial: las dos
+    patas miran el mismo mercado y por eso la tasa queda cerrada.
 
-    EL FUTURO SE ELIGE POR CERCANIA de vencimiento y se informa el DESCALCE en
-    dias. Un descalce grande no invalida la cuenta pero la ensucia -- entre el
-    vencimiento de la letra y el del futuro quedas en pesos --, asi que se
-    muestra y el que mira decide.
+    DE AHI SALE LA ADVERTENCIA QUE FALTABA. Esto se cierra de verdad SOLO para
+    quien entra y sale por el oficial. El que pone dolares MEP no tiene la tasa
+    cerrada: cobra pesos cubiertos contra el oficial y para volver a sus
+    dolares necesita el MEP del vencimiento, que no lo fija ningun futuro. Lo
+    que le queda abierto es la BRECHA, que hoy son casi tres puntos -- sobre un
+    sintetico de 23 dias, mas de 40% anualizado, o sea varias veces la tasa que
+    muestra la tabla. La version anterior decia "sin riesgo de tipo de cambio"
+    a secas y eso, para el que opera por MEP, es falso.
+
+    SOLO SE ARMA CON LO QUE PAGA TODO JUNTO Y EN PESOS NOMINALES, que es donde
+    `cobra` se puede afirmar (ver _cobro_final).
+
+    EL FUTURO SE ELIGE POR FECHA y se informa el descalce. Si el descalce se
+    come una parte seria del plazo, la fila queda SIN TASA y con el motivo.
     """
-    fija = next((c for c in pesos if c.get("clave") == "Fijo"), None)
+    fija = _curva(pesos, "Fijo")
     if not fija or not futs or not spot:
         return []
     vivos = [f for f in futs if f.get("precio") and (f.get("dias") or 0) > 0]
@@ -959,15 +1078,17 @@ def sinteticos(pesos, futs, spot):
     salida = []
     for x in fija["filas"]:
         pg = x.get("pago") or {}
-        # Sin cobro afirmable no hay sintetico. Es la mitad de la cuenta.
         if not pg.get("cobra") or not x.get("precio") or not x.get("dias"):
             continue
-        f = min(vivos, key=lambda v: abs((v["dias"] or 0) - x["dias"]))
+        f, desc = _elegir_futuro(vivos, x.get("vto"))
+        if not f:
+            continue
         entra = x["precio"] / spot
-        sale = pg["cobra"] / f["precio"]
         if entra <= 0:
             continue
-        efectiva = sale / entra - 1
+        efectiva = (pg["cobra"] / f["precio"]) / entra - 1
+        flojo = abs(desc) > FRACCION_DESCALCE * x["dias"]
+        tna, tea = (None, None) if flojo else _anual(efectiva, x["dias"])
         salida.append({
             "t": x["t"],
             "futuro": f["t"],
@@ -975,12 +1096,109 @@ def sinteticos(pesos, futs, spot):
             "px_futuro": f["precio"],
             "cobra": pg["cobra"],
             "vto": x["vto"],
+            "vto_futuro": f.get("vto"),
             "dias": x["dias"],
-            # Cuantos dias quedas en pesos entre que cobra la letra y liquida
-            # el futuro. Cero es lo ideal; grande, la cuenta se ensucia.
-            "descalce": (f["dias"] or 0) - x["dias"],
-            "efectiva": round(efectiva, 6),
-            "tna": round(efectiva * 365 / x["dias"], 6),
+            # El dolar de cada pata. Es lo que hace auditable la fila: sin esto
+            # la tasa sale de dos numeros que no estaban en ningun lado.
+            "tc_entrada": round(spot, 2),
+            "tc_salida": f["precio"],
+            # La devaluacion implicita entre las dos puntas. Vale la identidad
+            # (1+tasa_pesos) = (1+efectiva)*(1+devaluacion), que es la forma en
+            # que se lee: tasa en pesos menos lo que se lleva el dolar.
+            "devaluacion": round(f["precio"] / spot - 1, 6),
+            "descalce": desc,
+            "efectiva": None if flojo else round(efectiva, 6),
+            "tna": tna,
+            "tea": tea,
+            "motivo": (f"el futuro mas cercano vence {abs(desc)} dias "
+                       f"{'despues' if desc > 0 else 'antes'}, sobre un plazo "
+                       f"de {x['dias']}: no queda cubierto") if flojo else None,
+        })
+    salida.sort(key=lambda r: r["dias"])
+    return salida
+
+
+def sinteticos_dl(pesos, futs, spot):
+    """
+    EL DOLAR LINKED CONTRA EL FUTURO, que es la otra mitad del mismo triangulo.
+
+    Un dolar linked paga, al vencimiento, 100 dolares convertidos al A3500 de
+    ese dia. O sea que ya ES un instrumento en dolares: su tasa en dolares sale
+    sola, sin futuro, comparando lo que cuesta hoy contra los 100 que paga.
+
+        tc_bono  = precio / 100      los pesos por dolar que se paga HOY
+        usd      = (100 * spot / precio) - 1
+
+    El futuro entra por dos lados, y los dos estan en la tabla:
+
+    1. COMO REFERENCIA DEL MISMO DOLAR. El futuro al mismo vencimiento dice a
+       cuanto se paga ese dolar en el otro mercado. Si `tc_bono` esta por
+       debajo del futuro, el bono compra dolares mas barato que el futuro y esa
+       diferencia (`dif_tc`) es la señal, sin ninguna cuenta de tasas de por
+       medio.
+
+    2. COMO COBERTURA, Y ESTO ES LO QUE LO CONVIERTE EN TASA FIJA. Comprando el
+       dolar linked y VENDIENDO el futuro, la exposicion al A3500 se cancela:
+       el bono la trae larga y el futuro la deja corta al mismo plazo. Lo que
+       queda es un cobro CIERTO EN PESOS de 100 x futuro, contra un costo de
+       `precio` pesos hoy. O sea una tasa en pesos cerrada, que es contra la
+       curva de tasa fija que hay que compararla (`contra_fija`): si el dolar
+       linked cubierto paga mas que la LECAP del mismo plazo, se compra el
+       dolar linked y se vende el futuro, y al reves.
+
+    La curva fija se INTERPOLA al plazo del bono y no se extrapola: sin letra
+    que lo rodee, `contra_fija` queda vacio en vez de inventado.
+    """
+    dl = _curva(pesos, "USDL")
+    fija = _curva(pesos, "Fijo")
+    if not dl or not futs or not spot:
+        return []
+    vivos = [f for f in futs if f.get("precio") and (f.get("dias") or 0) > 0]
+    if not vivos:
+        return []
+
+    salida = []
+    for x in dl["filas"]:
+        precio, dias = x.get("precio"), x.get("dias")
+        if not precio or not dias:
+            continue
+        f, desc = _elegir_futuro(vivos, x.get("vto"))
+        if not f:
+            continue
+        tc_bono = precio / 100.0
+        usd_ef = 100.0 * spot / precio - 1
+        tna_usd, tea_usd = _anual(usd_ef, dias)
+        # Cubierto con el futuro: el cobro en pesos queda fijo en 100 x futuro.
+        flojo = abs(desc) > FRACCION_DESCALCE * dias
+        ars_ef = 100.0 * f["precio"] / precio - 1
+        tna_ars, tea_ars = (None, None) if flojo else _anual(ars_ef, dias)
+        fijaint = None if flojo else _interpolar(fija["filas"] if fija else [], dias)
+        salida.append({
+            "t": x["t"],
+            "vto": x["vto"],
+            "dias": dias,
+            "precio": precio,
+            # EL DOLAR QUE SE TOMA EL BONO. Es el numero que se compara contra
+            # el futuro de un vistazo, sin pasar por ninguna tasa.
+            "tc_bono": round(tc_bono, 2),
+            "futuro": f["t"],
+            "tc_futuro": f["precio"],
+            "vto_futuro": f.get("vto"),
+            "descalce": desc,
+            "dif_tc": round(f["precio"] / tc_bono - 1, 6),
+            # Su propia tasa en dolares, al oficial. No necesita el futuro.
+            "tna_usd": tna_usd,
+            "tea_usd": tea_usd,
+            # Cubierto con el futuro: tasa EN PESOS, cerrada.
+            "tna_ars": tna_ars,
+            "tea_ars": tea_ars,
+            "fija": round(fijaint, 6) if fijaint is not None else None,
+            "contra_fija": (round(tea_ars - fijaint, 6)
+                            if (tea_ars is not None and fijaint is not None)
+                            else None),
+            "motivo": (f"el futuro mas cercano vence {abs(desc)} dias "
+                       f"{'despues' if desc > 0 else 'antes'}, sobre un plazo "
+                       f"de {dias}: no se puede cubrir") if flojo else None,
         })
     salida.sort(key=lambda r: r["dias"])
     return salida
@@ -1104,9 +1322,12 @@ def main():
         # La tira de arriba: por donde sale mas caro el dolar. No baja nada
         # nuevo, resume lo que ya se calculo bono por bono.
         "tc": tipos_de_cambio(filas, spot),
-        # Letra en pesos + futuro de dolar = tasa en dolares sin riesgo de
-        # tipo de cambio. Las dos patas ya estan bajadas.
+        # Las dos mitades del mismo triangulo, con las patas ya bajadas:
+        #   letra en pesos + futuro  -> tasa en DOLARES
+        #   dolar linked  + futuro   -> tasa en PESOS
+        # Cerradas contra el oficial, que es contra lo que liquida el futuro.
         "sinteticos": sinteticos(pesos, futs, spot),
+        "sinteticos_dl": sinteticos_dl(pesos, futs, spot),
     }
     out = Path(args.salida)
     out.mkdir(parents=True, exist_ok=True)

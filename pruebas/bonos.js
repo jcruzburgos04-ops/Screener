@@ -359,6 +359,100 @@ console.log('== el interruptor de tres posiciones ==');
  ok('los sinteticos van en su propia tabla, aparte de los contratos',
     d.querySelectorAll('#bonosCuerpo .t-sinteticos').length===1&&
     d.querySelectorAll('#bonosCuerpo .t-futuros').length===1);
+
+ /* ---- las dos sinteticas ----
+    Son las dos mitades del mismo triangulo y las dos viven en Futuros:
+      letra en pesos + futuro -> tasa en DOLARES
+      dolar linked   + futuro -> tasa en PESOS  */
+ const cabs=t=>[...d.querySelectorAll('#bonosCuerpo .'+t+' thead th')]
+   .map(x=>x.textContent.trim());
+ const filaDe=(t,tk)=>[...d.querySelectorAll('#bonosCuerpo .'+t+' tbody tr')]
+   .find(tr=>tr.textContent.indexOf(tk)>=0);
+ /* La celda se busca POR SU CABECERA, no por su posicion. Es la trampa que ya
+    se pago cuatro veces en este proyecto: agregar una columna corre todos los
+    indices y la prueba sigue en verde mirando otra cosa. */
+ const celda=(t,tr,cab)=>{const i=cabs(t).findIndex(h=>h===cab);
+   return i<0?null:tr.children[i].textContent.trim();};
+
+ /* EL DOLAR DE CADA PATA. Es lo que hace auditable la tasa: sin los dos
+    numeros a la vista sale de la nada. */
+ ok('la sintetica muestra el dolar de entrada y el de salida',
+    cabs('t-sinteticos').some(h=>/entrada/i.test(h))&&
+    cabs('t-sinteticos').some(h=>/salida/i.test(h)), cabs('t-sinteticos').join(' '));
+ ok('y la devaluacion implicita entre los dos',
+    cabs('t-sinteticos').some(h=>/deval/i.test(h)));
+ /* La TIR de un soberano es EFECTIVA, asi que compararla contra una TNA lineal
+    esta sesgado. Van las dos y la tarjeta dice cual usar. */
+ ok('publica TNA y TEA, no una sola',
+    cabs('t-sinteticos').includes('TNA')&&cabs('t-sinteticos').includes('TEA'));
+ const sPay=pay.sinteticos||[];
+ const conTasa=sPay.find(x=>x.tna!=null), sinTasa=sPay.find(x=>x.motivo);
+ ok('el payload trae una fila cubierta',!!conTasa,sPay.length);
+ ok('y otra sin futuro que la cubra',!!sinTasa);
+ if(conTasa){
+   const tr=filaDe('t-sinteticos',conTasa.t);
+   ok('la fila cubierta muestra su dolar de entrada',
+      tr.textContent.indexOf(conTasa.tc_entrada.toLocaleString('es-AR',
+        {minimumFractionDigits:2,maximumFractionDigits:2}))>=0,tr.textContent);
+ }
+ if(sinTasa){
+   const tr=filaDe('t-sinteticos',sinTasa.t);
+   /* La fila queda, con el descalce a la vista, y SIN tasa: publicar el numero
+      igual seria inventar una tasa que nadie puede sacar. Es lo que pasaba
+      antes, con una TNA de -21% en un sintetico de 8 dias con 15 de descalce. */
+   ok('la fila sin cubrir sigue en la tabla',!!tr,sinTasa.t);
+   /* Las TRES columnas de tasa quedan vacias. Se miran esas tres y no "algun
+      % en la fila": la devaluacion implicita SI se muestra, porque es el
+      cociente entre los dos dolares y no depende del descalce. */
+   ok('pero las tres columnas de tasa quedan vacias',
+      ['efectiva','TNA','TEA'].every(c=>celda('t-sinteticos',tr,c)==='·'),
+      ['efectiva','TNA','TEA'].map(c=>c+'='+celda('t-sinteticos',tr,c)).join(' '));
+   ok('y el dolar de las dos patas se sigue viendo',
+      celda('t-sinteticos',tr,'$ entrada')!=='·'&&
+      celda('t-sinteticos',tr,'$ salida')!=='·');
+   ok('y explica por que',
+      /no queda cubierto/.test(tr.innerHTML),tr.innerHTML.slice(0,140));
+   ok('la tarjeta cuenta cuantas quedaron asi',
+      /sin tasa/.test(d.querySelector('#bonosCuerpo').textContent));
+ }
+ /* LA ADVERTENCIA QUE FALTABA: el futuro liquida contra el A3500, o sea contra
+    el OFICIAL. El que entra con dolares MEP no tiene la tasa cerrada, le queda
+    abierta la brecha. Antes decia "sin riesgo de tipo de cambio" a secas. */
+ const tSint=d.querySelector('#bonosCuerpo').textContent;
+ ok('avisa que solo queda cerrado por el oficial',/oficial/i.test(tSint));
+ ok('y que con dolares MEP queda abierta la brecha',
+    /MEP/.test(tSint)&&/brecha/i.test(tSint));
+ ok('ya NO dice "sin riesgo de tipo de cambio"',
+    !/sin\s+riesgo\s+de\s+tipo\s+de\s+cambio/i.test(tSint));
+
+ /* ---- dolar linked contra futuro ---- */
+ const dlPay=pay.sinteticos_dl||[];
+ ok('el payload trae la sintetica de dolar linked',dlPay.length>0,dlPay.length);
+ ok('y tiene su propia tabla',
+    d.querySelectorAll('#bonosCuerpo .t-sinteticos-dl').length===1);
+ ok('con el dolar que se toma el bono',
+    cabs('t-sinteticos-dl').some(h=>/del bono/i.test(h)),
+    cabs('t-sinteticos-dl').join(' '));
+ ok('y el del futuro al lado, para compararlos',
+    cabs('t-sinteticos-dl').some(h=>/\$ futuro/i.test(h)));
+ ok('publica la tasa en dolares y la tasa en pesos cubierta',
+    cabs('t-sinteticos-dl').some(h=>/USD/.test(h))&&
+    cabs('t-sinteticos-dl').some(h=>/cub/i.test(h)));
+ const dlOk=dlPay.find(x=>x.contra_fija!=null);
+ if(dlOk){
+   const tr=filaDe('t-sinteticos-dl',dlOk.t);
+   ok('la fila muestra el dolar del bono',
+      tr.textContent.indexOf(dlOk.tc_bono.toLocaleString('es-AR',
+        {minimumFractionDigits:2,maximumFractionDigits:2}))>=0,tr.textContent);
+   ok('y el veredicto contra la curva fija va con color',
+      !!tr.querySelector('.up,.dn'),tr.innerHTML.slice(0,200));
+ }
+ const dlNo=dlPay.find(x=>x.motivo);
+ if(dlNo){
+   const tr=filaDe('t-sinteticos-dl',dlNo.t);
+   ok('el dolar linked sin futuro que lo cubra queda sin tasa en pesos',
+      /no se puede cubrir/.test(tr.innerHTML),tr.innerHTML.slice(0,140));
+ }
  ok('los nombra como el mercado',/DLR\/SEP26/.test(tf),tf.slice(0,120));
  /* La pantalla escribe en es-AR: 1508.5 sale como "1.508,50". */
  const arSpot=pay.spot.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});

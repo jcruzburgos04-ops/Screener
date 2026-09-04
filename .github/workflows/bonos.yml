@@ -136,4 +136,51 @@ jobs:
           faltan = len(d.get('emisores', [])) - 25
           if faltan > 0:
               print(f"  ... y {faltan} emisores mas")
+
+          print()
+          # EL COBRO FINAL YA NO SALE DE UNA LISTA DE FAMILIAS: se verifica
+          # contra el precio (ver _cobro_final). El riesgo de eso es que si la
+          # fuente cambia como expresa la TIR, la columna se vaciaria EN
+          # SILENCIO. Aca se ve: por familia, cuantos ultimos pagos afirman su
+          # cobro y cuantos no. Si una familia que siempre afirmo deja de
+          # hacerlo de un dia para el otro, es esto y no el mercado.
+          print("cobro final verificado, por curva (afirmados / ultimos pagos):")
+          for c in d.get('pesos', []):
+              ults = [x for x in c['filas'] if (x.get('pago') or {}).get('ultimo')]
+              con = [x for x in ults if (x.get('pago') or {}).get('cobra')]
+              if not ults:
+                  continue
+              print(f"  {c['titulo']:<16} {len(con):>3} / {len(ults):<3}"
+                    + ("   (ninguno: su TIR no esta en pesos nominales)"
+                       if not con else ""))
+
+          print()
+          print("sinteticos: letra en pesos + futuro = tasa en DOLARES")
+          sin = d.get('sinteticos', [])
+          print(f"  {'letra':<8}{'futuro':<11}{'dias':>5}{'desc':>6}"
+                f"{'$ entra':>10}{'$ sale':>10}{'deval':>8}{'TNA':>8}{'TEA':>8}")
+          for x in sin:
+              pc = lambda v: f"{v*100:6.2f}%" if v is not None else "     ·"
+              print(f"  {x['t']:<8}{x['futuro']:<11}{x['dias']:>5}{x['descalce']:>6}"
+                    f"{x['tc_entrada']:>10,.2f}{x['tc_salida']:>10,.2f}"
+                    f"{pc(x['devaluacion']):>8}{pc(x['tna']):>8}{pc(x['tea']):>8}"
+                    + (f"   {x['motivo']}" if x.get('motivo') else ""))
+          # El descalce se mide entre FECHAS. Si vuelve a medirse entre plazos,
+          # los pares que vencen el mismo dia dejan de dar cero y se ve aca.
+          exactos = [x for x in sin if x['descalce'] == 0]
+          print(f"  {len(exactos)} de {len(sin)} calzan exacto (mismo vencimiento)")
+
+          print()
+          print("sinteticos: dolar linked + futuro = tasa en PESOS")
+          dl = d.get('sinteticos_dl', [])
+          print(f"  {'bono':<8}{'futuro':<11}{'dias':>5}{'desc':>6}"
+                f"{'$ bono':>10}{'$ fut':>10}{'dif':>8}{'TEA usd':>9}"
+                f"{'TEA $':>9}{'fija':>8}{'contra':>8}")
+          for x in dl:
+              pc = lambda v: f"{v*100:6.2f}%" if v is not None else "     ·"
+              print(f"  {x['t']:<8}{x['futuro']:<11}{x['dias']:>5}{x['descalce']:>6}"
+                    f"{x['tc_bono']:>10,.2f}{x['tc_futuro']:>10,.2f}"
+                    f"{pc(x['dif_tc']):>8}{pc(x['tea_usd']):>9}{pc(x['tea_ars']):>9}"
+                    f"{pc(x['fija']):>8}{pc(x['contra_fija']):>8}"
+                    + (f"   {x['motivo']}" if x.get('motivo') else ""))
           PY

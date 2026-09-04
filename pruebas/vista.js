@@ -162,28 +162,56 @@ const srv=http.createServer((q,r)=>{
  ok('y en la tabla vuelven los tres', (await seVe()).length===3, (await seVe()).join(' '));
  await pg.click('#chipBonos'); await pg.waitForTimeout(600);
 
- /* Los sinteticos viven en Futuros, que es donde se mira el carry. */
- console.log('\n== la tasa sintetica en dolares ==');
+ /* Las dos sinteticas viven en Futuros, que es donde se mira el carry. Se
+    buscan por su CLASE y no por el titulo de la tarjeta: la prueba anterior
+    buscaba /sintética/ en el titulo y se cayo sola en cuanto los titulos
+    pasaron a decir que hace cada una. */
+ console.log('\n== las dos sinteticas ==');
  for(const x of await pg.$$('.bo-pest button')){
    if(/Futuros/i.test(await x.textContent())){await x.click();break;} }
  await pg.waitForTimeout(800);
- const sint=await pg.evaluate(()=>{
-   const t=[...document.querySelectorAll('#bonosCuerpo .bo-tarjeta')]
-     .find(c=>/sintética/i.test(c.querySelector('.bo-tit').textContent));
+ const leer=cl=>pg.evaluate(c=>{
+   const t=document.querySelector('#bonosCuerpo .'+c);
    if(!t)return null;
+   const r=t.getBoundingClientRect();
    return {filas:t.querySelectorAll('tbody tr').length,
            cols:[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim()),
-           vacias:[...t.querySelectorAll('tbody td')].filter(d=>!d.textContent.trim()).length};
- });
- ok('la tabla de sinteticos esta en Futuros', !!sint);
+           vacias:[...t.querySelectorAll('tbody td')].filter(d=>!d.textContent.trim()).length,
+           ancho:r.width, alto:r.height};
+ },cl);
+ const sint=await leer('t-sinteticos');
+ ok('la sintetica de tasa fija esta en Futuros', !!sint);
  if(sint){
    ok('con filas', sint.filas>0, sint.filas);
+   ok('y ocupa lugar de verdad', sint.ancho>200&&sint.alto>40,
+      Math.round(sint.ancho)+'x'+Math.round(sint.alto));
+   /* EL DOLAR DE CADA PATA, que es lo que pidio el usuario: sin los dos
+      numeros a la vista la tasa sale de la nada y no hay como auditarla. */
+   ok('muestra el dolar de entrada y el de salida',
+      sint.cols.some(c=>/entrada/i.test(c))&&sint.cols.some(c=>/salida/i.test(c)),
+      sint.cols.join(' '));
    ok('y las columnas que importan',
-      ['letra','futuro','descalce','efectiva','TNA']
+      ['letra','futuro','descalce','efectiva','TNA','TEA']
         .every(c=>sint.cols.some(x=>x.toLowerCase()===c.toLowerCase())),
       sint.cols.join(' '));
    ok('sin celdas vacias', sint.vacias===0, sint.vacias);
  }
+ const sdl=await leer('t-sinteticos-dl');
+ ok('y la de dolar linked contra futuro tambien', !!sdl);
+ if(sdl){
+   ok('con filas', sdl.filas>0, sdl.filas);
+   ok('y ocupa lugar', sdl.ancho>200&&sdl.alto>40,
+      Math.round(sdl.ancho)+'x'+Math.round(sdl.alto));
+   ok('con el dolar que se toma el bono',
+      sdl.cols.some(c=>/del bono/i.test(c)), sdl.cols.join(' '));
+   ok('sin celdas vacias', sdl.vacias===0, sdl.vacias);
+ }
+ /* Las dos tablas son distintas y estan las dos: contarlas juntas fue el bug
+    que dio "8 renglones sobre 4" cuando se agrego la primera. */
+ ok('las tres tablas de Futuros son tres tablas distintas',
+    (await pg.$$('#bonosCuerpo .t-futuros')).length===1&&
+    (await pg.$$('#bonosCuerpo .t-sinteticos')).length===1&&
+    (await pg.$$('#bonosCuerpo .t-sinteticos-dl')).length===1);
 
  /* SIN FILTROS PREDETERMINADOS el desplegable queda con una sola opcion, y un
     desplegable de un solo item se lee como roto. El cartel que lo explica es un

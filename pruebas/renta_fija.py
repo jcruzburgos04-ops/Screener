@@ -311,12 +311,18 @@ SFIJA = {"clave": "Fijo", "titulo": "Tasa fija", "filas": [
     {"t": "T31Y7", "precio": 124.99, "dias": 271, "vto": "2027-05-31", "pago": {"cobra": 151.56}},
     {"t": "T30J7", "precio": 126.40, "dias": 301, "vto": "2027-06-30", "pago": {"cobra": 156.04}},
 ]}
-SFUT = [{"t": "DLR/SEP26", "precio": 1534.0, "dias": 28},
-        {"t": "DLR/OCT26", "precio": 1559.5, "dias": 58},
-        {"t": "DLR/NOV26", "precio": 1586.5, "dias": 89},
-        {"t": "DLR/ABR27", "precio": 1730.0, "dias": 240},
-        {"t": "DLR/MAY27", "precio": 1761.0, "dias": 271},
-        {"t": "DLR/JUN27", "precio": 1765.0, "dias": 301}]
+# Los futuros llevan su VENCIMIENTO, que es lo unico con lo que se puede medir
+# el descalce. Antes se restaban los PLAZOS y eso metia adentro el desfasaje de
+# la liquidacion: los dias del bono se cuentan desde el habil siguiente y los
+# del futuro desde hoy, asi que un viernes daba TRES DIAS de descalce en pares
+# que vencen EL MISMO DIA -- seis de los diez del panel del 4/9 -- y de paso
+# tapaba los de verdad (el S13N6 decia 11 cuando eran 14).
+SFUT = [{"t": "DLR/SEP26", "precio": 1534.0, "dias": 28, "vto": "2026-09-30"},
+        {"t": "DLR/OCT26", "precio": 1559.5, "dias": 58, "vto": "2026-10-30"},
+        {"t": "DLR/NOV26", "precio": 1586.5, "dias": 89, "vto": "2026-11-30"},
+        {"t": "DLR/ABR27", "precio": 1730.0, "dias": 240, "vto": "2027-04-30"},
+        {"t": "DLR/MAY27", "precio": 1761.0, "dias": 271, "vto": "2027-05-31"},
+        {"t": "DLR/JUN27", "precio": 1765.0, "dias": 301, "vto": "2027-06-30"}]
 SREF = {"S30S6": 0.004, "S30O6": 0.007, "S30N6": 0.013,
         "T30A7": 0.034, "T31Y7": 0.042, "T30J7": 0.058}
 sin_ = bonos.sinteticos([SFIJA], SFUT, 1512.7)
@@ -342,6 +348,147 @@ ok("sin futuros tampoco", bonos.sinteticos([SFIJA], [], 1512.7) == [])
 # esto, porque su cobro en pesos no se conoce de antemano.
 ok("solo se arma con la curva de tasa fija",
    bonos.sinteticos([{"clave": "CER", "filas": SFIJA["filas"]}], SFUT, 1512.7) == [])
+
+# EL DOLAR DE CADA PATA, que es lo que el usuario pidio ver: sin los dos
+# numeros a la vista la tasa sale de la nada y no hay como auditarla.
+uno = sin_[0]
+ok("la fila dice a que dolar entra", uno["tc_entrada"] == 1512.7, uno["tc_entrada"])
+ok("y a que dolar sale", uno["tc_salida"] == 1534.0, uno["tc_salida"])
+ok("el de salida es el precio del futuro que la cubre",
+   uno["tc_salida"] == next(f["precio"] for f in SFUT if f["t"] == uno["futuro"]))
+# La identidad que hace legible la tabla: la tasa en pesos se parte en la tasa
+# en dolares y lo que se lleva el dolar. Si alguien toca una de las tres, esto
+# se pone en rojo.
+# La tolerancia es 1e-5 y no 1e-9 porque el payload redondea a SEIS decimales:
+# sin redondear la identidad cierra a 2e-16, con el redondeo queda un residuo de
+# ~3e-7. 1e-5 es treinta veces ese ruido y varios ordenes mas fino que
+# cualquier error de formula.
+malos = []
+for x in sin_:
+    pesos = x["cobra"] / x["px_fija"] - 1
+    if abs((1 + pesos) - (1 + x["efectiva"]) * (1 + x["devaluacion"])) > 1e-5:
+        malos.append(x["t"])
+ok("(1+pesos) = (1+dolares)(1+devaluacion) en las seis", not malos, malos)
+
+# TNA LINEAL Y TEA COMPUESTA. La TIR de un soberano es EFECTIVA, asi que
+# compararla contra una TNA lineal esta sesgado: la tabla publica las dos y
+# dice cual usar.
+ok("la TNA anualiza lineal", cerca(uno["tna"], uno["efectiva"] * 365 / uno["dias"], 1e-5))
+ok("la TEA capitaliza", cerca(uno["tea"], (1 + uno["efectiva"]) ** (365 / uno["dias"]) - 1, 1e-5))
+ok("y con tasas positivas la TEA es la mayor", uno["tea"] > uno["tna"])
+
+print("\n== el descalce se mide entre FECHAS, no entre plazos ==")
+# EL BUG QUE SALIO PUBLICADO. Los dias del bono se cuentan desde la
+# LIQUIDACION y los del futuro desde hoy, asi que restar los dos plazos metia
+# el desfasaje de la liquidacion adentro del descalce: un viernes daba TRES
+# DIAS en pares que vencen EL MISMO DIA. Aca el bono dice 23 dias y el futuro
+# 26, y vencen los dos el 30/9: el descalce es CERO.
+mismo = {"clave": "Fijo", "filas": [
+    {"t": "S30S6", "precio": 115.82, "dias": 23, "vto": "2026-09-30",
+     "pago": {"cobra": 117.54}}]}
+d0 = bonos.sinteticos([mismo], [{"t": "DLR/SEP26", "precio": 1528.5, "dias": 26,
+                                 "vto": "2026-09-30"}], 1513.18)
+ok("mismo vencimiento, descalce cero aunque los plazos digan otra cosa",
+   d0[0]["descalce"] == 0, d0[0]["descalce"])
+ok("y con descalce cero la tasa se publica", d0[0]["tna"] is not None)
+
+print("\n== sin futuro que cubra, no hay tasa ==")
+# Entre que cobra el bono y liquida el futuro quedas SIN cubrir, y ahi corre la
+# diferencia entre la tasa en pesos y la de dolares: ~22 puntos anuales, o sea
+# 0,06% por dia. En un sintetico de 8 dias, quince dias de descubierto no son
+# un detalle: son mas descalce que operacion. Antes esto salia publicado como
+# una TNA de -21%.
+corta = {"clave": "Fijo", "filas": [
+    {"t": "S15S6", "precio": 106.67, "dias": 8, "vto": "2026-09-15",
+     "pago": {"cobra": 107.21}}]}
+fl = bonos.sinteticos([corta], [{"t": "DLR/SEP26", "precio": 1528.5, "dias": 26,
+                                 "vto": "2026-09-30"}], 1513.18)
+ok("la fila sigue estando", len(fl) == 1)
+ok("pero sin tasa", fl[0]["tna"] is None and fl[0]["tea"] is None
+   and fl[0]["efectiva"] is None)
+ok("y con el motivo escrito", "no queda cubierto" in (fl[0]["motivo"] or ""),
+   fl[0]["motivo"])
+ok("el descalce se muestra igual", fl[0]["descalce"] == 15, fl[0]["descalce"])
+ok("y los dos dolares tambien, que no dependen del descalce",
+   fl[0]["tc_entrada"] and fl[0]["tc_salida"])
+# Justo en el limite no se suprime: el umbral es un cuarto del plazo.
+justo = {"clave": "Fijo", "filas": [
+    {"t": "X", "precio": 100.0, "dias": 40, "vto": "2026-10-12",
+     "pago": {"cobra": 103.0}}]}
+lim = bonos.sinteticos([justo], [{"t": "F", "precio": 1530.0, "dias": 50,
+                                  "vto": "2026-10-22"}], 1513.18)
+ok("diez dias sobre cuarenta pasa (justo en el limite)",
+   lim[0]["descalce"] == 10 and lim[0]["tna"] is not None, lim[0]["descalce"])
+lim2 = bonos.sinteticos([justo], [{"t": "F", "precio": 1530.0, "dias": 51,
+                                   "vto": "2026-10-23"}], 1513.18)
+ok("once, no", lim2[0]["tna"] is None, lim2[0]["descalce"])
+
+print("\n== dolar linked contra futuro ==")
+# La otra mitad del triangulo. Un dolar linked paga 100 dolares al A3500 del
+# vencimiento, o sea que YA es un instrumento en dolares: su tasa en dolares
+# sale sola. Vendiendo el futuro contra el, la exposicion al A3500 se cancela y
+# lo que queda es un cobro CIERTO EN PESOS de 100 x futuro: una tasa fija
+# sintetica, que es contra la curva de LECAPs que hay que compararla.
+DL = {"clave": "USDL", "filas": [
+    {"t": "D30S6", "precio": 150190.0, "dias": 23, "vto": "2026-09-30"},
+    {"t": "TZV28", "precio": 125000.0, "dias": 662, "vto": "2028-06-30"},
+]}
+FIJA2 = {"clave": "Fijo", "filas": [
+    {"t": "A", "precio": 100, "dias": 10, "vto": "2026-09-17", "tir": 0.25, "opero": True},
+    {"t": "B", "precio": 100, "dias": 40, "vto": "2026-10-17", "tir": 0.29, "opero": True},
+]}
+FUT2 = [{"t": "DLR/SEP26", "precio": 1528.5, "dias": 26, "vto": "2026-09-30"}]
+dl_ = bonos.sinteticos_dl([DL, FIJA2], FUT2, 1513.18)
+ok("sale una fila por bono", len(dl_) == 2, len(dl_))
+a = dl_[0]
+# EL DOLAR QUE SE TOMA EL BONO, que es lo otro que pidio el usuario.
+ok("dice el dolar del bono: precio / 100", cerca(a["tc_bono"], 1501.90, 0.01), a["tc_bono"])
+ok("y el del futuro al lado", a["tc_futuro"] == 1528.5)
+ok("la diferencia entre los dos es la señal",
+   cerca(a["dif_tc"], 1528.5 / 1501.9 - 1, 1e-6), a["dif_tc"])
+ok("su tasa en dolares NO usa el futuro, usa el spot",
+   cerca(a["tea_usd"], (100 * 1513.18 / 150190.0) ** (365 / 23) - 1, 1e-6), a["tea_usd"])
+ok("cubierto con el futuro, la tasa queda EN PESOS",
+   cerca(a["tea_ars"], (100 * 1528.5 / 150190.0) ** (365 / 23) - 1, 1e-6), a["tea_ars"])
+ok("la de pesos es mayor que la de dolares porque el futuro esta arriba del spot",
+   a["tea_ars"] > a["tea_usd"])
+# La curva fija se interpola al plazo del bono, y NO se extrapola.
+ok("compara contra la fija interpolada a su plazo",
+   cerca(a["fija"], 0.25 + (0.29 - 0.25) * (23 - 10) / 30, 1e-5), a["fija"])
+ok("y el veredicto es la resta",
+   cerca(a["contra_fija"], a["tea_ars"] - a["fija"], 1e-5))
+b_ = dl_[1]
+ok("el bono sin futuro que lo cubra queda sin tasa en pesos", b_["tea_ars"] is None)
+ok("pero conserva la suya en dolares, que no necesita futuro",
+   b_["tea_usd"] is not None)
+ok("y dice por que", "no se puede cubrir" in (b_["motivo"] or ""), b_["motivo"])
+# OJO CON ESTA: el TZV28 tiene `fija` vacio porque quedo suprimido por el
+# descalce, no por la extrapolacion. Verificarlo ahi no probaba nada -- lo
+# comprobe sacando el corte de la extrapolacion y la prueba seguia en verde.
+# Hace falta un bono BIEN cubierto y FUERA del tramo de la curva.
+ok("el suprimido no tiene con que comparar", b_["contra_fija"] is None)
+lejos = {"clave": "USDL", "filas": [
+    {"t": "DLEJOS", "precio": 150000.0, "dias": 90, "vto": "2026-12-05"}]}
+fl2 = bonos.sinteticos_dl(
+    [lejos, FIJA2], [{"t": "F", "precio": 1560.0, "dias": 90,
+                      "vto": "2026-12-05"}], 1513.18)[0]
+ok("ese bono si esta cubierto", fl2["motivo"] is None and fl2["tea_ars"] is not None)
+ok("pero su plazo cae MAS LEJOS que la curva fija, y NO se extrapola",
+   fl2["fija"] is None and fl2["contra_fija"] is None, fl2["fija"])
+# Y por abajo tambien. Este es el lado que hay que probar aparte: por arriba el
+# recorrido se queda sin puntos y devuelve None solo, pero por abajo, sin el
+# corte, interpola con un peso NEGATIVO y devuelve una tasa inventada. Lo
+# comprobe sacando el corte: sin este caso la prueba seguia en verde.
+cerca_ = {"clave": "USDL", "filas": [
+    {"t": "DCORTO", "precio": 150000.0, "dias": 5, "vto": "2026-09-07"}]}
+fl3 = bonos.sinteticos_dl(
+    [cerca_, FIJA2], [{"t": "F", "precio": 1515.0, "dias": 5,
+                       "vto": "2026-09-07"}], 1513.18)[0]
+ok("mas corto que la curva fija: tampoco se extrapola",
+   fl3["fija"] is None and fl3["contra_fija"] is None, fl3["fija"])
+ok("sin curva de dolar linked no se arma nada",
+   bonos.sinteticos_dl([FIJA2], FUT2, 1513.18) == [])
+ok("sin spot tampoco", bonos.sinteticos_dl([DL, FIJA2], FUT2, None) == [])
 
 print("\n== fechas: vencimiento habil, plazos y proximo pago ==")
 # Contra el informe de cierre del 01/09/2026 nuestros dias daban UNO MENOS en
@@ -447,31 +594,77 @@ ok("y ese vencimiento es el lunes, no el sabado", p_ult["fecha"] == "2026-10-19"
 # EL ULTIMO PAGO DEVUELVE TAMBIEN EL CAPITAL. `coupon` es solo la renta: en el
 # S30S6 trae 17,54 y lo que se cobra al vencimiento son 117,54. Los DIEZ
 # papeles de tasa fija del informe de referencia dan exacto con 100+cupon.
-CAPITAL = [("S15S6", "LETRAS-FIJO", 7.21, 107.21),
-           ("S30S6", "LETRAS-FIJO", 17.54, 117.54),
-           ("TO26",  "BONO-FIJA",   7.75, 107.75),
-           ("S30O6", "LETRAS-FIJO", 35.28, 135.28),
-           ("T15E7", "LETRAS-FIJO", 61.10, 161.10),
-           ("T30J7", "LETRAS-FIJO", 56.04, 156.04)]
+#
+# PERO QUIEN DECIDE SI ESE 100 CORRESPONDE NO ES LA FAMILIA, ES EL PRECIO. La
+# version anterior lo resolvia con una lista de familias a mano y esa lista se
+# equivoco de las dos maneras posibles, las dos publicadas:
+#   - de mas: LETRAS-CER estaba adentro y el capital de un CER ajusta por
+#     inflacion, asi que OCHO letras decian que cobrabas 100 cobrando ~115;
+#   - de menos: los duales no estaban, y SIETE papeles que capitalizan y pagan
+#     todo junto mostraban la columna vacia sin motivo.
+# Ahora el cobro candidato tiene que reproducir el precio al descontarlo a la
+# TIR que publica la fuente. La cuenta contesta, en el fondo, si esa TIR esta
+# expresada en pesos nominales.
+def _fila(cup, precio, y, fam="LO-QUE-SEA", d=27):
+    return {"end_date": "2026-09-30", "days_to_finish": d, "days_to_coupon": d,
+            "settlement": "24hs", "coupon": cup, "bond_family": fam,
+            "last_price": precio, "tir": y}
+
+
+def _px(total, y, d=27):
+    """El precio que hace coherente ese cobro con esa TIR."""
+    return total / (1 + y) ** (d / 365.0)
+
+
+CAPITAL = [("S15S6", 7.21, 107.21), ("S30S6", 17.54, 117.54),
+           ("TO26", 7.75, 107.75), ("S30O6", 35.28, 135.28),
+           ("T15E7", 61.10, 161.10), ("T30J7", 56.04, 156.04)]
 malos = []
-for tk, fam, cup, esperado in CAPITAL:
-    q = bonos.proximo_pago({"end_date": "2026-09-30", "days_to_finish": 27,
-                            "days_to_coupon": 27, "settlement": "24hs",
-                            "coupon": cup, "bond_family": fam}, HOY)
+for tk, cup, esperado in CAPITAL:
+    q = bonos.proximo_pago(_fila(cup, _px(esperado, 0.27), 0.27), HOY)
     if not cerca(q["cobra"], esperado, 0.005):
         malos.append(f"{tk} {q['cobra']} != {esperado}")
 ok("el ultimo pago de una letra suma los 100 de capital", not malos, malos)
 ok("y la renta sola sigue disponible aparte",
-   cerca(bonos.proximo_pago({"end_date": "2026-09-30", "days_to_finish": 27,
-                             "days_to_coupon": 27, "settlement": "24hs",
-                             "coupon": 17.54, "bond_family": "LETRAS-FIJO"},
-                            HOY)["monto"], 17.54, 1e-9))
+   cerca(bonos.proximo_pago(_fila(17.54, _px(117.54, 0.27), 0.27), HOY)["monto"],
+         17.54, 1e-9))
+
+# EL CASO QUE SALIO PUBLICADO. Una letra CER sin cupon: 100+0 da 100, pero el
+# capital ajusta y lo que se cobra son ~115,8. La TIR de la fuente es REAL, en
+# unidades de CER, asi que descontar 100 nominales con ella no cierra ni cerca
+# -- y por eso la verificacion lo caza sin saber que es un CER.
+cer = bonos.proximo_pago(_fila(0.0, 115.82, -0.0041, "LETRAS-CER"), HOY)
+ok("una letra CER NO dice que cobras 100", cer["cobra"] is None, cer["cobra"])
+ok("y su cupon sigue estando", cer["monto"] == 0.0, cer["monto"])
+
+# EL OTRO LADO DEL MISMO ERROR: un dual capitaliza y paga todo junto igual que
+# una LECAP, pero no estaba en la lista y quedaba vacio.
+dual = bonos.proximo_pago(_fila(70.31, _px(170.31, 0.2824), 0.2824, "DUAL"), HOY)
+ok("un dual SI suma el capital", cerca(dual["cobra"], 170.31, 0.01), dual["cobra"])
+
+# Un dolar linked paga 100 DOLARES al A3500 del vencimiento: en pesos no se
+# sabe hoy, y su TIR esta en dolares.
+dl = bonos.proximo_pago(_fila(0.0, 150190.0, 0.1079, "DOLAR-LINKED"), HOY)
+ok("un dolar linked tampoco afirma un cobro en pesos", dl["cobra"] is None)
+
+# La familia YA NO DECIDE NADA: mismo nombre inventado, y el que cierra pasa.
+ok("la familia no decide: decide el precio",
+   bonos.proximo_pago(_fila(17.54, _px(117.54, 0.27), 0.27, "FAMILIA-NUEVA"),
+                      HOY)["cobra"] is not None)
+ok("y si no cierra, no pasa aunque la familia suene a letra",
+   bonos.proximo_pago(_fila(17.54, 200.0, 0.27, "LETRAS-FIJO"),
+                      HOY)["cobra"] is None)
+# Sin precio o sin TIR no hay con que verificar, y sin verificar no se afirma.
+ok("sin precio no se puede verificar, asi que no se afirma",
+   bonos.proximo_pago(_fila(17.54, None, 0.27), HOY)["cobra"] is None)
+ok("sin TIR tampoco",
+   bonos.proximo_pago(_fila(17.54, 115.0, None), HOY)["cobra"] is None)
 # Lo que amortiza NO se puede afirmar sin el cronograma: queda vacio.
 ok("un instrumento que amortiza no inventa el residual",
    bonos.proximo_pago({"end_date": "2028-11-09", "days_to_finish": 798,
                        "days_to_coupon": 798, "settlement": "24hs",
-                       "coupon": 20.6, "bond_family": "BONO-CER"},
-                      HOY)["cobra"] is None)
+                       "coupon": 20.6, "bond_family": "BONO-CER",
+                       "last_price": 120.0, "tir": 0.08}, HOY)["cobra"] is None)
 # Y un pago que NO es el ultimo tampoco devuelve capital.
 ok("un pago intermedio tampoco",
    bonos.proximo_pago({"end_date": "2030-05-30", "days_to_finish": 1365,

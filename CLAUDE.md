@@ -978,6 +978,14 @@ completos desde la emisión, y la cabecera del archivo documenta cada cruce:
 > menos lo ya pagado". La primera versión restaba de 100 las amortizaciones
 > pasadas del CSV y daba 92 cuando lo que faltaba sumaba 60.
 
+> **Los intereses corridos van con días reales, y el prospecto dice 30/360.**
+> Es cierto, y **está medido: no cambia nada**. La diferencia en el valor
+> técnico es de 0,001 a 0,011 sobre ~100, y en la paridad **como mucho 0,01
+> puntos porcentuales** en los once bonos — la pantalla muestra la paridad con
+> un decimal, así que es invisible. Cambiarlo sería tocar algo verificado contra
+> una referencia externa para ganar cero. Queda anotado para que no se
+> "arregle" dos veces.
+
 La columna `verificado` en `1` quiere decir que ese bono pasó los cruces. Si
 alguna vez se agrega uno sin verificar se pone `0`, y la pantalla muestra su TIR
 con una pastilla **prov.** al lado.
@@ -1165,24 +1173,73 @@ corre el promedio de todo el mercado. Verificado contra el informe del
 `MEP/oficial−1` y `CCL/oficial−1` = **3,38%**, canje = `CCL/MEP−1` = **4,06%**,
 las dos exactas.
 
-**La tasa sintética**: comprás la letra en pesos con dólares y vendés los pesos
-del vencimiento al futuro. El resultado es un rendimiento **en dólares sin
-riesgo de tipo de cambio**, y es contra esa tasa que se compara un bono en
-dólares.
+#### Las dos sintéticas: las dos mitades del mismo triángulo
+
+Son pesos, dólares y el futuro que los une, mirados desde los dos lados. Las dos
+viven en **Futuros** y las dos salen de datos que ya se bajaban.
+
+| | se arma con | queda una tasa en |
+|---|---|---|
+| `sinteticos` | letra de tasa fija + **comprar** futuro | **dólares** |
+| `sinteticos_dl` | dólar linked + **vender** futuro | **pesos** |
 
 ```
-entra = precio / spot        sale = cobro / futuro
-efectiva = sale/entra − 1    TNA = efectiva × 365/días
-```
+LETRA + FUTURO      entra = precio/spot      sale = cobro/futuro
+                    efectiva = sale/entra − 1
 
-> **El spot es el OFICIAL, no el MEP.** Se ve en la propia tabla del informe: su
-> columna «USD Oficiales» da 0,08 para el S30S6, que es 115,46/1512,7.
+DÓLAR LINKED        tc_bono = precio/100     (los pesos por dólar que pagás hoy)
+                    usd = 100·spot/precio − 1        (sale sola, sin futuro)
+                    ars = 100·futuro/precio − 1      (cubierta con el futuro)
+```
 
 Verificado contra las seis filas del informe: la efectiva da idéntica en las
-seis. **El futuro se elige por cercanía** de vencimiento —sin lista— y se
-muestra el **descalce**: entre que cobra la letra y liquida el futuro quedás en
-pesos, y esos días no están cubiertos. Sólo se arma con la curva de tasa fija,
-porque hace falta saber cuánto se cobra al vencimiento.
+seis. Vale además la identidad `(1+tasa_pesos) = (1+dólares)(1+devaluación)`,
+que es cómo se lee la tabla: tasa en pesos menos lo que se lleva el dólar.
+
+**El dólar linked ya ES un instrumento en dólares** —paga 100 dólares al A3500
+del vencimiento—, así que su tasa en dólares sale sin futuro. El futuro entra
+por dos lados: como **referencia del mismo dólar** (si `tc_bono` está por debajo
+del futuro, el bono compra dólares más barato, y esa es la señal sin pasar por
+ninguna tasa), y como **cobertura** (vendiéndolo se cancela la exposición al
+A3500 y queda un cobro cierto en pesos, o sea una tasa fija sintética, que es
+contra la curva de LECAPs que hay que compararla). Esa curva se **interpola** al
+plazo del bono y **no se extrapola**.
+
+##### Tres errores de conocimiento financiero que tenía esta tabla
+
+**1. Decía «sin riesgo de tipo de cambio», y para casi cualquiera es falso.** El
+futuro de A3 **liquida contra el A3500**, o sea contra el oficial. La tasa queda
+cerrada sólo para quien entra *y sale* por el oficial. El que pone dólares
+**MEP** cobra pesos cubiertos contra el oficial y para volver a sus dólares
+necesita el MEP del vencimiento, que no lo fija ningún futuro: lo que le queda
+abierto es la **brecha**. Con la brecha en ~2,7% y un sintético de 23 días, eso
+son más de 40% anualizado —**varias veces** la tasa que muestra la tabla—. La
+tarjeta lo dice ahora con el número del día.
+
+**2. El descalce se medía entre PLAZOS y hay que medirlo entre FECHAS.** Los
+días del bono se cuentan desde la **liquidación** (24hs = hábil siguiente) y los
+del futuro desde hoy. Restarlos metía el desfasaje de la liquidación adentro:
+un viernes daba **tres días de descalce en pares que vencen el mismo día**
+—seis de los diez del panel del 4/9— y de paso tapaba los de verdad (el S13N6
+decía 11 cuando eran 14). Ahora se restan las dos fechas.
+
+**3. Se publicaba una tasa donde no había cobertura.** Entre que cobra el bono y
+liquida el futuro quedás descubierto, y ahí corre la diferencia entre la tasa en
+pesos y la de dólares: ~22 puntos anuales, o sea **0,06% por día**. El S15S6
+salía publicado con una TNA de **−21%**: 8 días de operación con 15 de descalce,
+más descalce que operación. Con `FRACCION_DESCALCE = 0.25`, si el descalce se
+come un cuarto del plazo la fila va **sin tasa y con el motivo escrito** —queda
+en la tabla, con el descalce a la vista—. No es un umbral de gusto: en un
+sintético de 42 días cuyo margen entero son 0,3%, once días de descubierto se
+comen el negocio.
+
+**Y una mejora, no un error:** se publican **TNA y TEA**. La TIR de un soberano
+es efectiva, así que compararla contra una TNA lineal está sesgado. La tarjeta
+dice que la comparación va por TEA.
+
+> **El dólar de cada pata va en la tabla** (`tc_entrada`/`tc_salida` en una,
+> `tc_bono`/`tc_futuro` en la otra). Lo pidió el usuario y tiene razón: sin esos
+> dos números a la vista la tasa sale de la nada y no hay cómo auditarla.
 
 #### `coupon` es la RENTA, no lo que se cobra
 
@@ -1197,11 +1254,46 @@ da su «Pago final» exacto en los diez.
 > **Donde no se puede afirmar, no se afirma.** Si el instrumento amortiza, el
 > residual no es 100 y sin cronograma no hay forma de saberlo: ahí se sigue
 > mostrando el número de la fuente, que es la renta. Y un pago intermedio nunca
-> devuelve capital, sea la familia que sea. La lista de las que capitalizan es
-> `FAMILIAS_CAPITALIZAN`.
+> devuelve capital, sea la familia que sea.
 
 Lo encontré armando los sintéticos, porque esa tabla pide el cobro al
 vencimiento y el mío daba 100 menos.
+
+##### Y quién decide si ese 100 corresponde: el PRECIO, no la familia
+
+Esto se resolvía con una lista a mano, `FAMILIAS_CAPITALIZAN`, y **la lista se
+equivocó de las dos maneras posibles, las dos publicadas**:
+
+- **De más.** `LETRAS-CER` estaba adentro, y el capital de un CER **no es 100**:
+  es 100 ajustado por inflación. El `X30S6` decía que cobrabas **100** cuando se
+  cobran **~115,8**, y había **ocho** letras CER así. La TIR de un CER es una
+  tasa **real**, en unidades de CER; mezclarla con un cobro en pesos nominales
+  es un error de categoría, no de redondeo.
+- **De menos.** Los duales no estaban, así que **siete** papeles que capitalizan
+  y pagan todo junto —igual que una LECAP— mostraban la columna vacía sin
+  motivo.
+
+Ahora **no se le pregunta a la familia, se le pregunta al precio**: el cobro
+candidato (`monto + 100`) tiene que **reproducir el precio** al descontarlo a la
+TIR que publica la fuente, con 1% de tolerancia. La cuenta contesta, en el
+fondo, si esa TIR está expresada en pesos nominales:
+
+| | ¿cierra? | por qué |
+|---|---|---|
+| tasa fija, TAMAR, BADLAR, duales | **sí**, al 0,05% | su TIR es nominal en pesos |
+| CER | no, por 13% o más | su TIR es **real**, en unidades de CER |
+| dólar linked | no | su TIR es en **dólares**; el capital son 100 USD al A3500 del vencimiento, que hoy no se sabe |
+
+Los dos últimos no son un error de la fuente: son instrumentos cuyo cobro final
+**no se puede afirmar hoy**, y ahí la columna queda vacía. La ventaja de
+preguntarle al precio es que **no hay lista que envejezca**: cuando el Tesoro
+emita una familia nueva, entra sola si la cuenta cierra.
+
+> **El riesgo de esto** es que si la fuente cambiara cómo expresa la TIR, la
+> columna se vaciaría **en silencio**. Por eso el diagnóstico de `bonos.yml`
+> imprime, por curva, cuántos últimos pagos afirman su cobro: `Tasa fija 10/10`,
+> `CER 0/17`. Si una curva que siempre afirmó deja de hacerlo de un día para el
+> otro, es esto y no el mercado.
 
 #### El próximo pago: lo único del cronograma que publica la fuente
 
