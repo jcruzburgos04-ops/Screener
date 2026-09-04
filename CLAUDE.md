@@ -1631,6 +1631,16 @@ cierra a las 00:00 y la corrida pesada (`actualizar.yml`) arranca 01:30: si las
 dos le pegan a Yahoo a la vez aparecen las descargas parciales, que es
 justamente lo que la nocturna no se puede permitir.
 
+> **El precio de este cambio, que hay que tener presente al publicar código:**
+> el workflow hace `checkout` **una sola vez** y después itera. Con el bucle de
+> 50 minutos, un commit llegaba al sitio en menos de una hora sin hacer nada;
+> con 5 h 30 puede tardar todo ese rato, porque la corrida viva sigue publicando
+> el código con el que arrancó. **Si pusheaste algo que tiene que verse ya,
+> disparalo a mano**: el `cancel-in-progress` del grupo `intradia` mata la vieja
+> y la nueva arranca del commit nuevo. Los *precios* no sufren esto —los baja
+> cada vuelta—; lo que se queda viejo es el `index.html` y el `bonos.py` que
+> corre adentro.
+
 Detalles que importan:
 
 - El publicado va **con `git` a mano**, no con `peaceiris/actions-gh-pages`: una
