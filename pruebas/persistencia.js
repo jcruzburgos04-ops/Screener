@@ -69,12 +69,21 @@ console.log('\n== B · apagar, reordenar arrastrando, recargar ==');
  ok('el orden sobrevive',cols(w2).join(',')===orden1,cols(w2).join(',').slice(0,60));
  ok('y la columna apagada sigue apagada',!cols(w2).includes('rsi'));}
 
-console.log('\n== C · apagar y despues elegir un preset del desplegable ==');
-{const a=nuevoAlmacen();let w=await abrir(a);await apagar(w,['rsi','adr']);
+console.log('\n== C · apagar y despues elegir un perfil del desplegable ==');
+/* Con presets de fabrica esto se probaba eligiendo uno; se sacaron, asi que se
+   guarda un perfil ANTES de apagar las columnas -- lleva rsi y adr prendidas
+   adentro -- y recien despues se apagan y se elige. Que el perfil las tenga
+   guardadas es justamente lo que hace que la prueba valga: elegirlo NO las
+   tiene que devolver. */
+{const a=nuevoAlmacen();let w=await abrir(a);
+ w.prompt=()=>'mio';
+ w.document.querySelector('#btnGuardarRapido').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ await esperar(400);
+ await apagar(w,['rsi','adr']);
  const sel=w.document.querySelector('#selRapido');
- sel.value='p:Tendencia limpia';sel.dispatchEvent(new w.Event('change',{bubbles:true}));
+ sel.value='m:mio';sel.dispatchEvent(new w.Event('change',{bubbles:true}));
  await esperar(700);
- ok('el preset NO deberia devolver las columnas',
+ ok('el perfil NO deberia devolver las columnas',
     !cols(w).includes('rsi')&&!cols(w).includes('adr'),cols(w).join(','));
  const w2=await abrir(a);await esperar(300);
  ok('y despues de recargar tampoco',!cols(w2).includes('rsi'),cols(w2).join(','));}

@@ -296,6 +296,12 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
   font-size:.9em;line-height:1}
 .sel-op.elegida::before{content:'✓';opacity:1}
 .sel-sep{height:1px;background:var(--borde);margin:.35rem .3rem}
+/* Sin perfiles guardados el desplegable tendria una sola opcion. En vez de
+   dejarlo asi se dice que esta vacio y como se llena. */
+.sel-lista.sin-perfiles::after{content:"Todavía no guardaste ningún filtro. "
+  "Armá uno y tocá «Guardar estos filtros».";display:block;
+  border-top:1px solid var(--borde);margin:.35rem .3rem 0;padding:.5rem .2rem .2rem;
+  font-size:var(--t0);color:var(--tenue);max-width:22rem;line-height:1.45}
 
 /* La frescura es el dato mas importante de la pagina: si esto no esta al dia,
    todo lo demas da igual. Por eso vive arriba de todo y cambia de color solo. */
@@ -2109,33 +2115,11 @@ let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
        esta en verde. La industria sigue disponible con el chip de al lado. */
     campoGrupo='sector';
 
-/* Filtros listos para usar. Son los mismos controles de la izquierda: cada
-   clave es el id de un control y su valor lo que se le pone. */
-const PRESETS={
- 'Tendencia limpia':{fRegimen:'3',fPosW:'arriba',fAshD:'1',fAshW:'1',fDVol:'10000000'},
- 'Cruce fresco de ASH':{fAshD:'1',fCruceMax:'5',fRegimen:'b+',fDVol:'5000000'},
- 'Pullback en tendencia':{fAshW:'1',fAshD:'0',fRegimen:'b+',fPosW:'adentro',fRsiMax:'45',fDVol:'5000000'},
- 'Se mueve y es líquido':{fAdr:'3',fDVol:'20000000',fVol:'500000'},
- 'Fuerza relativa top':{fRs:'80',fRegimen:'3',fAshW:'1',fDVol:'5000000'},
- 'Pegado a la resistencia':{fResDist:'3',fToques:'3',fAshD:'1',fDVol:'5000000'},
- 'Triángulo ascendente':{fPatron:'Triángulo asc.',fToques:'3',fDVol:'5000000'},
- 'Canal alcista con ASH':{fPatron:'Canal alcista',fAshD:'1',fAshW:'1',fDVol:'5000000'},
- /* El patron del grafico que mando el usuario: el precio vuelve al AVWAP del
-    ultimo maximo y lo recupera, con el ASH acompañando. */
- 'Recupera el AVWAP':{fAvwap:'Recuperado',fAshD:'1',fDVol:'5000000',fRegimen:'b+'},
- 'Volviendo al AVWAP':{fAvDist:'2',fAshW:'1',fDVol:'5000000'},
- /* Los que llevan rato en rojo: no es una entrada, es la lista de donde
-    puede salir un piso cuando el ASH de vuelta. */
- 'Bajista hace rato':{fCruceDir:'0+',fCruceMax:'15',fDVol:'5000000'},
- /* Los dos que se leen directo de las nubes de Doc. */
- 'Nube B recién girada':{fCruceW:'1',fCruceWN:'10',fPosW:'arriba',fDVol:'5000000'},
- 'Bajista hace rato en las dos':{fRegimen:'0',fCruceW:'0+',fCruceWN:'30',fDVol:'5000000'},
- /* Lo de la foto: quieto, contra el techo de su caja y con el semanal a favor.
-    Es la lista de las que estan por definir para algun lado. */
- 'Consolidando':{fConsol:'quieto',fCajaRuedas:'10',fDVol:'5000000'},
- 'Rompió la caja':{fConsol:'Rompió ↑',fDVol:'5000000'},
- 'Cajón contra el techo':{fConsol:'Cajón',fCajaPos:'alto',fRegimen:'b+',fDVol:'5000000'},
-};
+/* NO HAY FILTROS PREDETERMINADOS. Habia diecisiete armados de fabrica en
+   una constante PRESETS y el usuario los mando sacar: el desplegable lleva
+   ahora "Sin filtros" y los perfiles que uno se guarda, nada mas. Si vuelve
+   a hacer falta una lista fija, se guarda como perfil y se exporta con el
+   respaldo .json, que es el mecanismo que ya existe para eso. */
 /* Estado "sin ningun filtro". Es UNA sola lista: la usan el boton de limpiar,
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
@@ -4472,8 +4456,10 @@ function pintarSelector(s){
         html+=`<div class="sel-op" role="option" data-v="${esc(o.value)}">${esc(o.textContent)}</div>`;
     }else if(nodo.tagName==='OPTION'){
       html+=`<div class="sel-op" role="option" data-v="${esc(nodo.value)}">${esc(nodo.textContent)}</div>`;
-      // "Sin filtros" es la salida, no una opcion mas: se separa del resto
-      if(nodo.value==='0')html+='<div class="sel-sep"></div>';
+      /* "Sin filtros" es la salida, no una opcion mas: se separa del resto.
+         Pero solo si hay resto -- sacados los presets, sin ningun perfil
+         guardado la raya quedaba colgando abajo de la unica opcion. */
+      if(nodo.value==='0'&&nodo.nextElementSibling)html+='<div class="sel-sep"></div>';
     }
   }
   lista.innerHTML=html;
@@ -4496,14 +4482,16 @@ function sincroSelectores(){
 function pintarPerfiles(){
   const mios=leerPerfiles();
   const html='<option value="0">Sin filtros</option>'+
-    '<optgroup label="Listos para usar">'+
-      Object.keys(PRESETS).map(k=>`<option value="p:${k}">${k}</option>`).join('')+
-    '</optgroup>'+
     (Object.keys(mios).length?'<optgroup label="los tuyos">'+
       Object.keys(mios).map(k=>`<option value="m:${k}">${k}</option>`).join('')+
       '</optgroup>':'');
+  /* Sin presets y sin perfiles propios el desplegable queda con una sola
+     opcion, y un desplegable de un solo item se lee como roto. Se dice que
+     esta vacio y como se llena, que es la regla de siempre acá. */
+  const vacio=!Object.keys(mios).length;
   $('#selPerfil').innerHTML=html;
   $('#selRapido').innerHTML=html;
+  SELECTORES.forEach(s=>s.lista&&s.lista.classList.toggle('sin-perfiles',vacio));
   $('#cuentaPerfiles').textContent=Object.keys(mios).length||'';
   SELECTORES.forEach(pintarSelector);
   marcarPerfil();
@@ -4537,9 +4525,11 @@ function elegirPerfil(valor){
   salirDePanorama();
   if(valor==='0'){limpiarFiltros();return;}
   $('#selPerfil').value=valor;$('#selRapido').value=valor;
-  const [tipo,nombre]=[valor.slice(0,1),valor.slice(2)];
-  if(tipo==='p'){ponerValores(PRESETS[nombre],true);etiquetas();aplicar();guardarSesion();}
-  else{const p=leerPerfiles()[nombre];if(p)aplicarEstado(p);}
+  /* Solo quedan los perfiles del usuario. Una vista vieja o una sesion guardada
+     pueden traer todavia un `p:` de los presets que se sacaron; no encuentra
+     nada y no pasa nada, que es lo que corresponde. */
+  const nombre=valor.slice(2);
+  const p=leerPerfiles()[nombre];if(p)aplicarEstado(p);
 }
 /* TODO CONTROL DE ESTADO VIVE EN UN .ctrl-host. Antes esto decia
    `aside input, aside select`, o sea que dependia de DONDE estaba el control en
@@ -5486,7 +5476,7 @@ function iniciar(){
     marcarPerfil();
     $('#nomPerfil').value='';};
   $('#btnBorrar').onclick=()=>{const v=$('#selPerfil').value;
-    if(!v||v[0]!=='m')return;                      // los listos no se borran
+    if(!v||v[0]!=='m')return;                      // "Sin filtros" no se borra
     const p=leerPerfiles();delete p[v.slice(2)];
     escribirLS(CLAVE,JSON.stringify(p));pintarPerfiles();};
   $('#btnActualizar').onclick=()=>lanzarActualizacion(false,false);

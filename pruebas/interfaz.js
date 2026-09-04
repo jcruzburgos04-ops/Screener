@@ -120,10 +120,18 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
        sel.options[0].textContent==='Sin filtros',sel.options[0].textContent);
     ok('y no se enciende si no hay perfil puesto',!sel.classList.contains('puesto'),
        sel.className);
-    sel.value=[...sel.options].find(o=>o.value.startsWith('p:')).value;
+    /* Sacados los presets de fabrica, el desplegable arranca con una sola
+       opcion. Se guarda un perfil para tener algo que elegir. */
+    ok('sin perfiles guardados, el desplegable avisa que esta vacio',
+       !!$('#selRapidoLindo').querySelector('.sel-lista.sin-perfiles'),
+       $('#selRapidoLindo').querySelector('.sel-lista').className);
+    $('#nomPerfil').value='mio';
+    $('#btnGuardar').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+    await new Promise(r=>setTimeout(r,400));
+    sel.value='m:mio';
     sel.dispatchEvent(new w.Event('change'));
     await new Promise(r=>setTimeout(r,400));
-    ok('con un preset puesto se enciende',sel.classList.contains('puesto'),sel.className);
+    ok('con un perfil puesto se enciende',sel.classList.contains('puesto'),sel.className);
     ok('el resumen lo dice en una pastilla',
        !!$('#resumenFiltro').querySelector('.mini-pill'),
        $('#resumenFiltro').innerHTML.slice(0,80));
@@ -294,14 +302,14 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   ok('avisa que no puede guardar',e.$('#avisoAlmacen').style.display==='block',
      e.$('#avisoAlmacen').style.display);
 
-  console.log('\n== presets, limpiar y busquedas raras ==');
+  console.log('\n== el desplegable, limpiar y busquedas raras ==');
   const f=await abrir(nuevoAlmacen());
   for(const o of [...f.$('#selRapido').options]){
     f.$('#selRapido').value=o.value;
     f.$('#selRapido').dispatchEvent(new f.w.Event('change'));
     await new Promise(r=>setTimeout(r,120));
   }
-  ok('todos los presets del desplegable andan',true);
+  ok('todas las opciones del desplegable andan',true);
   f.$('#selRapido').value='0';
   f.$('#selRapido').dispatchEvent(new f.w.Event('change'));
   await new Promise(r=>setTimeout(r,200));

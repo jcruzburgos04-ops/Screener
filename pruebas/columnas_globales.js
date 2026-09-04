@@ -63,11 +63,17 @@ console.log('== EL CASO: de "sin filtros" a un filtro ==');
  perfil(w,'0');await esperar(700);
  ok('"sin filtros" tampoco',cols(w).join(',')===ahora,cols(w).join(',').slice(0,70));
 
- perfil(w,'p:Tendencia limpia');await esperar(700);
- ok('un preset tampoco',cols(w).join(',')===ahora,cols(w).join(',').slice(0,70));
+ /* Un SEGUNDO perfil, guardado con otras columnas encima. Antes esto se
+    probaba con los presets de fabrica; se sacaron, y lo que hay que verificar
+    sigue siendo lo mismo: saltar de un perfil a otro no me toca las columnas. */
+ w.prompt=()=>'otro';w.document.querySelector('#btnGuardarRapido')
+   .dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ await esperar(400);
+ perfil(w,'m:otro');await esperar(700);
+ ok('otro perfil tampoco',cols(w).join(',')===ahora,cols(w).join(',').slice(0,70));
 
  perfil(w,'0');await esperar(700);
- perfil(w,'p:Fuerza relativa top');await esperar(700);
+ perfil(w,'m:otro');await esperar(700);
  perfil(w,'m:mio');await esperar(700);
  ok('despues de saltar entre varios, siguen iguales',cols(w).join(',')===ahora,cols(w).join(',').slice(0,70));
 

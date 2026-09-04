@@ -246,15 +246,18 @@ function abrir(payload,almacen){
     ok('"Sin filtros" te devuelve a la tabla',!d5.body.classList.contains('panorama'));
     ok('y la tabla tiene filas',d5.querySelectorAll('#tabla tbody tr').length>0);
 
-    // un preset cualquiera, tambien estando en Panorama
+    /* Un perfil guardado, tambien estando en Panorama. Antes esto usaba un
+       preset de fabrica; se sacaron, asi que la prueba se guarda el suyo. */
+    w5.prompt=()=>'mio';
+    q('#btnGuardarRapido').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));
+    await esperar(400);
     q('#chipVista').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));
     await esperar(250);
-    const preset=[...q('#selRapido').options].find(o=>o.value.indexOf('p:')===0);
-    q('#selRapido').value=preset.value;
+    q('#selRapido').value='m:mio';
     q('#selRapido').dispatchEvent(new w5.Event('change'));
     await esperar(400);
-    ok('un preset tambien sale de Panorama',!d5.body.classList.contains('panorama'),
-       preset.value);
+    ok('un perfil tambien sale de Panorama',!d5.body.classList.contains('panorama'),
+       q('#selRapido').value);
 
     // y mover una perilla de filtro a mano
     q('#chipVista').dispatchEvent(new w5.MouseEvent('click',{bubbles:true}));

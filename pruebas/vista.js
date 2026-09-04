@@ -185,7 +185,32 @@ const srv=http.createServer((q,r)=>{
    ok('sin celdas vacias', sint.vacias===0, sint.vacias);
  }
 
+ /* SIN FILTROS PREDETERMINADOS el desplegable queda con una sola opcion, y un
+    desplegable de un solo item se lee como roto. El cartel que lo explica es un
+    ::after de CSS, o sea que jsdom no puede verlo NUNCA: no aplica hojas de
+    estilo y el contenido generado no existe en su DOM. Ahi la prueba de jsdom
+    solo puede mirar la clase; el texto hay que preguntarselo al navegador. */
+ console.log('\n== el desplegable vacio lo dice ==');
+ await pg.click('#chipTabla'); await pg.waitForTimeout(600);
+ const cartel=await pg.evaluate(()=>{
+   const l=document.querySelector('#selRapidoLindo .sel-lista');
+   if(!l)return null;
+   const cs=getComputedStyle(l,'::after');
+   return {clase:l.className, texto:cs.content||'', display:cs.display,
+           seps:l.querySelectorAll('.sel-sep').length,
+           ops:l.querySelectorAll('.sel-op').length};});
+ ok('la lista se marca como vacia', !!cartel&&/sin-perfiles/.test(cartel.clase),
+    cartel&&cartel.clase);
+ ok('y el navegador pinta el cartel',
+    !!cartel&&/guardaste/i.test(cartel.texto)&&cartel.display!=='none',
+    cartel&&(cartel.texto.slice(0,50)+' · '+cartel.display));
+ /* La raya separa "Sin filtros" de lo que sigue. Si no sigue nada, no va. */
+ ok('sin nada abajo, la raya no queda colgando',
+    !!cartel&&cartel.seps===0&&cartel.ops===1,
+    cartel&&('seps '+cartel.seps+' · ops '+cartel.ops));
+
  console.log('\n== las otras vistas tampoco explotan ==');
+ await pg.click('#chipBonos'); await pg.waitForTimeout(600);
  for(const [n,sel] of [['Soberanos','.cv-pt'],['Futuros','.fu-pt'],
                        ['Corporativos','.bo-tabla']]){
    for(const x of await pg.$$('.bo-pest button')){

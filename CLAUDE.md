@@ -49,7 +49,8 @@ La página llega sin datos adentro y busca `datos.json` al lado (mismo origen, s
 CORS). Se lee en streaming para mostrar barra de progreso.
 
 **Hay dos crones, no uno.** `actualizar.yml` corre de noche y baja los 3 años de
-historial. `intradia.yml` corre **cada media hora mientras Nueva York opera**,
+historial. `intradia.yml` corre **una vez por hora mientras Nueva York opera** y
+adentro se refresca cada 10 minutos durante 5 h 30,
 agarra el `datos.json` que ya está publicado, le pide a Yahoo sólo el último mes
 de cada símbolo y le pega las barras nuevas encima (`actualizar_rapido.py`). Por
 eso, cuando abrís el link, lo publicado tiene menos de una hora sin que el
@@ -98,7 +99,7 @@ datos incrustados.
 | `servidor.py` | Servidor local con progreso, cuarentena y actualización a pedido. |
 | `verificar.py` | Imprime OHLC e indicadores de UN símbolo, para comparar a ojo contra TradingView. |
 | `diagnostico.py` | Lee un `datos.json` y reporta qué símbolos vienen con precios atrasados. |
-| `actualizar_rapido.py` | **La actualización intradía.** Toma el `datos.json` publicado, pide sólo el último mes y fusiona. Barato: es lo que corre cada media hora. |
+| `actualizar_rapido.py` | **La actualización intradía.** Toma el `datos.json` publicado, pide sólo el último mes y fusiona. Barato: es lo que corre cada 10 minutos. |
 | `bonos.py` | **La renta fija argentina.** Precios de los soberanos, los dos dólares implícitos, el canje de leyes, TIR/TNA/paridad/duration/DV01 sobre el cronograma, y las obligaciones negociables. Ver la sección 7b. |
 | `futuros.py` | **Los futuros de dólar** (A3/Matba Rofex). Deduce el vencimiento del símbolo, descarta los vencidos y despeja el spot. Ver la sección 7b. |
 | `armar_universo.py` | Compara `cedears.csv` contra el panel vivo de BYMA y reporta las diferencias. Sólo reporta, no escribe. |
@@ -487,7 +488,8 @@ de la rueda. Por eso viaja también `exv` (volumen extendido): sirve para saber
 cuánto creerle. En un papel líquido el dato es útil; en uno que no lo es, una
 sola operación suelta mueve el precio 4%.
 
-`intradia.yml` corre 8:00-23:30 UTC para cubrir las tres sesiones.
+`intradia.yml` pide un disparo por hora, 8:00-23:00 UTC, para cubrir las tres
+sesiones.
 
 ### Dónde vive cada control (cambió, y por un motivo)
 
@@ -632,13 +634,30 @@ al default. Era la queja más concreta sobre "la memoria".
 botón de limpiar, la opción `— sin filtros —` del desplegable y los presets. Antes
 la lista estaba duplicada dentro del botón y se olvidaba de los controles nuevos.
 
-### Presets de filtros
+### No hay filtros predeterminados
 
-Vienen armados en la constante `PRESETS`: Tendencia limpia, Cruce fresco de ASH,
-Pullback en tendencia, Se mueve y es líquido, Fuerza relativa top, Pegado a la
-resistencia, Triángulo ascendente, Canal alcista con ASH, Recupera el AVWAP,
-Volviendo al AVWAP y Bajista hace rato. La primera opción del desplegable es
-`Sin filtros` (valor `'0'`), que limpia todo.
+Había diecisiete armados de fábrica en una constante `PRESETS` y **el usuario los
+mandó sacar** (4/9/2026). El desplegable lleva ahora `Sin filtros` (valor `'0'`,
+que limpia todo) y los perfiles que uno se guarda, nada más. Si alguna vez hace
+falta una lista fija, se guarda como perfil y se exporta con el respaldo `.json`,
+que es el mecanismo que ya existe para eso — **no vuelvas a meter una constante
+de presets**.
+
+Dos detalles de la pantalla vacía, que es el caso nuevo: sin ningún perfil
+guardado el desplegable tendría **una sola opción**, y eso se lee como roto. Por
+eso la raya que separa `Sin filtros` del resto sólo se dibuja **si hay resto**
+(`nodo.nextElementSibling`), y la lista se marca con `sin-perfiles`, que pinta un
+`::after` explicando cómo se llena.
+
+> Ese cartel es **contenido generado por CSS**, así que jsdom no puede verlo
+> nunca: no aplica hojas de estilo. En `interfaz.js` se verifica la *clase*; el
+> *texto* se verifica en `vista.js`, preguntándole al navegador. Es el mismo
+> reparto que el de `[hidden]`.
+
+Las pruebas usaban los presets como vehículo para verificar otras cosas (que
+elegir del desplegable no te cambie las columnas, que te saque de Panorama y de
+Bonos, que encienda el selector). Todas siguen, pero **se guardan su propio
+perfil** en vez de apoyarse en uno de fábrica.
 
 **Elegir cualquier cosa del desplegable sale solo de Panorama.** Antes, estando
 en las tarjetas, apretabas `Sin filtros` y no pasaba nada visible: el resultado
@@ -1445,7 +1464,7 @@ Después de fusionar se recalcula el atraso en JS con la misma regla que Python
 > el navegador descarta la respuesta. No se arregla desde este código.
 >
 > **Por eso la solución de verdad es `intradia.yml`**, que refresca el sitio
-> cada media hora del lado del servidor y no depende de CORS para nada. El
+> cada diez minutos del lado del servidor y no depende de CORS para nada. El
 > intento desde el navegador quedó como extra por si algún día Yahoo lo permite,
 > pero **cuando falla no se muestra ninguna alarma**: sería ruido sobre algo que
 > ya está resuelto. La banda roja quedó reservada para lo único que sí es un
@@ -1500,8 +1519,25 @@ esfuerzo" y a los repos que piden mucha frecuencia se les saltean corridas.
 
 **La salida no es pedir más corridas**, que empeora el estrangulamiento, sino
 que cada corrida cubra un rato: se pide **una por hora** y adentro se refresca
-**cada 10 minutos durante ~50**. Con que GitHub cumpla dos o tres disparos en
-todo el día, lo publicado igual queda con menos de 10 minutos.
+cada 10 minutos.
+
+**Con 50 minutos de bucle no alcanzó.** El 4/9/2026 el usuario volvió a reportar
+lo mismo: se pidieron 8 disparos y GitHub largó **uno**, a las 12:18 UTC, así que
+la única corrida del día terminó **27 minutos antes** de que abriera Nueva York.
+A las 15:18 lo publicado tenía 2 h 15 y era de antes de la apertura. Por eso el
+bucle pasó de 50 minutos a **5 h 30** (`MINUTOS=330`, `timeout-minutes: 350`; el
+tope duro de un job son 6 horas): un solo disparo que caiga en la mañana cubre
+casi toda la rueda.
+
+**El ritmo no cambia y esto es lo importante:** sigue siendo un refresco cada 10
+minutos y el grupo de concurrencia deja **una sola corrida viva**, así que Yahoo
+no recibe ni un pedido más por unidad de tiempo por más disparos que larguen.
+Lo único que se achica son los huecos.
+
+**El bucle se corta a las 00:30 UTC** aunque le sobre tiempo. El after-hours
+cierra a las 00:00 y la corrida pesada (`actualizar.yml`) arranca 01:30: si las
+dos le pegan a Yahoo a la vez aparecen las descargas parciales, que es
+justamente lo que la nocturna no se puede permitir.
 
 Detalles que importan:
 

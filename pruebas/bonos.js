@@ -589,8 +589,13 @@ console.log('== el interruptor de tres posiciones ==');
     alm2.getItem('screener_ash_vista'));
 
  console.log('\n== elegir un filtro te saca de bonos ==');
+ /* Se guarda un perfil y se elige ESE. Antes se usaba un preset de fabrica,
+    pero se sacaron: el desplegable lleva ahora solo lo que uno se guarda. */
+ w.prompt=()=>'mio';
+ d.querySelector('#btnGuardarRapido').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ await esperar(400);
  const sel=d.querySelector('#selRapido');
- sel.value='p:Tendencia limpia';sel.dispatchEvent(new w.Event('change',{bubbles:true}));
+ sel.value='m:mio';sel.dispatchEvent(new w.Event('change',{bubbles:true}));
  await esperar(700);
  ok('vuelve a la tabla sola',!d.body.classList.contains('bonos')&&
     d.querySelector('#chipTabla').classList.contains('on'));

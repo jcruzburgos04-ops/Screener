@@ -35,6 +35,18 @@ const t=setInterval(async()=>{
  if(!d.querySelectorAll('#tabla tbody tr').length)return;
  clearInterval(t); await esperar(400);
  const clic=el=>el.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ /* Se sacaron los presets de fabrica: el desplegable lleva "Sin filtros" y lo
+    que uno se guarda. Asi que la prueba se guarda su propio perfil, con un
+    filtro adentro que despues se verifica que se haya aplicado de verdad. */
+ d.querySelector('#fResDist').value='3';
+ d.querySelector('#fResDist').dispatchEvent(new w.Event('input',{bubbles:true}));
+ await esperar(700);
+ d.querySelector('#nomPerfil').value='Pegado a la resistencia';
+ clic(d.querySelector('#btnGuardar'));
+ await esperar(400);
+ d.querySelector('#selRapido').value='0';
+ d.querySelector('#selRapido').dispatchEvent(new w.Event('change',{bubbles:true}));
+ await esperar(700);
  const cont=d.querySelector('#selRapido').parentNode.querySelector('.selector');
  ok('se creo el selector dibujado a mano',!!cont);
  const boton=cont.querySelector('.sel-boton'), lista=cont.querySelector('.sel-lista');
@@ -49,9 +61,9 @@ const t=setInterval(async()=>{
  ok('el boton la abre',cont.classList.contains('abierto'));
  // elegir "Pegado a la resistencia"
  const objetivo=ops.find(o=>/Pegado a la resistencia/.test(o.textContent));
- ok('esta el preset de la captura',!!objetivo);
+ ok('esta el perfil guardado',!!objetivo);
  clic(objetivo); await esperar(700);
- ok('al elegir, el <select> queda con ese valor',sel.value==='p:Pegado a la resistencia',sel.value);
+ ok('al elegir, el <select> queda con ese valor',sel.value==='m:Pegado a la resistencia',sel.value);
  ok('y se cierra sola',!cont.classList.contains('abierto'));
  ok('el boton muestra lo elegido',/Pegado a la resistencia/.test(boton.textContent),boton.textContent.trim());
  ok('y se enciende como chip activo',boton.classList.contains('puesto'));
