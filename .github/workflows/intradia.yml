@@ -99,7 +99,7 @@ jobs:
       # bash; el publicado se hace con git a mano, que es lo mismo que hacia esa
       # action con force_orphan: un repo nuevo cada vez, o sea un solo commit en
       # gh-pages y no 2 GB de historial al año.
-      - name: Refrescar y publicar durante ~50 minutos
+      - name: Refrescar y publicar mientras dure la corrida
         if: steps.hay.outputs.si == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
