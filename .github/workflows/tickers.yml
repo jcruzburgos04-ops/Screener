@@ -1,0 +1,42 @@
+# =============================================================================
+# ¿EXISTEN ESTOS TICKERS EN YAHOO?
+#
+# A mano, no en cron. Sirve para cargar CEDEARs nuevos: el panel de BYMA publica
+# el CODIGO BYMA y el screener solo baja SUBYACENTES, asi que hay que confirmar
+# cual es cual antes de tocar universo.csv. Adivinarlo no se nota -- el papel no
+# baja nunca y queda de adorno, o peor, baja otra empresa.
+#
+# Corre aca y no en la maquina de desarrollo porque ahi no hay salida a
+# internet. Es el mismo motivo por el que bonos.yml existe.
+# =============================================================================
+name: Tickers
+
+on:
+  workflow_dispatch:
+    inputs:
+      simbolos:
+        description: "Simbolos separados por espacio (ej: BG CLS 000660.KS)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  tickers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      # El input va por ENV y no interpolado en el `run`. Interpolarlo mete el
+      # texto tal cual adentro del shell, y aunque aca solo lo dispara el dueño
+      # del repo, un `;` en el campo corre lo que venga detras. Por env el shell
+      # lo trata como dato.
+      - name: Preguntarle a Yahoo
+        env:
+          SIMBOLOS: ${{ inputs.simbolos }}
+        run: python verificar_tickers.py $SIMBOLOS
