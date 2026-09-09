@@ -871,6 +871,16 @@ def limpiar_barras(d, minimo=None):
     return d if len(d) >= minimo else None
 
 
+# Los que Yahoo SI devolvio pero con menos barras que MIN_BARRAS, y cuantas
+# trajo cada uno. NO es lo mismo que "no vino": un papel que no vino puede
+# estar deslistado o ser una racha, y uno corto es una salida a bolsa reciente
+# que va a entrar solo cuando junte historial. Antes los dos terminaban en la
+# misma bolsa de "sin datos" y la pantalla decia "Yahoo no los devolvio", que
+# para el segundo es FALSO -- paso con el SPCX, que el usuario reclamo y tenia
+# 61 barras de 220.
+CORTOS = {}
+
+
 def _descargar(grupo, periodo, minimo=None):
     """Una tanda contra Yahoo. Devuelve solo lo que vino limpio y completo."""
     import yfinance as yf
@@ -893,9 +903,14 @@ def _descargar(grupo, periodo, minimo=None):
                 d = raw[t]
             else:
                 d = raw
+            crudo = len(d.dropna(subset=["Close"])) if "Close" in d else 0
             d = limpiar_barras(d, minimo)
             if d is not None:
                 out[t] = d
+                CORTOS.pop(t, None)
+            elif crudo:
+                # Vino, pero corto. Se anota para poder decirlo aparte.
+                CORTOS[t] = crudo
         except Exception:
             pass
     return out

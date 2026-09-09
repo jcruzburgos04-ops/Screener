@@ -34,6 +34,7 @@ import sys
 from pathlib import Path
 
 from generar_html import armar_payload
+import screener
 from screener import (BENCHMARK, actualizar_cuarentena, atrasos,
                       bajar_fundamentales, bajar_precios, cargar_cuarentena,
                       cargar_precios, guardar_precios, leer_universo,
@@ -93,6 +94,16 @@ def main():
     # tambien son "sin datos" desde el punto de vista de la pagina.
     quedaron = {s["t"] for s in payload["simbolos"]}
     payload["faltantes"] = sorted(set(faltan) | {t for t in tickers if t not in quedaron})
+    # Y aparte, los que SI vinieron pero con poco historial. Meterlos en la
+    # misma bolsa hacia que la pagina dijera "Yahoo no los devolvio", que para
+    # estos es falso: Yahoo los devolvio y este programa los descarto porque no
+    # llegan a MIN_BARRAS. Son dos problemas distintos con dos acciones
+    # distintas -- uno se investiga, el otro se espera.
+    payload["cortos"] = {t: n for t, n in sorted(screener.CORTOS.items())
+                         if t in payload["faltantes"]}
+    # El umbral viaja para que la pantalla no lo tenga escrito a mano y se
+    # desincronice si alguna vez se cambia.
+    payload["min_barras"] = screener.MIN_BARRAS
 
     tarde = {t: n for t, n in atrasos(precios).items() if n > 0 and t in quedaron}
     if tarde:

@@ -5306,13 +5306,32 @@ function pintarInfoDatos(){
       '<br>Se compara contra el cierre de <b style="color:var(--tenue)">su</b> mercado, '+
       'así que un día afuera de EE.UU. suele ser feriado local. Dos ruedas o más '+
       'es Yahoo devolviendo la serie recortada.':'');
-  const f=DATOS.faltantes||[];
-  $('#infoFaltantes').innerHTML=f.length
-    ? `<b style="color:var(--tenue)">${f.length} sin datos</b><br>`+
-      `<span style="color:var(--apagado)">${f.join(' · ')}</span><br>`+
-      'Yahoo no los devolvió ni siquiera reintentando. Los que estén realmente '+
-      'deslistados quedan en cuarentena una semana y no vuelven a pedirse.'
-    : '';
+  /* DOS PROBLEMAS DISTINTOS, y antes se decían con el mismo texto.
+     - no vino: Yahoo no lo devolvió. Se investiga (¿cambió de ticker?).
+     - vino corto: Yahoo SÍ lo devolvió, pero es una salida a bolsa reciente y
+       no le alcanza el historial para los indicadores. No hay nada que hacer:
+       entra solo cuando junte barras.
+     Decir "Yahoo no los devolvió" del segundo es falso, y fue exactamente lo
+     que hizo imposible entender por qué no aparecía el SPCX. */
+  const f=DATOS.faltantes||[], cortos=DATOS.cortos||{};
+  const noVino=f.filter(t=>!(t in cortos));
+  const listar=a=>`<span style="color:var(--apagado)">${a.map(esc).join(' · ')}</span>`;
+  $('#infoFaltantes').innerHTML=
+    (noVino.length
+      ? `<b style="color:var(--tenue)">${noVino.length} sin datos</b><br>`+
+        listar(noVino)+'<br>'+
+        'Yahoo no los devolvió ni siquiera reintentando. Los que estén realmente '+
+        'deslistados quedan en cuarentena una semana y no vuelven a pedirse.'
+      : '')+
+    (Object.keys(cortos).length
+      ? (noVino.length?'<br><br>':'')+
+        `<b style="color:var(--tenue)">${Object.keys(cortos).length} con poco historial</b><br>`+
+        listar(Object.entries(cortos).map(([t,n])=>`${t} (${n} barras)`))+'<br>'+
+        `Yahoo <b style="color:var(--tenue)">sí</b> los devuelve, pero hacen falta `+
+        `${DATOS.min_barras||220} barras para la EMA 200, el máximo de 52 semanas y `+
+        'el ASH semanal. Son papeles que listaron hace poco: <b style="color:var(--tenue)">'+
+        'entran solos</b> cuando junten historial, no hay nada que arreglar.'
+      : '');
 }
 
 /* CUANDO SE ARMO EL ARCHIVO, en milisegundos. Un solo lugar.

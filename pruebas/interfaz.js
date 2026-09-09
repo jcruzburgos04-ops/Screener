@@ -293,6 +293,38 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   ok('importar restaura el perfil',
      [...d2.$('#selPerfil').options].some(o=>o.textContent==='mi perfil'));
 
+  /* ---- por que NO esta un papel: son dos motivos, no uno ----
+     El usuario reclamo que el SPCX no aparecia. Estaba bien cargado: Yahoo lo
+     devuelve, pero es una salida a bolsa reciente y tenia 61 barras de las 220
+     que se piden, asi que el screener lo descartaba. La pantalla lo metia en la
+     misma bolsa que los caidos y decia "Yahoo no los devolvio", que para este
+     caso es FALSO -- y por eso era imposible entender que pasaba.
+
+     Son dos problemas con dos acciones distintas: uno se investiga (cambio de
+     ticker?), el otro se espera. La prueba fija que se digan por separado. */
+  console.log('\n== por que no esta un papel: sin datos vs. poco historial ==');
+  {
+    const inf=$('#infoFaltantes').innerHTML;
+    ok('nombra al que no vino',/MUERTO/.test(inf),inf.slice(0,90));
+    ok('y al que vino corto',/NUEVITO/.test(inf));
+    ok('dice cuantas barras trajo el corto',/61 barras/.test(inf),inf);
+    ok('y contra que umbral',/220/.test(inf));
+    /* El reparto: lo de "poco historial" arranca en su propio titulo, asi que
+       el que no vino tiene que quedar ANTES y el corto DESPUES. */
+    const corte=inf.indexOf('poco historial');
+    ok('hay una seccion aparte para los cortos',corte>0,corte);
+    ok('el que no vino queda del lado de "sin datos"',
+       inf.indexOf('MUERTO')<corte,inf.indexOf('MUERTO')+' vs '+corte);
+    ok('y el corto del lado de "poco historial"',
+       inf.indexOf('NUEVITO')>corte,inf.indexOf('NUEVITO')+' vs '+corte);
+    /* Lo que NO se puede decir del corto: que Yahoo no lo devolvio. */
+    ok('del corto NO se dice que Yahoo no lo devolvio',
+       inf.indexOf('no los devolvió')<corte,
+       inf.indexOf('no los devolvió')+' vs '+corte);
+    ok('y se explica que entra solo cuando junte historial',
+       /entran solos/.test(inf));
+  }
+
   console.log('\n== almacen bloqueado ==');
   const roto={getItem:()=>{throw new Error('no')},setItem:()=>{throw new Error('no')},
               removeItem:()=>{throw new Error('no')}};

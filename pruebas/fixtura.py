@@ -81,7 +81,13 @@ def armar(destino=None, barras=400, atrasar=True):
             for i, t in enumerate(precios)}
 
     payload = armar_payload(precios, meta, uni, barras)
-    payload['faltantes'] = []
+    # DOS motivos distintos para no estar, y la pantalla los tiene que decir
+    # distinto: MUERTO no lo devolvio Yahoo, NUEVITO si lo devolvio pero con 61
+    # barras de las 220 que se piden. Es el caso real del SPCX, que el usuario
+    # reclamo y que se explicaba con un texto falso ("Yahoo no los devolvio").
+    payload['faltantes'] = ['MUERTO', 'NUEVITO']
+    payload['cortos'] = {'NUEVITO': 61}
+    payload['min_barras'] = 220
 
     plantilla = open(os.path.join(RAIZ, 'plantilla.html'), encoding='utf-8').read()
     marca = '/*__DATOS__*/ {fecha:"", simbolos:[]}'
