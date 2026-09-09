@@ -140,7 +140,16 @@ jobs:
                        "Yahoo devolvio series recortadas, no publico")
           PY
 
+      # DOS INTENTOS, PORQUE EL PRIMERO SE PUEDE PERDER POR UNA CARRERA.
+      # Si intradia.yml publica entre que este push lee la referencia y la
+      # escribe, GitHub lo rechaza con "cannot lock ref ... is at X but expected
+      # Y" aunque vaya --force. Paso el 9/9/2026: la descarga entera estuvo
+      # bien, los 481 simbolos estaban armados, y el sitio se quedo con los
+      # datos viejos igual. Sin reintento, una corrida correcta se tira a la
+      # basura por un segundo de solapamiento.
       - name: Publicar en GitHub Pages
+        id: publicar
+        continue-on-error: true
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -148,3 +157,13 @@ jobs:
           publish_branch: gh-pages
           force_orphan: true          # un solo commit: el repo no crece
           commit_message: "Datos del ${{ github.run_number }}"
+
+      - name: Publicar de nuevo si la primera vez perdio la carrera
+        if: steps.publicar.outcome == 'failure'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./sitio
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "Datos del ${{ github.run_number }} (2do intento)"

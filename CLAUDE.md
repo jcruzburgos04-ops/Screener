@@ -1838,6 +1838,14 @@ se sigue con la copia anterior: quedarse sin publicar sería peor.
 > que le dan y lo fusiona bien—, así que lo que se verifica en `pruebas/rapido.py`
 > es la **forma del workflow**: que el bucle relea antes de fusionar.
 
+**Y la nocturna publica con dos intentos, por la otra mitad de la misma
+carrera.** Si la intradía publica entre que el push de la nocturna lee la
+referencia y la escribe, GitHub lo rechaza con `cannot lock ref … is at X but
+expected Y` **aunque vaya `--force`**. Pasó el mismo día: la descarga entera
+estuvo bien, los 481 símbolos estaban armados, y el sitio se quedó con los datos
+viejos igual. Una corrida correcta tirada a la basura por un segundo de
+solapamiento, y el único rastro es un workflow en rojo que nadie mira.
+
 > **El precio de este cambio, que hay que tener presente al publicar código:**
 > el workflow hace `checkout` **una sola vez** y después itera. Con el bucle de
 > 50 minutos, un commit llegaba al sitio en menos de una hora sin hacer nada;
