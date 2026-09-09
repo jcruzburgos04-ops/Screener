@@ -100,6 +100,11 @@ def descargar(periodo, fund, completo):
         if not precios:
             raise RuntimeError("Yahoo no devolvio ningun precio")
         precios, _ = repescar_atrasados(precios, periodo, progreso=paso)
+        # Igual que en el sitio: un papel que cotiza desde hace poco entra con
+        # el historial que tiene. Los tres modos de uso tienen que mostrar lo
+        # mismo (invariante 3).
+        import screener as _sc
+        precios.update(_sc.rescatar_recien_listados())
         actualizar_cuarentena(cuarentena,
                               [t for t in pedir if t not in castigados],
                               set(precios))

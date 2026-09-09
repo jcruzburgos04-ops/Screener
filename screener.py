@@ -51,6 +51,23 @@ PERIODO = "3y"             # 3y da ~150 barras semanales, comodo para el ASH W
 MIN_BARRAS = 220           # barras diarias minimas para aceptar un simbolo
 MIN_BARRAS_SEM = 30        # barras semanales minimas para calcular el ASH W
 
+# MIN_BARRAS no esta ahi por gusto: cuando a Yahoo lo apuran devuelve la serie
+# RECORTADA en vez de un error, y una serie recortada de un papel sano da
+# indicadores mal sin que nada avise. Ese umbral es lo que la ataja.
+#
+# El problema es que castiga tambien al caso contrario: un papel que cotiza
+# desde hace poco no tiene 220 ruedas y NUNCA las va a tener hoy. El SPCX salio
+# a bolsa este año, trae 61 barras, y quedaba afuera del sitio como si fuera un
+# error de carga. El usuario lo reclamo tres veces y tenia razon las tres.
+#
+# Los dos casos se ven IDENTICOS en la serie -- pocas barras, todas recientes --
+# asi que no se pueden separar mirandola. Se separan preguntandole a Yahoo desde
+# cuando cotiza el papel (`firstTradeDate`): si lo que vino cubre toda su vida,
+# es un recien listado; si le falta historia que existe, es un recorte.
+MIN_BARRAS_NUEVO = 40      # piso para un recien listado: sin esto no hay ni ASH
+TOLERANCIA_ARRANQUE = 10   # dias entre la primera barra y su primera rueda
+MAX_RESCATES = 25          # arriba de esto no son altas nuevas, es Yahoo cortando
+
 # ---- ASH: mismos nombres y defaults que el Pine ------------------------------
 #   modo:    "RSI" | "STOCHASTIC" | "ADX"
 #   ma_type: "ALMA" | "EMA" | "WMA" | "SMA" | "SMMA" | "HMA"
@@ -880,6 +897,14 @@ def limpiar_barras(d, minimo=None):
 # 61 barras de 220.
 CORTOS = {}
 
+# Y sus series, para no tener que volver a bajarlas si despues resultan ser
+# recien listados y hay que promoverlas.
+CORTOS_DATOS = {}
+
+# Los cortos que SI entraron por ser recien listados, con cuantas barras. La
+# pantalla los marca: media tabla les viene vacia y hay que poder saber por que.
+NUEVOS = {}
+
 
 def _descargar(grupo, periodo, minimo=None):
     """Una tanda contra Yahoo. Devuelve solo lo que vino limpio y completo."""
@@ -903,14 +928,23 @@ def _descargar(grupo, periodo, minimo=None):
                 d = raw[t]
             else:
                 d = raw
-            crudo = len(d.dropna(subset=["Close"])) if "Close" in d else 0
-            d = limpiar_barras(d, minimo)
-            if d is not None:
+            # Se limpia sin exigir largo y el largo se mira despues: asi el
+            # que viene corto queda guardado y no hay que volver a pedirlo si
+            # resulta ser un recien listado.
+            d = limpiar_barras(d, 1)
+            if d is None:
+                continue
+            if len(d) >= (MIN_BARRAS if minimo is None else minimo):
                 out[t] = d
                 CORTOS.pop(t, None)
-            elif crudo:
-                # Vino, pero corto. Se anota para poder decirlo aparte.
-                CORTOS[t] = crudo
+                CORTOS_DATOS.pop(t, None)
+                # Y deja de ser "recien listado" en cuanto junta las 220: si no,
+                # el servidor -- que baja varias veces en el mismo proceso -- lo
+                # seguiria marcando en la tabla despues de que dejo de serlo.
+                NUEVOS.pop(t, None)
+            else:
+                CORTOS[t] = len(d)
+                CORTOS_DATOS[t] = d
         except Exception:
             pass
     return out
@@ -971,6 +1005,88 @@ def bajar_precios(tickers, periodo, lote=50, saltear=None, progreso=None,
                 progreso(len(datos), len(pedir), texto)
             time.sleep(pausa)
     return datos
+
+
+def primera_rueda(t):
+    """
+    Desde cuando cotiza el simbolo, segun Yahoo. None si no lo dice.
+
+    Sale del `firstTradeDate` que viene en la metadata del mismo endpoint de
+    graficos, asi que es el dato de la fuente y no una deduccion nuestra. Puede
+    llegar como epoch en segundos o ya convertido a Timestamp segun la version
+    de yfinance; se aceptan los dos.
+    """
+    import yfinance as yf
+    try:
+        md = yf.Ticker(t).get_history_metadata() or {}
+    except Exception:                                        # noqa: BLE001
+        return None
+    v = md.get("firstTradeDate")
+    if v is None:
+        return None
+    try:
+        if isinstance(v, (int, float)):
+            return pd.Timestamp(int(v), unit="s", tz="UTC").tz_convert(None).normalize()
+        return pd.Timestamp(v).tz_localize(None).normalize()
+    except Exception:                                        # noqa: BLE001
+        try:
+            return pd.Timestamp(v).normalize()
+        except Exception:                                    # noqa: BLE001
+            return None
+
+
+def rescatar_recien_listados(consultar=None, piso=None, tolerancia=None):
+    """
+    De los que vinieron cortos, devuelve los que estan cortos PORQUE SON NUEVOS.
+
+    Un papel con pocas barras es una de dos cosas, y en la serie se ven iguales:
+
+        recorte    Yahoo mando menos ruedas de las que existen. Los indicadores
+                   saldrian mal y NO se puede publicar. Es a lo que apunta
+                   MIN_BARRAS y por lo que no hay que aflojarlo.
+        recien
+        listado    el papel no tiene mas historia porque empezo a cotizar hace
+                   poco. Descartarlo no arregla nada: nunca va a llegar a 220
+                   hasta que pase el tiempo, y mientras tanto el usuario ve un
+                   CEDEAR que compra y que en el screener no existe.
+
+    La diferencia no se adivina, se pregunta: si la primera barra que vino cae
+    junto a la primera rueda que declara Yahoo, lo que llego es TODA su vida y
+    entonces es un recien listado. Si le falta historia que la fuente dice que
+    existe, es un recorte y se queda afuera.
+
+    Igual hay un piso: con menos de MIN_BARRAS_NUEVO no alcanza ni para el ASH
+    diario, que es el motivo de todo el programa, y una fila entera vacia es
+    ruido. Ese piso NO reemplaza a MIN_BARRAS, que sigue rigiendo para todos.
+
+    `consultar` existe para las pruebas: aca no hay salida a internet.
+    """
+    consultar = consultar or primera_rueda
+    piso = MIN_BARRAS_NUEVO if piso is None else piso
+    tolerancia = TOLERANCIA_ARRANQUE if tolerancia is None else tolerancia
+    # Cortafuegos, el mismo criterio que MAX_INDIVIDUALES: cada consulta es un
+    # pedido mas a Yahoo, y si vinieron cortos veinticinco papeles no es que
+    # listaron veinticinco empresas hoy -- es Yahoo mandando series recortadas
+    # en racha. Preguntar uno por uno en ese caso es pegarle mas a la fuente que
+    # ya esta cortando, justo cuando menos conviene.
+    candidatos = {t: d for t, d in CORTOS_DATOS.items() if len(d) >= piso}
+    if len(candidatos) > MAX_RESCATES:
+        print(f"    {len(candidatos)} vinieron cortos: es una racha de Yahoo, "
+              "no altas nuevas. No pregunto uno por uno.")
+        return {}
+    rescatados = {}
+    for t, d in sorted(candidatos.items()):
+        inicio = consultar(t)
+        if inicio is None:
+            # Sin el dato no se afirma nada: se lo trata como recorte, que es
+            # el lado seguro. Publicar indicadores de una serie que capaz esta
+            # cortada seria peor que dejar el papel afuera una noche mas.
+            continue
+        arranco = pd.Timestamp(d.index[0]).normalize()
+        if (arranco - pd.Timestamp(inicio).normalize()).days <= tolerancia:
+            rescatados[t] = d
+            NUEVOS[t] = len(d)
+    return rescatados
 
 
 # ==============================================================================

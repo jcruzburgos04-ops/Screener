@@ -57,6 +57,9 @@ def series_falsas(tickers, n=760, semilla=7):
     return out
 
 
+BARRAS_NUEVITO = 61        # las que tenia el SPCX el 9/9/2026
+
+
 def armar(destino=None, barras=400, atrasar=True):
     destino = destino or os.path.join(AQUI, 'tmp', 'sitio')
     os.makedirs(destino, exist_ok=True)
@@ -80,13 +83,25 @@ def armar(destino=None, barras=400, atrasar=True):
                 'float_shares': 1e8 + i * 1e6, 'mcap': 5e9 + i * 1e7}
             for i, t in enumerate(precios)}
 
+    # UN RECIEN LISTADO DE VERDAD, ADENTRO DE LA TABLA. El ultimo del universo
+    # se queda con 61 barras, que es lo que tenia el SPCX cuando el usuario
+    # reclamo por tercera vez que no aparecia. Se le recortan las de ADELANTE,
+    # asi que su ultima rueda es la misma que la de todos y no se cuela un
+    # atraso falso. Con esto la bateria pasa por el caso que antes no existia:
+    # una fila viva a la que le faltan las columnas de ventana larga.
+    nuevito = tickers[-1]
+    precios[nuevito] = precios[nuevito].iloc[-BARRAS_NUEVITO:]
+
     payload = armar_payload(precios, meta, uni, barras)
-    # DOS motivos distintos para no estar, y la pantalla los tiene que decir
-    # distinto: MUERTO no lo devolvio Yahoo, NUEVITO si lo devolvio pero con 61
-    # barras de las 220 que se piden. Es el caso real del SPCX, que el usuario
-    # reclamo y que se explicaba con un texto falso ("Yahoo no los devolvio").
-    payload['faltantes'] = ['MUERTO', 'NUEVITO']
-    payload['cortos'] = {'NUEVITO': 61}
+    # TRES situaciones distintas y la pantalla las tiene que decir distinto:
+    #   MUERTO   no lo devolvio Yahoo. Se investiga.
+    #   RECORTE  lo devolvio con menos ruedas de las que existen: serie
+    #            recortada, los indicadores saldrian mal, queda afuera.
+    #   nuevito  lo devolvio entero y son pocas porque listo hace poco. ENTRA,
+    #            marcado. Es el caso real del SPCX.
+    payload['faltantes'] = ['MUERTO', 'RECORTE']
+    payload['cortos'] = {'RECORTE': 61}
+    payload['nuevos'] = {nuevito: BARRAS_NUEVITO}
     payload['min_barras'] = 220
 
     plantilla = open(os.path.join(RAIZ, 'plantilla.html'), encoding='utf-8').read()

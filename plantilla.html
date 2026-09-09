@@ -485,6 +485,10 @@ tbody tr.sel:nth-child(even) td:nth-child(2){background:var(--panel3)}
 /* Un precio atrasado no es un error de calculo: es un dato que Yahoo no
    actualizo. Se marca sin gritar, pero se marca. */
 .atraso{color:var(--ambar);margin-left:.35rem;cursor:help}
+/* Poco historial: no es un error como el atraso, es un papel que listo
+   hace poco. Va en gris y no en ambar justamente para que no se lea
+   como una alarma. */
+.corta{color:var(--apagado);margin-left:.35rem;cursor:help;font-size:.82em}
 .viejo{opacity:.5;text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
 .fuerza{display:inline-block;width:54px;height:7px;background:#1E2733;position:relative;
   vertical-align:middle;border-radius:2px;overflow:hidden}
@@ -1721,6 +1725,9 @@ function semanal(b){const o={d:[],o:[],h:[],l:[],c:[],v:[]};let k=null;
 /* ---------- helpers ---------- */
 function ultimo(a){for(let i=a.length-1;i>=0;i--)if(isFinite(a[i]))return a[i];return NaN;}
 function rend(c,k){const i=c.length-1-k;return i>=0?c[c.length-1]/c[i]-1:NaN;}
+/* Las barras que Python exige para aceptar un simbolo. Viaja en el payload
+   para no tenerlo escrito a mano en dos lados y que se desincronice. */
+function minBarras(){return (typeof DATOS!=='undefined'&&DATOS&&+DATOS.min_barras)||220;}
 function promSimple(a,n){let s=0;const ini=Math.max(0,a.length-n);
   for(let i=ini;i<a.length;i++)s+=a[i];return s/(a.length-ini);}
 
@@ -1933,13 +1940,24 @@ function calcularBase(s,cfg){
   const b={d:s.d,o:s.o,h:s.h,l:s.l,c:s.c,v:s.v},n=b.c.length,px=b.c[n-1];
   const dvol=new Array(n);for(let i=0;i<n;i++)dvol[i]=b.c[i]*b.v[i];
   const vol20=promSimple(b.v,20);
-  const vent=Math.min(n,252);let max52=-Infinity,min52=Infinity;
-  for(let i=n-vent;i<n;i++){if(b.c[i]>max52)max52=b.c[i];if(b.c[i]<min52)min52=b.c[i];}
+  /* CON MENOS DE 252 RUEDAS ESTO NO ES EL MAXIMO DE 52 SEMANAS Y NO SE PUEDE
+     LLAMAR ASI. Antes se acortaba la ventana con Math.min(n,252): a un papel de
+     tres meses le mostraba el maximo de esos tres meses en la columna que dice
+     "52 semanas", o sea un numero inventado con cara de dato. Ahora, si la
+     ventana no esta completa, la columna queda vacia. Los papeles normales
+     traen 400 barras y no la tocan; lo notan los recien listados, que es
+     exactamente donde importa. */
+  let max52=NaN,min52=NaN;
+  if(n>=252){max52=-Infinity;min52=Infinity;
+    for(let i=n-252;i<n;i++){if(b.c[i]>max52)max52=b.c[i];if(b.c[i]<min52)min52=b.c[i];}}
   const f={t:s.t,local:s.local||'',grupo:s.g||'',nombre:s.n||'',sector:s.sec||'',
     industria:s.ind||'',pais:s.pais||'',moneda:s.mon||'USD',precio:px,chg:rend(b.c,1),
     // ruedas de atraso contra el cierre de SU mercado, calculado en Python.
     // Si es > 0 este precio y esta variacion no son de la ultima rueda.
     atraso:+s.at||0, ultima:b.d[n-1],
+    // Cuantas ruedas tiene este papel. Los recien listados entran con menos de
+    // MIN_BARRAS y hay que poder decirlo: media tabla les viene vacia.
+    historial:n,
     rsi:ultimo(rsi(b.c,cfg.rsiLen)),adr:ultimo(adrPct(b,cfg.adrLen)),
     atr_pct:ultimo(atr(b,cfg.atrLen))/px*100,adx:ultimo(adx(b,cfg.adxLen)),
     perf_1s:rend(b.c,5),perf_1m:rend(b.c,21),perf_3m:rend(b.c,63),
@@ -2217,7 +2235,14 @@ const COLS=[
   {k:'t',      t:'Ticker', izq:1, def:1, nosel:1,
    fmt:(v,f)=>`<span class="tk">${esc(v)}</span>`+(f.atraso?
      `<span class="atraso" title="Última barra: ${fechaCorta(f.ultima)} · ${f.atraso} `+
-     `rueda${f.atraso>1?'s':''} de atraso. El precio y la variación no son de hoy.">⚠</span>`:'')},
+     `rueda${f.atraso>1?'s':''} de atraso. El precio y la variación no son de hoy.">⚠</span>`:'')
+     /* Un papel que listó hace poco entra igual, pero las columnas de ventana
+        larga le vienen vacías y sin esta marca eso se lee como un bug. */
+     +(f.historial<minBarras()?
+     `<span class="corta" title="Sólo ${f.historial} ruedas de historial: listó hace poco. `+
+     `Las columnas de ventana larga (nubes, máximo de 52 semanas, ASH semanal, `+
+     `rendimientos de más de ${f.historial} ruedas) le vienen vacías hasta que junte barras.">`+
+     `${f.historial}b</span>`:'')},
   /* El codigo BYMA es igual al ticker en la enorme mayoria de los CEDEARs
      (MU/MU, AMAT/AMAT, LRCX/LRCX...). Repetirlo era una columna entera de
      ruido: solo se muestra cuando de verdad difiere, que son los casos que
@@ -5313,9 +5338,10 @@ function pintarInfoDatos(){
        entra solo cuando junte barras.
      Decir "Yahoo no los devolvió" del segundo es falso, y fue exactamente lo
      que hizo imposible entender por qué no aparecía el SPCX. */
-  const f=DATOS.faltantes||[], cortos=DATOS.cortos||{};
+  const f=DATOS.faltantes||[], cortos=DATOS.cortos||{}, nuevos=DATOS.nuevos||{};
   const noVino=f.filter(t=>!(t in cortos));
   const listar=a=>`<span style="color:var(--apagado)">${a.map(esc).join(' · ')}</span>`;
+  const conBarras=o=>listar(Object.entries(o).map(([t,n])=>`${t} (${n} barras)`));
   $('#infoFaltantes').innerHTML=
     (noVino.length
       ? `<b style="color:var(--tenue)">${noVino.length} sin datos</b><br>`+
@@ -5323,14 +5349,26 @@ function pintarInfoDatos(){
         'Yahoo no los devolvió ni siquiera reintentando. Los que estén realmente '+
         'deslistados quedan en cuarentena una semana y no vuelven a pedirse.'
       : '')+
-    (Object.keys(cortos).length
+    /* Los recién listados YA NO quedan afuera: entran con el historial que
+       tengan y se marcan en la tabla. Esta sección existe para explicar por
+       qué esas filas traen columnas vacías, no para excusar una ausencia. */
+    (Object.keys(nuevos).length
       ? (noVino.length?'<br><br>':'')+
-        `<b style="color:var(--tenue)">${Object.keys(cortos).length} con poco historial</b><br>`+
-        listar(Object.entries(cortos).map(([t,n])=>`${t} (${n} barras)`))+'<br>'+
-        `Yahoo <b style="color:var(--tenue)">sí</b> los devuelve, pero hacen falta `+
-        `${DATOS.min_barras||220} barras para la EMA 200, el máximo de 52 semanas y `+
-        'el ASH semanal. Son papeles que listaron hace poco: <b style="color:var(--tenue)">'+
-        'entran solos</b> cuando junten historial, no hay nada que arreglar.'
+        `<b style="color:var(--tenue)">${Object.keys(nuevos).length} listaron hace poco</b><br>`+
+        conBarras(nuevos)+'<br>'+
+        `Están en la tabla, marcados con las ruedas que tienen. Cotizan desde `+
+        `hace menos de ${minBarras()} ruedas, así que las columnas de ventana `+
+        'larga —nubes, máximo de 52 semanas, ASH semanal— les vienen vacías '+
+        'hasta que junten historial.'
+      : '')+
+    (Object.keys(cortos).length
+      ? ((noVino.length||Object.keys(nuevos).length)?'<br><br>':'')+
+        `<b style="color:var(--tenue)">${Object.keys(cortos).length} con la serie corta</b><br>`+
+        conBarras(cortos)+'<br>'+
+        `Yahoo <b style="color:var(--tenue)">sí</b> los devuelve, pero con menos `+
+        `ruedas de las que existen: no empezaron a cotizar entonces. Es la serie `+
+        'recortada que Yahoo manda cuando lo apuran, y con ella los indicadores '+
+        'saldrían mal, así que quedan afuera hasta que vuelva completa.'
       : '');
 }
 

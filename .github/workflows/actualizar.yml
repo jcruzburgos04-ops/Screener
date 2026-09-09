@@ -118,8 +118,21 @@ jobs:
           print(f"simbolos: {n}  ·  ultimo cierre: {d['ultimo_cierre']}  ·  "
                 f"atrasados: {tarde} ({tarde / max(1, n) * 100:.0f}%)")
           faltan = d.get("faltantes", [])
-          if faltan:
-              print(f"sin datos ({len(faltan)}): {', '.join(faltan)}")
+          cortos = d.get("cortos", {})
+          nuevos = d.get("nuevos", {})
+          # TRES motivos distintos, y en el log tienen que decirse distinto:
+          # el que no vino se INVESTIGA (cambio de ticker?), el recortado se
+          # ESPERA a que Yahoo lo mande entero, y el recien listado ENTRO.
+          novino = [t for t in faltan if t not in cortos]
+          if novino:
+              print(f"no los devolvio Yahoo ({len(novino)}): {', '.join(novino)}")
+          if cortos:
+              print("serie recortada, quedan afuera "
+                    f"({len(cortos)}): "
+                    + ", ".join(f"{t}({n}b)" for t, n in cortos.items()))
+          if nuevos:
+              print(f"listaron hace poco, entran igual ({len(nuevos)}): "
+                    + ", ".join(f"{t}({n}b)" for t, n in nuevos.items()))
           if n < 300:
               sys.exit(f"[X] Solo {n} simbolos: la descarga vino incompleta, no publico")
           if tarde > 0.40 * n:

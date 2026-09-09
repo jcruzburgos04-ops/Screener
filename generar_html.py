@@ -26,9 +26,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from screener import (BENCHMARK, atrasos, bajar_fundamentales, bajar_precios,
-                      cargar_precios, guardar_precios, leer_universo,
-                      repescar_atrasados)
+from screener import (BENCHMARK, MIN_BARRAS_NUEVO, atrasos, bajar_fundamentales,
+                      bajar_precios, cargar_precios, guardar_precios,
+                      leer_universo, repescar_atrasados)
 
 PLANTILLA = Path("plantilla.html")
 SALIDA = Path("screener.html")
@@ -88,7 +88,12 @@ def armar_payload(precios, meta, uni, barras):
         if t not in grupos and t != BENCHMARK:
             continue
         d = limpiar_para_web(d).iloc[-barras:]
-        if len(d) < 120:
+        # Segundo piso, y es el que dejaba afuera a los recien listados aun
+        # despues de rescatarlos: estaba en 120 sin explicacion y sin relacion
+        # con el de la descarga. Ahora los dos salen de la misma constante, que
+        # es el largo minimo para que la fila diga algo (el ASH diario). Un
+        # simbolo normal pasa MIN_BARRAS y nunca se acerca a este numero.
+        if len(d) < MIN_BARRAS_NUEVO:
             continue
         m = meta.get(t, {})
         fechas = [int(x.strftime("%Y%m%d")) for x in d.index]

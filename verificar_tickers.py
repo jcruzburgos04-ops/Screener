@@ -30,11 +30,16 @@ LA MONEDA IMPORTA, y es lo que mas se equivoca uno: si aparece ARS es que se
 apunto al CEDEAR y no al subyacente, que es justo lo que este proyecto no hace
 nunca. La salida la marca en la cara.
 
-Y EL LARGO DEL HISTORIAL TAMBIEN. Que el simbolo exista NO alcanza: con menos
-de MIN_BARRAS (220) barras diarias, limpiar_barras lo descarta ENTERO y en
-silencio. Por eso se pide el periodo del sitio y no un mes: con "1mo" todos dan
-22 barras y el numero no distingue a Apple de una empresa que listo la semana
-pasada. Fue exactamente asi como di por bueno al SPCX.
+Y EL LARGO DEL HISTORIAL TAMBIEN, aunque ya no sea una condena. Con menos de
+MIN_BARRAS (220) barras el simbolo entra SOLO si esas pocas barras son toda su
+vida -- o sea, si listo hace poco. Si le falta historia que existe, lo que vino
+es una serie recortada y queda afuera, porque con ella los indicadores salen
+mal. Por eso la salida trae la columna DESDE: es la primera rueda que declara
+Yahoo, y es lo que separa un caso del otro.
+
+Se pide el periodo del sitio y no un mes: con "1mo" todos dan 22 barras y el
+numero no distingue a Apple de una empresa que listo la semana pasada. Fue
+exactamente asi como di por bueno al SPCX.
 
 EL NOMBRE TAMPOCO ES ADORNO: los tickers SE REASIGNAN. Silvergate se liquido y
 hoy "SI" devuelve barras perfectas de Shoulder Innovations, que es otra
@@ -50,7 +55,7 @@ import sys
 
 import yfinance as yf
 
-from screener import MIN_BARRAS
+from screener import MIN_BARRAS, MIN_BARRAS_NUEVO, TOLERANCIA_ARRANQUE, primera_rueda
 
 # Un CEDEAR cotiza en pesos. Si un candidato vuelve en ARS es que se apunto al
 # codigo BYMA en vez de al subyacente, y eso mete el tipo de cambio adentro de
@@ -61,7 +66,7 @@ MONEDA_PROHIBIDA = "ARS"
 def mirar(tk, periodo="3y"):
     """Lo que Yahoo sabe de un simbolo. Nunca levanta: devuelve el motivo."""
     fila = {"t": tk, "ok": False, "barras": 0, "ultima": "", "precio": None,
-            "moneda": "", "nombre": "", "nota": ""}
+            "moneda": "", "nombre": "", "desde": "", "nota": ""}
     try:
         h = yf.Ticker(tk).history(period=periodo, auto_adjust=True)
     except Exception as e:                                   # noqa: BLE001
@@ -85,13 +90,30 @@ def mirar(tk, periodo="3y"):
     fila["nombre"] = (info.get("longName") or info.get("shortName") or "")[:44]
     if fila["moneda"] == MONEDA_PROHIBIDA:
         fila["nota"] = "*** EN PESOS: es el CEDEAR, no el subyacente ***"
-    elif fila["barras"] < MIN_BARRAS:
-        # Que exista no alcanza: con menos de MIN_BARRAS el screener lo
-        # DESCARTA ENTERO en limpiar_barras, y en silencio.
-        fila["nota"] = (f"*** SOLO {fila['barras']} BARRAS: el screener pide "
-                        f"{MIN_BARRAS} y lo va a descartar ***")
-    else:
+        return fila
+    if fila["barras"] >= MIN_BARRAS:
         fila["ok"] = True
+        return fila
+    # Pocas barras son dos cosas distintas y no se distinguen mirando la serie.
+    # Se le pregunta a Yahoo desde cuando cotiza: si lo que vino cubre toda su
+    # vida es un recien listado y ENTRA con el historial que tenga; si le falta
+    # historia que existe, es la serie recortada y queda afuera.
+    inicio = primera_rueda(tk)
+    fila["desde"] = str(inicio.date()) if inicio is not None else "?"
+    if fila["barras"] < MIN_BARRAS_NUEVO:
+        fila["nota"] = (f"*** SOLO {fila['barras']} BARRAS: por debajo de "
+                        f"{MIN_BARRAS_NUEVO} no hay ni ASH, queda afuera ***")
+    elif inicio is None:
+        fila["nota"] = ("*** Yahoo no dice desde cuando cotiza: sin ese dato no "
+                        "se puede saber si la serie esta recortada, queda afuera ***")
+    elif (h.index[0].tz_localize(None).normalize()
+          - inicio.normalize()).days <= TOLERANCIA_ARRANQUE:
+        fila["ok"] = True
+        fila["nota"] = (f"listo hace poco: entra con {fila['barras']} barras, "
+                        f"sin ventanas largas hasta juntar {MIN_BARRAS}")
+    else:
+        fila["nota"] = (f"*** SERIE RECORTADA: cotiza desde {fila['desde']} y "
+                        f"Yahoo mando {fila['barras']} barras, queda afuera ***")
     return fila
 
 
@@ -114,8 +136,8 @@ def main():
         ap.error("no me pasaste ningun simbolo")
 
     print(f"{'ticker':<12}{'ok':<4}{'barras':>7}{'ultima':>13}{'precio':>13}"
-          f"  {'mon':<5}nombre / motivo")
-    print("-" * 100)
+          f"  {'mon':<5}{'desde':<12}nombre / motivo")
+    print("-" * 112)
     buenos, malos = [], []
     for tk in tks:
         f = mirar(tk, args.periodo)
@@ -123,9 +145,9 @@ def main():
         print(f"{f['t']:<12}{'si' if f['ok'] else 'NO':<4}{f['barras']:>7}"
               f"{f['ultima']:>13}"
               f"{(f['precio'] if f['precio'] is not None else 0):>13,.4f}"
-              f"  {f['moneda']:<5}{f['nombre'] or f['nota']}"
+              f"  {f['moneda']:<5}{f['desde']:<12}{f['nombre'] or f['nota']}"
               + (f"   {f['nota']}" if f['nombre'] and f['nota'] else ""))
-    print("-" * 100)
+    print("-" * 112)
     print(f"{len(buenos)} de {len(tks)} sirven")
     if malos:
         print("no sirven: " + " ".join(f["t"] for f in malos))

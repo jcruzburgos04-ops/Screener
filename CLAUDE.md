@@ -473,9 +473,12 @@ de verdad se baja. Con esa, los faltantes no eran 18 sino **26**. Se probaron
 los 26 contra Yahoo con `AAPL` y `MSFT` de control, y **once había que
 reincorporar**:
 
-- **`SPCX`** — la nota decía «SpaceX, no cotiza». Hoy devuelve 22 barras a
+- **`SPCX`** — la nota decía «SpaceX, no cotiza». Hoy devuelve barras a
   **149,87 USD** como *Space Exploration Technologies Corp.*: salió a bolsa y la
-  nota quedó vieja. El panel lo lista en NASDAQ GS con ratio 50:1.
+  nota quedó vieja. El panel lo lista en NASDAQ GS con ratio 50:1. **Cargarlo no
+  alcanzó**: con 61 ruedas no llegaba a `MIN_BARRAS` y el screener lo descartaba
+  igual, así que el usuario tuvo que reclamar una tercera vez. Ver *Pocas barras:
+  hay dos casos y se ven idénticos*, en la sección 8.
 - **Los diez brasileños de B3** (`ABEV3 BBDC3 CSNA3 ITUB3 PETR3 SBSP3 SUZB3
   TIMS3 VALE3 VIVT3`), excluidos como «duplicado del ADR». Los diez cotizan y
   los diez son **CEDEARs distintos, con su propio ratio**. Van al grupo
@@ -1688,6 +1691,64 @@ Después de fusionar se recalcula el atraso en JS con la misma regla que Python
 
 Si Yahoo contesta 429 se corta enseguida en vez de insistir 465 veces.
 
+### Pocas barras: hay dos casos y se ven idénticos
+
+`MIN_BARRAS = 220` está para atajar **la serie recortada**, que es la forma en
+que Yahoo falla cuando lo apuran: manda menos ruedas de las que existen y los
+indicadores salen mal sin que nada avise. Eso no se afloja.
+
+El problema es que castigaba igual al caso contrario: **un papel que cotiza
+desde hace tres meses no tiene 220 ruedas y no las va a tener hoy.** El `SPCX`
+—CEDEAR del panel de BYMA, subyacente correcto, moneda correcta— quedaba fuera
+del sitio por eso, y el usuario lo reclamó **tres veces**. Tenía razón las tres:
+un papel que se compra tiene que estar en el screener aunque haya listado el mes
+pasado.
+
+**En la serie los dos casos son iguales**: pocas barras, todas recientes. No hay
+forma de separarlos mirándola. Se separan preguntándole a la fuente **desde
+cuándo cotiza el papel** (`firstTradeDate`, que viene en la metadata del mismo
+endpoint de gráficos):
+
+| Lo que vino | Qué es | Qué se hace |
+|---|---|---|
+| arranca junto a su primera rueda | toda su vida: **recién listado** | **entra**, marcado |
+| arranca mucho después | le falta historia que existe: **recorte** | queda afuera |
+| Yahoo no dice desde cuándo | no se puede afirmar | queda afuera |
+
+`rescatar_recien_listados()` en `screener.py`. Igual hay un piso —
+`MIN_BARRAS_NUEVO = 40` — porque abajo de eso no hay ni ASH diario, que es el
+motivo del programa, y una fila entera vacía es ruido. **Ese piso no reemplaza a
+`MIN_BARRAS`**: el que no prueba ser nuevo sigue necesitando las 220.
+
+> **Sin el dato no se afirma nada.** Si la fuente no dice cuándo empezó a
+> cotizar, el papel se trata como recorte. Publicar indicadores de una serie que
+> capaz está cortada es peor que dejar el papel afuera una noche más.
+
+> **Y hay cortafuegos**, el mismo criterio que `MAX_INDIVIDUALES`: cada consulta
+> es un pedido más a Yahoo. Si vinieron cortos más de `MAX_RESCATES = 25`
+> papeles, no listaron veinticinco empresas hoy — es Yahoo mandando series
+> recortadas en racha, y preguntar uno por uno sería pegarle más a la fuente
+> justo cuando está cortando. Esa noche no se rescata a nadie.
+
+**Había un segundo piso, escondido y sin relación con el primero:**
+`armar_payload` descartaba en silencio todo lo que tuviera menos de **120**
+barras. Un número sin comentario y sin nadie que lo recordara, que anulaba el
+rescate aguas abajo. Ahora los dos salen de la misma constante.
+
+**Y lo que entra hay que decirlo.** La fila lleva `61b` en gris al lado del
+ticker, con el detalle en el `title`, y el panel de Datos los lista aparte. Sin
+esa marca, media tabla vacía se lee como un bug del programa.
+
+> **De yapa, y es un error de datos, no de interfaz:** el máximo de 52 semanas
+> se calculaba con `Math.min(n,252)`. A un papel de tres meses le mostraba el
+> máximo de **esos tres meses** en la columna que dice «52 semanas» — un número
+> inventado con cara de dato, y el sabotaje de la prueba lo muestra: `-9,6%`
+> donde debería no haber nada. Con la ventana incompleta la columna va **vacía**.
+> Los papeles normales traen 400 barras y no la tocan.
+
+`verificar_tickers.py` trae ahora la columna **`desde`** con esa primera rueda,
+que es lo que permite ver de un vistazo cuál de los dos casos es.
+
 ### Símbolos muertos de verdad
 
 `WBA` (Walgreens, comprada por Sycamore en agosto 2025), `TTM`, `LFC`, `HNP`,
@@ -1750,6 +1811,32 @@ Lo único que se achica son los huecos.
 cierra a las 00:00 y la corrida pesada (`actualizar.yml`) arranca 01:30: si las
 dos le pegan a Yahoo a la vez aparecen las descargas parciales, que es
 justamente lo que la nocturna no se puede permitir.
+
+#### La intradía le pisaba el trabajo a la nocturna
+
+Es la causa de que el usuario viera **447 símbolos cuando ya eran 480**, y no
+había un solo error en ningún log: las dos corridas hicieron exactamente lo que
+decía su código.
+
+`intradia.yml` copiaba `gh-pages` a `estado/datos.json` **una vez, antes del
+bucle**, y después publicaba esa foto encima cada diez minutos durante 5 h 30.
+`actualizar_rapido.py` toma la lista de símbolos **del payload que le dan**, así
+que una corrida que arrancó con el universo viejo lo republica hasta que muere.
+
+Medido el 9/9/2026: la intradía arrancó 12:30 con 447. La nocturna publicó 480
+**cuatro veces** —14:03, 14:18, 14:39 y 14:59— y las cuatro se perdieron en la
+vuelta siguiente. Un universo nuevo no podía llegar al sitio hasta que la
+intradía terminara, y como el bucle dura 5 h 30 y se dispara cada hora, eso es
+casi todo el día.
+
+Ahora **se vuelve a leer `gh-pages` antes de cada refresco**, con un fetch
+superficial de un archivo. Va `--force` porque la rama se publica huérfana y cada
+publicado reescribe su historia, así que un fetch normal la rechazaría. Si falla,
+se sigue con la copia anterior: quedarse sin publicar sería peor.
+
+> **Una prueba de la fusión no puede ver esto** —el programa recibe el archivo
+> que le dan y lo fusiona bien—, así que lo que se verifica en `pruebas/rapido.py`
+> es la **forma del workflow**: que el bucle relea antes de fusionar.
 
 > **El precio de este cambio, que hay que tener presente al publicar código:**
 > el workflow hace `checkout` **una sola vez** y después itera. Con el bucle de
@@ -1878,7 +1965,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | Archivo | Qué prueba |
 |---|---|
 | `atrasos.py` | detección de atrasos por mercado, `limpiar_barras`, `cedears.csv` roto (termina en `ATRASOS OK`) |
-| `reintentos.py` | las tres vueltas con Yahoo fallando en rachas, y la cuarentena |
+| `reintentos.py` | las tres vueltas con Yahoo fallando en rachas, la cuarentena, y que un recién listado entre mientras una serie recortada queda afuera |
 | `repesca.py` | que la repesca arregle los recortados y no invente los muertos |
 | `paridad.py` + `paridad_js.js` | Python ↔ JS, 18 combinaciones + RSI/ATR/ADX/ADR |
 | `interfaz.js` | carga, filtros, orden, persistencia, URL, respaldo, teclas |
@@ -1891,7 +1978,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
 | `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |
-| `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial |
+| `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial, y que el bucle del workflow relea lo publicado antes de fusionar |
 | `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
 | `bonos.js` | la vista de bonos: que lo que el payload trae llegue a la pantalla, la curva, el cronograma que se abre, las ONs por emisor |
 | `menus.js` | los desplegables de la barra, el engranaje, y **que ningún control quede huérfano al mudarse de contenedor** |
@@ -1940,6 +2027,14 @@ Chromium, para que la batería siga corriendo en cualquier máquina.
 > mal» y las pruebas están en verde, **sacá la foto antes de teorizar** — yo
 > perdí un rato largo razonando sobre grid y `min-width` cuando la respuesta
 > estaba en `getComputedStyle(...).stroke`.
+
+> **Trampa que ya mordió cinco veces, con otra cara cada vez: el alcance.**
+> En `interfaz.js` las pruebas comparten una ventana, y las de más arriba dejan
+> **filtros puestos** en ella. Buscar una fila ahí contesta «no está» cuando en
+> realidad está y no pasa el filtro — me pasó justo con el recién listado, que
+> figuraba ausente por un RSI ≤ 55 de otra prueba. **Una prueba que busca una
+> fila abre su propia ventana** (`abrir(nuevoAlmacen())`). Es el mismo error de
+> siempre: la aserción depende del contexto en vez del contenido.
 
 **Ojo con las pruebas que dependen de la fecha:** `yahoo.js` dispara la descarga
 a mano en vez de esperar el refresco automático. Cuando dependía del automático,
@@ -1998,7 +2093,13 @@ necesitan internet.
     fuente que ya lo dice (`bond_family`, el símbolo del contrato). Era el
     pedido explícito del usuario y es lo que hace que la sección no se pudra
     sola cuando vence algo.
-20. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
+20. **Una ventana incompleta no se acorta y se sigue llamando igual.** Con
+    menos de 252 ruedas no hay máximo de 52 semanas: la columna va vacía, no
+    con el máximo de lo que haya. Es el mismo invariante 12 visto de costado.
+21. **Pocas barras no es un motivo para descartar; una serie recortada sí.** La
+    diferencia se la pregunta a la fuente (`firstTradeDate`), no se deduce de
+    la serie ni se asume. Un papel que listó hace poco entra marcado.
+22. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
     sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
     pero **no de la tabla**, y la tarjeta dice cuál y por qué.
 

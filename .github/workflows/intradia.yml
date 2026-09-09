@@ -138,6 +138,38 @@ jobs:
           mkdir -p estado
           cp sitio_previo/datos.json estado/datos.json
 
+          # ----------------------------------------------------------------
+          # VOLVER A LEER LO PUBLICADO EN CADA VUELTA, Y NO UNA SOLA VEZ.
+          #
+          # Este `cp` de arriba se hacia ANTES del bucle y nada mas, asi que la
+          # corrida se llevaba una foto de gh-pages al arrancar y despues
+          # publicaba SU foto encima, cada diez minutos, durante 5h30. O sea que
+          # esta corrida pisaba a cualquiera que publicara mientras tanto.
+          #
+          # PASO DE VERDAD, y es lo que el usuario reporto como "hay 447 y tienen
+          # que ser mas": el 9/9 la corrida de las 12:30 tenia el universo de 465
+          # (447 publicados). La nocturna corrio a las 14:03, 14:18, 14:39 y
+          # 14:59 con los CEDEARs nuevos y publico 480 -- y las cuatro veces la
+          # intradia volvio a subir sus 447 en la vuelta siguiente. Cuatro
+          # corridas correctas revertidas sin un solo error en ningun log.
+          #
+          # Se vuelve a traer gh-pages antes de cada refresco. Es un fetch
+          # superficial de un solo archivo: barato. Va --force porque gh-pages se
+          # publica siempre huerfana, asi que cada publicado reescribe la historia
+          # y un fetch normal lo rechazaria. Si falla, se sigue con la copia que
+          # ya se tenia: quedarse sin publicar seria peor.
+          # ----------------------------------------------------------------
+          releer_publicado() {
+            if git -C sitio_previo fetch -q --depth=1 --force origin gh-pages \
+               && git -C sitio_previo checkout -q --force FETCH_HEAD -- datos.json
+            then
+              cp sitio_previo/datos.json estado/datos.json
+            else
+              echo "      (no pude releer gh-pages, sigo con la copia anterior)"
+            fi
+            python -c "import json; d = json.load(open('estado/datos.json')); print('      parto de lo publicado: %d simbolos, cierre %s' % (len(d['simbolos']), d.get('ultimo_cierre')))"
+          }
+
           publicar() {
             ( cd sitio
               rm -rf .git
@@ -161,6 +193,10 @@ jobs:
           while :; do
             vuelta=$(( vuelta + 1 ))
             echo "::group::vuelta $vuelta  ($(date -u '+%H:%M:%S') UTC)"
+            # Justo antes de fusionar, para que la ventana en la que se podria
+            # pisar a otro publicado sea la descarga y no las dos horas que
+            # falten de bucle.
+            releer_publicado
             # Una vuelta que falla NO corta la corrida: Yahoo tiene rachas malas
             # y la de dentro de diez minutos puede andar perfecto. Solo se
             # devuelve error si no salio ninguna.

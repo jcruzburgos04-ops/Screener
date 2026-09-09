@@ -80,6 +80,14 @@ def main():
         if not precios:
             sys.exit("[X] Yahoo no devolvio datos.")
         precios, _ = repescar_atrasados(precios, args.periodo)
+        # Los que vinieron con poco historial PORQUE COTIZAN DESDE HACE POCO
+        # entran igual, marcados. No es aflojar MIN_BARRAS: el que vino corto
+        # sin explicacion (una serie recortada por Yahoo) sigue quedando afuera.
+        nuevitos = screener.rescatar_recien_listados()
+        if nuevitos:
+            precios.update(nuevitos)
+            print("      recien listados, entran con poco historial: "
+                  + ", ".join(f"{t}({len(d)}b)" for t, d in sorted(nuevitos.items())))
         actualizar_cuarentena(cuarentena, [t for t in pedir if t not in castigados],
                               set(precios))
         if not args.sin_fundamentales:
@@ -90,17 +98,27 @@ def main():
     faltan = [t for t in tickers if t not in precios]
     payload = armar_payload(precios, meta, uni, args.barras)
     payload["faltantes"] = faltan
-    # armar_payload tambien descarta lo que tiene menos de 120 barras: esos
+    # armar_payload tambien descarta lo que no llega a MIN_BARRAS_NUEVO: esos
     # tambien son "sin datos" desde el punto de vista de la pagina.
     quedaron = {s["t"] for s in payload["simbolos"]}
     payload["faltantes"] = sorted(set(faltan) | {t for t in tickers if t not in quedaron})
-    # Y aparte, los que SI vinieron pero con poco historial. Meterlos en la
-    # misma bolsa hacia que la pagina dijera "Yahoo no los devolvio", que para
-    # estos es falso: Yahoo los devolvio y este programa los descarto porque no
-    # llegan a MIN_BARRAS. Son dos problemas distintos con dos acciones
-    # distintas -- uno se investiga, el otro se espera.
+    # Y aparte, los que SI vinieron pero con menos ruedas de las que existen: la
+    # serie recortada de Yahoo. Meterlos en la misma bolsa hacia que la pagina
+    # dijera "Yahoo no los devolvio", que para estos es falso. Son tres
+    # situaciones con tres acciones distintas: el que no vino se INVESTIGA
+    # (cambio de ticker?), el recortado se ESPERA a que vuelva entero, y el
+    # recien listado ya ENTRO, unas lineas mas arriba.
     payload["cortos"] = {t: n for t, n in sorted(screener.CORTOS.items())
                          if t in payload["faltantes"]}
+    # Y los que vinieron cortos pero SI entraron, por ser recien listados. La
+    # pantalla los marca porque media tabla les viene vacia -- sin EMA 200, sin
+    # maximo de 52 semanas, sin ASH semanal -- y eso hay que poder explicarlo.
+    # Se saca del payload y no de screener.NUEVOS a proposito: un simbolo que
+    # esta ADENTRO con menos de MIN_BARRAS solo pudo haber entrado por el rescate,
+    # asi que la lista se deduce sola y no puede desincronizarse. Ademas sigue
+    # saliendo bien con --usar-cache, donde no hubo descarga y NUEVOS esta vacio.
+    payload["nuevos"] = {s["t"]: len(s["d"]) for s in payload["simbolos"]
+                         if len(s["d"]) < screener.MIN_BARRAS}
     # El umbral viaja para que la pantalla no lo tenga escrito a mano y se
     # desincronice si alguna vez se cambia.
     payload["min_barras"] = screener.MIN_BARRAS
@@ -136,8 +154,15 @@ def main():
     print(f"  atrasados   {payload['atrasados']:6d}   "
           f"({payload['atrasados'] / max(1, len(payload['simbolos'])) * 100:.0f}% "
           f"del total)")
-    if payload["faltantes"]:
-        print(f"  sin datos: {', '.join(payload['faltantes'])}")
+    novino = [t for t in payload["faltantes"] if t not in payload["cortos"]]
+    if novino:
+        print(f"  no los devolvio Yahoo: {', '.join(novino)}")
+    if payload["cortos"]:
+        print("  serie recortada, quedan afuera: "
+              + ", ".join(f"{t}({n}b)" for t, n in payload["cortos"].items()))
+    if payload["nuevos"]:
+        print("  listaron hace poco, entran igual: "
+              + ", ".join(f"{t}({n}b)" for t, n in payload["nuevos"].items()))
     print("\nSubi esa carpeta a GitHub Pages, o dejá que lo haga el workflow.")
 
 

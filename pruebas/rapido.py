@@ -75,10 +75,17 @@ sin_dup = all(len(set(s["d"])) == len(s["d"]) for s in nuevo["simbolos"])
 assert sin_dup, "quedaron fechas duplicadas"
 print("sin fechas duplicadas: OK")
 
+# El piso se mide CONTRA LO QUE TENIA CADA UNO, no contra un numero fijo. Con un
+# numero fijo, el recien listado de la fixtura -- que entra a proposito con 61
+# barras -- se leia como historial perdido. Lo que hay que verificar es que
+# ninguno ADELGACE, que es lo que rompia la fusion vieja.
 largos = {len(s["d"]) for s in nuevo["simbolos"]}
 assert max(largos) <= 400, f"el historial crecio: {max(largos)}"
-assert min(largos) >= 380, f"se perdio historial: {min(largos)}"
-print(f"historial acotado a 400 barras: OK (entre {min(largos)} y {max(largos)})")
+achicados = [(s["t"], antes[s["t"]][0], len(s["d"])) for s in nuevo["simbolos"]
+             if len(s["d"]) < antes[s["t"]][0]]
+assert not achicados, f"se perdio historial: {achicados[:5]}"
+print(f"historial acotado a 400 barras y ninguno adelgazo: OK "
+      f"(entre {min(largos)} y {max(largos)})")
 
 for s in nuevo["simbolos"]:
     assert len(s["d"]) == len(s["c"]) == len(s["o"]) == len(s["h"]) == len(s["l"]) == len(s["v"]), \
@@ -134,3 +141,39 @@ assert "vino incompleto" in (r2.stdout + r2.stderr), r2.stdout[-300:]
 print("con una descarga incompleta corta y no publica: OK")
 
 print("\nACTUALIZACION RAPIDA OK")
+
+
+# ==============================================================================
+# El bucle tiene que RELEER lo publicado en cada vuelta
+# ==============================================================================
+# No es una prueba de la fusion sino de la forma del workflow, y esta aca porque
+# el bug vivia justo al lado: intradia.yml copiaba gh-pages a `estado/` UNA vez,
+# antes del bucle, y despues publicaba esa foto encima cada diez minutos durante
+# 5h30. Cualquier otro publicado hecho mientras tanto quedaba revertido.
+#
+# Paso de verdad el 9/9/2026: la corrida de las 12:30 llevaba el universo viejo
+# (447 simbolos) y la nocturna publico 480 cuatro veces seguidas -- 14:03, 14:18,
+# 14:39 y 14:59 --; las cuatro se perdieron en la vuelta siguiente. Ningun log
+# marco un error: las dos corridas hicieron exactamente lo que decia su codigo.
+#
+# Un error asi no lo puede ver una prueba de la fusion, porque el programa que se
+# prueba recibe el archivo que le dan. Lo que se verifica es que el bucle vuelva
+# a leer gh-pages ANTES de fusionar.
+import re
+import yaml
+
+wf = yaml.safe_load((Path(RAIZ) / ".github/workflows/intradia.yml").read_text())
+guion_wf = next(p["run"] for p in wf["jobs"]["refrescar"]["steps"]
+                if "run" in p and "Refrescar" in p.get("name", ""))
+cuerpo = re.search(r"while :; do(.*?)\n\s*done", guion_wf, re.S)
+assert cuerpo, "no encontre el bucle en intradia.yml"
+cuerpo = cuerpo.group(1)
+assert "releer_publicado" in cuerpo, (
+    "el bucle no vuelve a leer gh-pages: la corrida va a publicar su foto "
+    "inicial encima de todo lo que se publique mientras dura")
+assert cuerpo.index("releer_publicado") < cuerpo.index("actualizar_rapido.py"), (
+    "relee gh-pages DESPUES de fusionar: fusiona contra la copia vieja igual")
+assert "--depth=1 --force" in guion_wf, (
+    "el fetch de gh-pages tiene que ir --force: la rama se publica huerfana y "
+    "cada publicado reescribe su historia, asi que un fetch normal la rechaza")
+print("el bucle relee lo publicado antes de cada fusion: OK")

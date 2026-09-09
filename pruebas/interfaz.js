@@ -302,27 +302,61 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
 
      Son dos problemas con dos acciones distintas: uno se investiga (cambio de
      ticker?), el otro se espera. La prueba fija que se digan por separado. */
-  console.log('\n== por que no esta un papel: sin datos vs. poco historial ==');
+  console.log('\n== por que no esta un papel: tres motivos, tres textos ==');
   {
+    /* VENTANA PROPIA, Y NO LA COMPARTIDA DE ARRIBA. Las pruebas anteriores
+       dejaron filtros puestos en esa (RSI <= 55, entre otros), asi que buscar
+       una fila ahi contesta "no esta" cuando en realidad esta y no pasa el
+       filtro. Me paso justo con esto: el recien listado figuraba como ausente
+       por un filtro de otra prueba. */
+    const g=await abrir(nuevoAlmacen());
+    const $=g.$, $$=g.$$;
+    const PL=JSON.parse(datos), nuevito=Object.keys(PL.nuevos||{})[0];
     const inf=$('#infoFaltantes').innerHTML;
     ok('nombra al que no vino',/MUERTO/.test(inf),inf.slice(0,90));
-    ok('y al que vino corto',/NUEVITO/.test(inf));
-    ok('dice cuantas barras trajo el corto',/61 barras/.test(inf),inf);
+    ok('y al que vino con la serie recortada',/RECORTE/.test(inf));
+    ok('dice cuantas barras trajo el recortado',/61 barras/.test(inf),inf);
     ok('y contra que umbral',/220/.test(inf));
-    /* El reparto: lo de "poco historial" arranca en su propio titulo, asi que
-       el que no vino tiene que quedar ANTES y el corto DESPUES. */
-    const corte=inf.indexOf('poco historial');
-    ok('hay una seccion aparte para los cortos',corte>0,corte);
+    const corte=inf.indexOf('serie corta');
+    ok('hay una seccion aparte para los recortados',corte>0,corte);
     ok('el que no vino queda del lado de "sin datos"',
        inf.indexOf('MUERTO')<corte,inf.indexOf('MUERTO')+' vs '+corte);
-    ok('y el corto del lado de "poco historial"',
-       inf.indexOf('NUEVITO')>corte,inf.indexOf('NUEVITO')+' vs '+corte);
-    /* Lo que NO se puede decir del corto: que Yahoo no lo devolvio. */
-    ok('del corto NO se dice que Yahoo no lo devolvio',
+    ok('y el recortado del lado de "serie corta"',
+       inf.indexOf('RECORTE')>corte,inf.indexOf('RECORTE')+' vs '+corte);
+    ok('del recortado NO se dice que Yahoo no lo devolvio',
        inf.indexOf('no los devolvió')<corte,
        inf.indexOf('no los devolvió')+' vs '+corte);
-    ok('y se explica que entra solo cuando junte historial',
-       /entran solos/.test(inf));
+
+    /* LO QUE CAMBIO, Y ES EL PEDIDO DEL USUARIO: el recien listado ya no se
+       explica en un panel, ESTA EN LA TABLA. Un CEDEAR que se compra tiene que
+       aparecer en el screener aunque haya listado el mes pasado; lo que no
+       puede pasar es que aparezca sin decir que le falta historial. */
+    ok('el recien listado tiene su propia seccion',
+       inf.indexOf('listaron hace poco')>=0,inf.slice(0,200));
+    ok('y se lo nombra',inf.indexOf(nuevito)>=0,nuevito);
+    const fila=$$('#tabla tbody tr').find(tr=>
+      (tr.querySelector('.tk')||{}).textContent===nuevito);
+    ok('EL RECIEN LISTADO ESTA EN LA TABLA',!!fila,nuevito+' no aparece');
+    if(fila){
+      const marca=fila.querySelector('.corta');
+      ok('marcado con las ruedas que tiene',!!marca&&/61/.test(marca.textContent),
+         marca?marca.textContent:'sin marca');
+      ok('y el titulo explica por que le faltan columnas',
+         !!marca&&/historial/.test(marca.getAttribute('title')||''));
+    }
+    /* Y LO QUE NO SE PUEDE INVENTAR: con 61 ruedas no hay maximo de 52 semanas.
+       Antes se acortaba la ventana y se mostraba el maximo de esos tres meses
+       en la columna que dice "52 semanas": un numero con cara de dato. */
+    const otro=$$('#tabla tbody tr').find(tr=>
+      (tr.querySelector('.tk')||{}).textContent!==nuevito);
+    const col=[...$$('#tabla thead th')].findIndex(th=>/52/.test(th.textContent));
+    if(col>=0&&fila&&otro){
+      ok('sin 52 semanas de historia, la columna de 52 semanas va vacia',
+         !fila.children[col].textContent.trim(),
+         fila.children[col].textContent);
+      ok('y el que si las tiene la muestra igual',
+         !!otro.children[col].textContent.trim());
+    }
   }
 
   console.log('\n== almacen bloqueado ==');
