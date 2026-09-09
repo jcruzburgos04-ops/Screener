@@ -1,5 +1,6 @@
 # Mapa CEDEAR (codigo BYMA) -> subyacente donde cotiza de verdad.
-# Armado desde el panel oficial de BYMA del 12/6/2026.
+# Armado desde el panel oficial de BYMA del 12/6/2026, actualizado con el
+# del 3/9/2026.
 # El screener NUNCA usa el precio del CEDEAR: siempre baja el subyacente.
 #
 # Excluidos a proposito:
@@ -9,6 +10,10 @@
 #   AUY: Yamana, fusionada con PAAS
 #   BBDC3: duplicado del ADR BBD
 #   CS: Credit Suisse, absorbida por UBS
+#   ERJ: Embraer. Esta en el panel de BYMA pero Yahoo no lo devuelve por
+#        ninguna via -- se probaron ERJ, EMBR3.SA, ERJ.SA y EMBRAER.SA en
+#        tres corridas distintas, con papeles brasileños sanos en el mismo
+#        lote. Sin subyacente que baje no entra: quedaria de adorno.
 #   CSNA3: duplicado del ADR SID
 #   ITUB3: duplicado del ADR ITUB
 #   LKOD: Lukoil, sancionada
@@ -172,13 +177,13 @@ WFC,WFC
 GS,GS
 SCHW,SCHW
 USB,USB
-BK,BK
+BK,BNY
 AXP,AXP
 BX,BX
 BRKB,BRK-B
 AIG,AIG
 SPGI,SPGI
-MMC,MMC
+MMC,MRSH
 TRVV,TRV
 FNMA,FNMA
 FMCC,FMCC
@@ -357,7 +362,7 @@ TIMB,TIMB
 PAGS,PAGS
 STNE,STNE
 XP,XP
-UN,NU
+NU,NU
 AMX,AMX
 FMX,FMX
 KOFM,KOF
@@ -429,3 +434,23 @@ SPXL,SPXL
 SH,SH
 PSQ,PSQ
 VXX,VXX
+
+# --- del panel de BYMA del 3/9/2026 ---
+# Cada subyacente se confirmo contra Yahoo con verificar_tickers.py:
+# los diecisiete devuelven barras, en su moneda de origen y no en pesos.
+BNG,BG
+CLS,CLS
+DELL,DELL
+GEV,GEV
+IBKR,IBKR
+KLAC,KLAC
+LIN,LIN
+MS,MS
+NTRA,NTRA
+PLD,PLD
+SHW,SHW
+SKHY,000660.KS
+SPCE,SPCE
+TLN,TLN
+WDC,WDC
+WELL,WELL

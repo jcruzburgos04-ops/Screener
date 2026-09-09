@@ -74,6 +74,10 @@ ASTS.BA,Tecnologia
 RKLB.BA,Tecnologia
 OKLO.BA,Tecnologia
 TEM.BA,Tecnologia
+CLS.BA,Tecnologia
+DELL.BA,Tecnologia
+KLAC.BA,Tecnologia
+WDC.BA,Tecnologia
 MSTR.BA,Cripto
 COIN.BA,Cripto
 RIOT.BA,Cripto
@@ -107,6 +111,7 @@ CAH.BA,Salud
 VRTX.BA,Salud
 HIMS.BA,Salud
 WBA.BA,Salud
+NTRA.BA,Salud
 KO.BA,Consumo
 PEP.BA,Consumo
 MCD.BA,Consumo
@@ -137,7 +142,10 @@ AAP.BA,Consumo
 GT.BA,Consumo
 HOG.BA,Consumo
 RACE.BA,Consumo
+BNG.BA,Consumo
 O.BA,Inmobiliario
+PLD.BA,Inmobiliario
+WELL.BA,Inmobiliario
 JPM.BA,Financieras
 BA.C.BA,Financieras
 C.BA,Financieras
@@ -156,6 +164,8 @@ TRVV.BA,Financieras
 FNMA.BA,Financieras
 FMCC.BA,Financieras
 PBI.BA,Financieras
+IBKR.BA,Financieras
+MS.BA,Financieras
 BA.BA,Industria
 CAT.BA,Industria
 DE.BA,Industria
@@ -189,8 +199,12 @@ IP.BA,Industria
 DD.BA,Industria
 DOW.BA,Industria
 MOS.BA,Industria
+GEV.BA,Industria
+SPCE.BA,Industria
 NUE.BA,Materiales
 MP.BA,Materiales
+LIN.BA,Materiales
+SHW.BA,Materiales
 XOM.BA,Energia
 CVX.BA,Energia
 COP.BA,Energia
@@ -206,6 +220,7 @@ FSLR.BA,Energia
 NXE.BA,Energia
 CCJ.BA,Energia
 GLNG.BA,Energia
+TLN.BA,Energia
 B.BA,Mineria
 NEM.BA,Mineria
 AEM.BA,Mineria
@@ -298,6 +313,7 @@ PCRF.BA,ADR Asia
 NEC1.BA,Asia local
 HHPD.BA,Asia local
 SMSN.BA,Asia local
+SKHY.BA,Asia local
 MELI.BA,Latam
 GLOB.BA,Latam
 ARCO.BA,Latam
@@ -330,7 +346,7 @@ TIMB.BA,Latam
 PAGS.BA,Latam
 STNE.BA,Latam
 XP.BA,Latam
-UN.BA,Latam
+NU.BA,Latam
 AMX.BA,Latam
 FMX.BA,Latam
 KOFM.BA,Latam

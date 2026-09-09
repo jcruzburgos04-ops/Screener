@@ -103,14 +103,15 @@ datos incrustados.
 | `bonos.py` | **La renta fija argentina.** Precios de los soberanos, los dos dólares implícitos, el canje de leyes, TIR/TNA/paridad/duration/DV01 sobre el cronograma, y las obligaciones negociables. Ver la sección 7b. |
 | `futuros.py` | **Los futuros de dólar** (A3/Matba Rofex). Deduce el vencimiento del símbolo, descarta los vencidos y despeja el spot. Ver la sección 7b. |
 | `armar_universo.py` | Compara `cedears.csv` contra el panel vivo de BYMA y reporta las diferencias. Sólo reporta, no escribe. |
+| `verificar_tickers.py` | Le pregunta a Yahoo si un símbolo existe: barras, última rueda, precio, **moneda** y nombre. Es el paso previo a cargar un CEDEAR nuevo. Corre por `tickers.yml`, porque acá no hay internet. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 
 ### Datos y configuración
 
 | Archivo | Contenido |
 |---|---|
-| `universo.csv` | `ticker,grupo[,subyacente]` — 465 símbolos. |
-| `cedears.csv` | `local,subyacente` — 400 mapeos del panel oficial de BYMA del 12/6/2026. |
+| `universo.csv` | `ticker,grupo[,subyacente]` — 481 símbolos. |
+| `cedears.csv` | `local,subyacente` — 416 mapeos, del panel oficial de BYMA del 12/6/2026 actualizado con el del 3/9/2026. |
 | `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
 | `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico, panorama, renta fija. |
 | `requirements.txt` | pandas, numpy, yfinance. El servidor usa sólo la stdlib. |
@@ -389,6 +390,53 @@ Adecoagro (en NYSE: AGRO).
 **Si un `.BA` no está mapeado, se saltea y se avisa.** Bajar el CEDEAR daría
 indicadores equivocados, que es peor que no tenerlos. No cambies eso por un
 fallback.
+
+### Cargar CEDEARs nuevos: preguntale a Yahoo, no a la intuición
+
+El panel de BYMA publica el **código BYMA**, no el subyacente. En la mayoría
+coinciden y por eso da la impresión de que se puede asumir — y ahí está la
+trampa, porque cuando no coinciden **el error no se nota**: el papel no baja
+nunca y queda de adorno en el universo, o peor, baja otra empresa con ese
+ticker.
+
+`verificar_tickers.py` + el workflow `tickers.yml` lo contestan con el dato:
+para cada símbolo dicen si Yahoo devuelve barras, cuántas, la última rueda, el
+precio, la **moneda** y el nombre. La moneda es la que más se equivoca uno: si
+vuelve **ARS** es que se apuntó al código BYMA y no al subyacente, que es
+exactamente lo que rompe el invariante 2. Corre en Actions porque la máquina de
+desarrollo no tiene salida a internet.
+
+**Aplicado el 8/9/2026 contra el panel del 3/9** (441 especies): faltaban 18.
+Entraron 17 y el universo pasó de 465 a **481**. Dos cosas que sólo aparecieron
+por verificar en vez de asumir:
+
+| Código BYMA | Subyacente | Por qué no era obvio |
+|---|---|---|
+| `BNG` | `BG` | Bunge; en BYMA `BG` no existe |
+| `SKHY` | `000660.KS` | SK Hynix **no cotiza en Estados Unidos**; ni `SKHYY` ni `HXSCL` devuelven nada. Va a Corea, como `NEC1`→`6701.T` |
+
+**Y aparecieron dos símbolos rotos en producción**, que es el hallazgo que más
+valía: `BK` y `MMC` **no devuelven barras** —dos corridas, con `AAPL` sano en el
+mismo lote— porque las dos empresas cambiaron de ticker. Ahora `BK`→**`BNY`** y
+`MMC`→**`MRSH`**. El código BYMA no cambió; el que cambió es el subyacente, que
+es justo lo que una lista escrita de memoria no ve.
+
+`UN` pasó a llamarse **`NU`** en el panel (mismo subyacente, `NU`): se renombró
+la entrada en vez de agregar una segunda, que habría mostrado Nu Holdings dos
+veces.
+
+> **`ERJ` (Embraer) queda afuera a propósito.** Está en el panel de BYMA pero
+> Yahoo no lo devuelve por ninguna vía: se probaron `ERJ`, `EMBR3.SA`, `ERJ.SA`
+> y `EMBRAER.SA` en tres corridas distintas, con papeles brasileños sanos
+> (`PBR`, `VALE`, `BBAS3.SA`, `MGLU3.SA`) en el mismo lote. Sin subyacente que
+> baje, agregarlo sería dejar una fila de adorno.
+
+> **Dos que el panel del 3/9 ya NO trae: `UPS` y `TEFO`.** El CEDEAR de UPS
+> desapareció aunque el papel cotiza perfecto, y el ADR de Telefónica
+> directamente no existe más en Yahoo (`TEF` no devuelve nada; `TEF.MC`, la
+> acción en Madrid, sí). **No se tocaron**: sacarlos del universo es una
+> decisión del usuario, y el proyecto ya deja los muertos adentro para que la
+> cuarentena los maneje (`WBA`, `TTM`, `LFC`).
 
 **Una línea rota de `cedears.csv` se saltea, no rompe el archivo entero.** Antes
 una línea sin subyacente arrastraba la clave de la línea anterior y la mapeaba a
@@ -1904,12 +1952,8 @@ necesitan internet.
    sección 8b). Es un 81% menos de pedidos contra la única fuente que
    rate-limitea, y es la causa real de que los precios lleguen tarde. Yahoo
    queda para los ~85 que faltan y para todo el historial, que no se puede mudar.
-5. **Cargar los CEDEARs nuevos.** `armar_universo.py` ya compara contra el panel
-   vivo y reporta las diferencias, pero **todavía no se aplicaron**. Se mapean
-   solos: `BNG BNY CLS EMBJ MRSH NU SPCE SPCX`. Los brasileños van a mano:
-   `ABEV3 BBDC3 CSNA3 ITUB3 PETR3 SBSP3 SUZB3 TIMS3 VALE3 VIVT3`. **Dos son
-   renombres y hay que confirmarlos antes de tocarlos**: `BK`→`BNY` y
-   `MMC`→`MRSH`, que hoy fallan en silencio en el universo.
+5. ~~**Cargar los CEDEARs nuevos.**~~ **Hecho** el 8/9/2026 contra el panel
+   oficial de BYMA del 3/9 (PDF que mandó el usuario). Ver más abajo.
 6. **Sección Global**: bonos del Tesoro (`^TNX`, `^TYX`), commodities (`CL=F`,
    `GC=F`, `ZS=F`) e índices — verificado que Yahoo los devuelve.
 7. **Portafolios.** El usuario los pidió y eligió **local ahora, backend
