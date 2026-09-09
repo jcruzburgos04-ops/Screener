@@ -30,6 +30,16 @@ LA MONEDA IMPORTA, y es lo que mas se equivoca uno: si aparece ARS es que se
 apunto al CEDEAR y no al subyacente, que es justo lo que este proyecto no hace
 nunca. La salida la marca en la cara.
 
+Y EL LARGO DEL HISTORIAL TAMBIEN. Que el simbolo exista NO alcanza: con menos
+de MIN_BARRAS (220) barras diarias, limpiar_barras lo descarta ENTERO y en
+silencio. Por eso se pide el periodo del sitio y no un mes: con "1mo" todos dan
+22 barras y el numero no distingue a Apple de una empresa que listo la semana
+pasada. Fue exactamente asi como di por bueno al SPCX.
+
+EL NOMBRE TAMPOCO ES ADORNO: los tickers SE REASIGNAN. Silvergate se liquido y
+hoy "SI" devuelve barras perfectas de Shoulder Innovations, que es otra
+empresa. Sin mirar el nombre, eso se carga y baja el papel equivocado.
+
 No se usa desde el navegador ni desde el sitio: es una herramienta de consola.
 En un entorno sin salida a internet no se puede correr, y para eso esta el
 workflow `tickers.yml`, que la corre en Actions.
@@ -40,13 +50,15 @@ import sys
 
 import yfinance as yf
 
+from screener import MIN_BARRAS
+
 # Un CEDEAR cotiza en pesos. Si un candidato vuelve en ARS es que se apunto al
 # codigo BYMA en vez de al subyacente, y eso mete el tipo de cambio adentro de
 # todos los indicadores. Es el error que este archivo existe para evitar.
 MONEDA_PROHIBIDA = "ARS"
 
 
-def mirar(tk, periodo="1mo"):
+def mirar(tk, periodo="3y"):
     """Lo que Yahoo sabe de un simbolo. Nunca levanta: devuelve el motivo."""
     fila = {"t": tk, "ok": False, "barras": 0, "ultima": "", "precio": None,
             "moneda": "", "nombre": "", "nota": ""}
@@ -73,6 +85,11 @@ def mirar(tk, periodo="1mo"):
     fila["nombre"] = (info.get("longName") or info.get("shortName") or "")[:44]
     if fila["moneda"] == MONEDA_PROHIBIDA:
         fila["nota"] = "*** EN PESOS: es el CEDEAR, no el subyacente ***"
+    elif fila["barras"] < MIN_BARRAS:
+        # Que exista no alcanza: con menos de MIN_BARRAS el screener lo
+        # DESCARTA ENTERO en limpiar_barras, y en silencio.
+        fila["nota"] = (f"*** SOLO {fila['barras']} BARRAS: el screener pide "
+                        f"{MIN_BARRAS} y lo va a descartar ***")
     else:
         fila["ok"] = True
     return fila
@@ -82,7 +99,10 @@ def main():
     ap = argparse.ArgumentParser(description="Ver si Yahoo tiene estos simbolos")
     ap.add_argument("tickers", nargs="*", help="simbolos a probar")
     ap.add_argument("--archivo", help="un simbolo por linea")
-    ap.add_argument("--periodo", default="1mo")
+    # 3 años, que es lo que pide el sitio. Con "1mo" TODOS dan 22 barras y el
+    # numero no dice nada: fue exactamente asi como di por bueno al SPCX, que
+    # existe pero es una salida a bolsa reciente y no llega a MIN_BARRAS.
+    ap.add_argument("--periodo", default="3y")
     args = ap.parse_args()
 
     tks = list(args.tickers)
