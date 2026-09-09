@@ -110,7 +110,7 @@ datos incrustados.
 
 | Archivo | Contenido |
 |---|---|
-| `universo.csv` | `ticker,grupo[,subyacente]` — 481 símbolos. |
+| `universo.csv` | `ticker,grupo[,subyacente]` — 492 símbolos. |
 | `cedears.csv` | `local,subyacente` — 416 mapeos, del panel oficial de BYMA del 12/6/2026 actualizado con el del 3/9/2026. |
 | `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
 | `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico, panorama, renta fija. |
@@ -407,7 +407,8 @@ exactamente lo que rompe el invariante 2. Corre en Actions porque la máquina de
 desarrollo no tiene salida a internet.
 
 **Aplicado el 8/9/2026 contra el panel del 3/9** (441 especies): faltaban 18.
-Entraron 17 y el universo pasó de 465 a **481**. Dos cosas que sólo aparecieron
+Entraron 17 y el universo pasó de 465 a 481 (y a **492** con lo de más
+abajo). Dos cosas que sólo aparecieron
 por verificar en vez de asumir:
 
 | Código BYMA | Subyacente | Por qué no era obvio |
@@ -458,6 +459,49 @@ eran**, y verificarlos uno por uno (dos corridas, con `AAPL`, `MSFT`, `NVDA` y
 —Electronic Arts devuelve **una sola barra, del 10/08/2026**, o sea que dejó de
 cotizar—. **Siguen en el universo**: la cuarentena los maneja y sacarlos es
 decisión del usuario.
+
+#### El punto ciego: comparar contra la lista de excluidos
+
+**El usuario tuvo que señalarlo** («SPCX, entre otros, siguen sin aparecer y son
+CEDEARs») y tenía razón. El primer diff comparó el panel contra `cedears.csv`
+**más la lista de excluidos de su cabecera**, así que todo lo que alguien había
+excluido alguna vez era invisible por construcción: no podía aparecer como
+faltante nunca.
+
+**La comparación correcta es panel contra `universo.csv`**, o sea contra lo que
+de verdad se baja. Con esa, los faltantes no eran 18 sino **26**. Se probaron
+los 26 contra Yahoo con `AAPL` y `MSFT` de control, y **once había que
+reincorporar**:
+
+- **`SPCX`** — la nota decía «SpaceX, no cotiza». Hoy devuelve 22 barras a
+  **149,87 USD** como *Space Exploration Technologies Corp.*: salió a bolsa y la
+  nota quedó vieja. El panel lo lista en NASDAQ GS con ratio 50:1.
+- **Los diez brasileños de B3** (`ABEV3 BBDC3 CSNA3 ITUB3 PETR3 SBSP3 SUZB3
+  TIMS3 VALE3 VIVT3`), excluidos como «duplicado del ADR». Los diez cotizan y
+  los diez son **CEDEARs distintos, con su propio ratio**. Van al grupo
+  `Brasil B3`, que ya existía. Sí: ahora Vale aparece dos veces, como `VALE`
+  (el ADR) y como `VALE3.SA` (la acción en San Pablo) — es la misma empresa
+  vista por dos instrumentos, y es a propósito.
+
+El universo pasó de 481 a **492**.
+
+> **La trampa que apareció de yapa, y es la peor de todas: `SI`.** La nota decía
+> «Silvergate, liquidada», y es cierto — pero **el ticker se reasignó**. Hoy `SI`
+> devuelve barras perfectas… de **«Shoulder Innovations, Inc.»**, otra empresa.
+> Mapearlo habría bajado el papel equivocado **en silencio**, con el gráfico y
+> los indicadores impecables y todos mal. **Por eso `verificar_tickers.py`
+> imprime el NOMBRE y no sólo si hay barras**: sin esa columna, este caso pasa.
+
+Los **quince que siguen afuera** están todos verificados y anotados en la
+cabecera de `cedears.csv`: trece no devuelven una sola barra (`AABA AUY CS ERJ
+LKOD MBT NLM OGZD PTR RCTB4 SHPW SNP TWTR`), `SI` es el ticker reasignado, y
+`ATAD.L` (Tatneft, sancionada) devuelve barras **sin moneda y sin nombre**, que
+no es una cotización normal.
+
+> **La regla que sale de esto:** una lista de excluidos es una lista de
+> decisiones **fechadas**, y envejece igual que un mapeo. Cuando cargues CEDEARs
+> nuevos, compará el panel contra `universo.csv` y volvé a pasar los excluidos
+> por `verificar_tickers.py`. Son treinta segundos y acá recuperó once papeles.
 
 > **Dos que el panel del 3/9 ya NO trae: `UPS` y `TEFO`.** El CEDEAR de UPS
 > desapareció aunque el papel cotiza perfecto, y el ADR de Telefónica

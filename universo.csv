@@ -201,6 +201,7 @@ DOW.BA,Industria
 MOS.BA,Industria
 GEV.BA,Industria
 SPCE.BA,Industria
+SPCX.BA,Industria
 NUE.BA,Materiales
 MP.BA,Materiales
 LIN.BA,Materiales
@@ -364,6 +365,16 @@ NATU3.BA,Brasil B3
 PRIO3.BA,Brasil B3
 RENT3.BA,Brasil B3
 WEGE3.BA,Brasil B3
+ABEV3.BA,Brasil B3
+BBDC3.BA,Brasil B3
+CSNA3.BA,Brasil B3
+ITUB3.BA,Brasil B3
+PETR3.BA,Brasil B3
+SBSP3.BA,Brasil B3
+SUZB3.BA,Brasil B3
+TIMS3.BA,Brasil B3
+VALE3.BA,Brasil B3
+VIVT3.BA,Brasil B3
 SPY.BA,ETF indice
 IVV.BA,ETF indice
 QQQ.BA,ETF indice
