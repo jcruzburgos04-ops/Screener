@@ -10,6 +10,16 @@
 #   AUY: Yamana, fusionada con PAAS
 #   BBDC3: duplicado del ADR BBD
 #   CS: Credit Suisse, absorbida por UBS
+#   Sin subyacente que baje, verificado en dos corridas con controles sanos
+#   en el mismo lote (8-9/9/2026). Siguen en el universo: la cuarentena los
+#   maneja y sacarlos es decision del usuario.
+#     BRFS: BRF. Ni BRFS, ni BRFS3.SA, ni BRFA3.SA, ni MRFG3.SA (se fusiono
+#           con Marfrig).
+#     EBR:  Eletrobras. Ni EBR, ni EBR.B, ni ELET3.SA, ni ELET6.SA.
+#     KEEL: Bitfarms. Ni BITF, ni BITFF, ni BITF.TO, ni BITF.V.
+#     EA:   Electronic Arts. Yahoo devuelve UNA barra, del 10/08/2026, y
+#           nada despues: dejo de cotizar.
+#
 #   ERJ: Embraer. Esta en el panel de BYMA pero Yahoo no lo devuelve por
 #        ninguna via -- se probaron ERJ, EMBR3.SA, ERJ.SA y EMBRAER.SA en
 #        tres corridas distintas, con papeles brasileños sanos en el mismo
@@ -115,7 +125,7 @@ BMNR,BMNR
 HOOD,HOOD
 PYPL,PYPL
 XYZ,XYZ
-FISV,FI
+FISV,FISV
 V,V
 MA,MA
 UPST,UPST
@@ -283,7 +293,7 @@ AEG,AEG
 PHG,PHG
 ERIC,ERIC
 NOKA,NOK
-ORAN,ORAN
+ORAN,ORANY
 TEFO,TEF
 TIIAY,TIIAY
 PSO,PSO
@@ -315,7 +325,7 @@ SE,SE
 SONY,SONY
 TM,TM
 HMC,HMC
-CAJ,CAJ
+CAJ,CAJPY
 MFG,MFG
 MUFG,MUFG
 NMR,NMR
@@ -352,10 +362,10 @@ GGB,GGB
 SUZ,SUZ
 SID,SID
 BAK,BAK
-ELP,ELP
+ELP,CPLE3.SA
 EBR,EBR
 SBS,SBS
-CBRD,CBD
+CBRD,PCAR3.SA
 UGP,UGP
 VIV,VIV
 TIMB,TIMB

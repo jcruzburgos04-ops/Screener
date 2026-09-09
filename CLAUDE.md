@@ -431,6 +431,34 @@ veces.
 > (`PBR`, `VALE`, `BBAS3.SA`, `MGLU3.SA`) en el mismo lote. Sin subyacente que
 > baje, agregarlo sería dejar una fila de adorno.
 
+#### Cinco mapeos más que estaban rotos, encontrados con la misma herramienta
+
+Después de cargar los nuevos, la corrida nocturna publicó **465 de los 481**.
+Seis de los que faltaban son los muertos ya conocidos; los otros **diez no lo
+eran**, y verificarlos uno por uno (dos corridas, con `AAPL`, `MSFT`, `NVDA` y
+`KO` sanos en el mismo lote) encontró cinco con reemplazo:
+
+| Antes | Ahora | Qué había pasado |
+|---|---|---|
+| `FISV`→`FI` | `FISV`→**`FISV`** | **El renombre se dio por hecho y en Yahoo nunca ocurrió.** `FI` no devuelve nada; `FISV` sí |
+| `CAJ`→`CAJ` | `CAJ`→**`CAJPY`** | Canon: el ADR quedó en su forma OTC de cinco letras |
+| `ORAN`→`ORAN` | `ORAN`→**`ORANY`** | Orange: ídem |
+| `ELP`→`ELP` | `ELP`→**`CPLE3.SA`** | Copel: el ADR no está; la acción en B3 sí |
+| `CBRD`→`CBD` | `CBRD`→**`PCAR3.SA`** | Pão de Açúcar: ídem |
+
+> El caso `FISV` es el más instructivo y es **el mismo error que este archivo
+> venía cometiendo**: alguien leyó que Fiserv cambiaba a `FI`, lo escribió, y
+> nadie volvió a preguntar. Un renombre *anunciado* no es un renombre *vigente
+> en Yahoo*. Por eso el paso obligatorio es `verificar_tickers.py`, no la
+> memoria ni la nota de prensa.
+
+**Cuatro quedaron sin reemplazo** y están anotados en la cabecera de
+`cedears.csv` con lo que se probó, para no volver a probarlo: `BRFS` (BRF, ni
+`BRFS3.SA` ni `MRFG3.SA`), `EBR` (Eletrobras), `KEEL`/`BITF` (Bitfarms) y `EA`
+—Electronic Arts devuelve **una sola barra, del 10/08/2026**, o sea que dejó de
+cotizar—. **Siguen en el universo**: la cuarentena los maneja y sacarlos es
+decisión del usuario.
+
 > **Dos que el panel del 3/9 ya NO trae: `UPS` y `TEFO`.** El CEDEAR de UPS
 > desapareció aunque el papel cotiza perfecto, y el ADR de Telefónica
 > directamente no existe más en Yahoo (`TEF` no devuelve nada; `TEF.MC`, la
