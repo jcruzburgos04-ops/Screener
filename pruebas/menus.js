@@ -56,7 +56,8 @@ console.log('== ningun control quedo huerfano al mudarse ==');
    deja de colgar de un .ctrl-host, no se guarda ni recalcula y nadie se entera
    mirando la pantalla. */
 const CONTROLES=['ashModo','ashMa','ashLen','ashSmooth','almaOff','almaSig',
-  'parRap','parLen','parK','parFresco','adrLen','rsiLen','atrLen','adxLen',
+  'c1Rap','c1Len','c2Rap','c2Len','c3Rap','c3Len','parFresco',
+  'adrLen','rsiLen','atrLen','adxLen',
   'fAdr','fRsiMin','srvPeriodo','yaAuto','chipsLetra'];
 const huerfanos=CONTROLES.filter(id=>{
   const el=$('#'+id);return el && !el.closest('.ctrl-host');});

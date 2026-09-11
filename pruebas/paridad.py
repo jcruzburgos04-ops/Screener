@@ -47,28 +47,36 @@ for k, b in series.items():
                        ('adr', S.calc_adr_pct(df,20), js[k]['adr'])):
         peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
         malos += bad
-    # --- Paragon ---
-    # La EMA de Pine (semilla = SMA de los primeros n, NaN antes), la conversion
-    # de longitudes y el rVWAP expansivo, en las tres fuentes.
-    for nom, py, j in (('emaPine100', S.ema_pine(df['Close'],100), js[k]['emaPine100']),
-                       ('emaPine200', S.ema_pine(df['Close'],200), js[k]['emaPine200'])):
+    # --- combos de EMAs ---
+    # La EMA de Pine (semilla = SMA de los primeros n, NaN antes) y los tres
+    # combos. Ya no hay conversion de longitudes que verificar: estan anclados
+    # a 1D, que es el timeframe de estas mismas barras.
+    for nom, py, j in (('emaPine21',  S.ema_pine(df['Close'],21),  js[k]['emaPine21']),
+                       ('emaPine115', S.ema_pine(df['Close'],115), js[k]['emaPine115']),
+                       ('emaPine300', S.ema_pine(df['Close'],300), js[k]['emaPine300'])):
         peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
         malos += bad
-    for kk in (1,2,6,12):
-        py_l = [S.largo_equivalente(100,kk), S.largo_equivalente(200,kk)]
-        js_l = js[k]['largos'][str(kk)]
-        if py_l != js_l:
-            print(f'  LARGO DISTINTO {k} k={kk}: py={py_l} js={js_l}'); malos += 1
-    for kk in (1,2,6):
-        rap, len_, _, _ = S.paragon_conjunto(df['Close'],100,200,kk)
-        for nom, py, j in ((f'parA{kk} rapida', rap, js[k][f'parA{kk}'][0]),
-                           (f'parA{kk} lenta',  len_, js[k][f'parA{kk}'][1])):
-            peor, bad = cmp(py.tolist(), j, f'{k} {nom}', peor)
+    for nom, par in (('c1',(21,34)), ('c2',(55,115)), ('c3',(300,600))):
+        rap, len_ = S.combo_emas(df['Close'], *par)
+        for etq, py, j in ((f'{nom} rapida', rap, js[k][nom][0]),
+                           (f'{nom} lenta',  len_, js[k][nom][1])):
+            peor, bad = cmp(py.tolist(), j, f'{k} {etq}', peor)
             malos += bad
+    # El rVWAP en las tres fuentes y en las CUATRO ventanas. Como la ventana va
+    # por dias calendario, esto verifica ademas que las dos implementaciones
+    # cuenten los dias igual, que es justo donde estaba el error.
     for fu in ('hl2','hlc3','close'):
-        rv, _ = S.rvwap_expansivo(df, 365, fu)
-        peor, bad = cmp(rv.tolist(), js[k]['rvwap_'+fu], f'{k} rvwap {fu}', peor)
-        malos += bad
+        for d in (7,30,90,365):
+            rv, llena = S.rvwap_dias(df, d, fu)
+            peor, bad = cmp(rv.tolist(), js[k][f'rvwap_{fu}_{d}'],
+                            f'{k} rvwap {fu} {d}d', peor)
+            malos += bad
+            py_ll = [1 if x else 0 for x in llena.tolist()]
+            if py_ll != js[k][f'rvllena_{fu}_{d}']:
+                i = next(n for n, (a, bb) in enumerate(
+                    zip(py_ll, js[k][f'rvllena_{fu}_{d}'])) if a != bb)
+                print(f'  VENTANA LLENA DISTINTA {k} {fu} {d}d en la barra {i}')
+                malos += 1
 
     # --- consolidacion (la caja) ---
     for N in (20, 40, 60):
@@ -93,7 +101,7 @@ for k, b in series.items():
         print(f'  CRUCE DISTINTO {k}: py={cr_py} js={cr_js}'); malos += 1
 
 print(f'\nseries comparadas: {len(series)}  ·  18 combinaciones modo x media + RSI/ATR/ADX/ADR')
-print('mas Paragon (EMA de Pine, conversion, rVWAP) y la caja en tres ventanas')
+print('mas los combos de EMAs, el rVWAP por dias calendario y la caja')
 print(f'error relativo maximo: {peor[0]:.3e}   ({peor[1]})')
 print('RESULTADO:', 'PARIDAD OK' if malos == 0 else f'{malos} DESVIOS')
 sys.exit(1 if malos else 0)

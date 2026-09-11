@@ -47,7 +47,8 @@ import pandas as pd
 # ==============================================================================
 
 BENCHMARK = "SPY"
-PERIODO = "3y"             # 3y da ~150 barras semanales, comodo para el ASH W
+PERIODO = "5y"             # lo pide la EMA 600: 600 de warmup + 220 que dibuja
+                           # el grafico son 820 barras, y 3y no llega ni a 760
 MIN_BARRAS = 220           # barras diarias minimas para aceptar un simbolo
 MIN_BARRAS_SEM = 30        # barras semanales minimas para calcular el ASH W
 
@@ -81,11 +82,15 @@ CFG_ASH = {
 }
 
 # ---- Otros indicadores -------------------------------------------------------
-PARAGON = {"rapida": 100, "lenta": 200, "k": 2, "fresco": 5,
-           "rv_len": 365, "rv_fuente": "hl2"}
-#   k = velas de 4h por rueda. Con 2 (una rueda de 6,5 h son dos velas de 4 h)
-#   el par 100/200 de 4h equivale a 50/100 en diario. Con 6 (cripto) da 17/33,
-#   que son los numeros que documenta el Pine original.
+# Los tres combos de EMAs de la banda DIARIA, ancladas a 1D. Como el screener
+# trabaja sobre velas diarias, el ancla ES la serie: las longitudes van tal
+# cual y no hay ninguna conversion ni aproximacion de por medio.
+COMBOS = {"c1": [21, 34], "c2": [55, 115], "c3": [300, 600], "fresco": 5,
+          "rv_fuente": "hlc3", "rv_dias": [7, 30, 90, 365]}
+#   c1 21/34   la rapida: es la que da el sesgo del dia
+#   c2 55/115  la media
+#   c3 300/600 la de fondo. Pide 600 barras solo para imprimir, por eso
+#              PERIODO subio a 5y y el sitio publica 850 barras.
 ADR_LEN = 20               # ventana del Average Daily Range
 RSI_LEN = 14
 ATR_LEN = 14
@@ -108,8 +113,9 @@ FILTROS = {
     "rsi14_max":           None,
 
     # --- EMAs ---
-    "par_w_sesgo":         None,         # True / False / None
-    "par_d_sesgo":         None,
+    "c1_sesgo":            None,         # True / False / None  (21/34)
+    "c2_sesgo":            None,         #                       (55/115)
+    "c3_sesgo":            None,         # la tendencia de fondo (300/600)
     "regimen_ord":         None,
 
     # --- ASH diario ---
@@ -145,8 +151,9 @@ REGLAS = [
     ("atr_pct_max",        "atr_pct",         "le"),
     ("rsi14_min",          "rsi14",           "ge"),
     ("rsi14_max",          "rsi14",           "le"),
-    ("par_w_sesgo",        "par_w_sesgo",     "bool"),
-    ("par_d_sesgo",        "par_d_sesgo",     "bool"),
+    ("c1_sesgo",           "c1_sesgo",        "bool"),
+    ("c2_sesgo",           "c2_sesgo",        "bool"),
+    ("c3_sesgo",           "c3_sesgo",        "bool"),
     ("ash_d_min",          "ash_d",           "ge"),
     ("ash_d_positivo",     "ash_d_positivo",  "bool"),
     ("ash_d_creciendo",    "ash_d_creciendo", "bool"),
@@ -191,14 +198,20 @@ COLUMNAS = [
     ("adx14",             "ADX 14",          "0.0"),
     # --- EMAs ---
     ("regimen",           "Régimen",         "@"),
-    ("par_w_pos",         "Precio vs W",     "@"),
-    ("par_w_dist",        "Dist. nube W",    "0.0%"),
-    ("par_w_ancho",       "Ancho W",         "0.0%"),
-    ("par_w_cruce",       "Cruce W",         "0"),
-    ("par_d_pos",         "Precio vs D",     "@"),
-    ("par_d_dist",        "Dist. nube D",    "0.0%"),
-    ("par_d_cruce",       "Cruce D",         "0"),
-    ("vs_rvwap",          "vs rVWAP 365",    "0.0%"),
+    ("c1_pos",            "Precio vs 21/34", "@"),
+    ("c1_dist",           "Dist. 21/34",     "0.0%"),
+    ("c1_ancho",          "Ancho 21/34",     "0.0%"),
+    ("c1_cruce",          "Cruce 21/34",     "0"),
+    ("c2_pos",            "Precio vs 55/115","@"),
+    ("c2_dist",           "Dist. 55/115",    "0.0%"),
+    ("c2_cruce",          "Cruce 55/115",    "0"),
+    ("c3_pos",            "Precio vs 300/600","@"),
+    ("c3_dist",           "Dist. 300/600",   "0.0%"),
+    ("c3_cruce",          "Cruce 300/600",   "0"),
+    ("vs_rvwap_7",        "vs rVWAP 7d",     "0.0%"),
+    ("vs_rvwap_30",       "vs rVWAP 30d",    "0.0%"),
+    ("vs_rvwap_90",       "vs rVWAP 90d",    "0.0%"),
+    ("vs_rvwap_365",      "vs rVWAP 365d",   "0.0%"),
     ("consol",            "Caja",            "@"),
     ("consol_rango",      "Alto caja",       "0.0%"),
     ("consol_barras",     "Ruedas caja",     "0"),
@@ -249,11 +262,14 @@ def ema(s, n):
 
 
 # ---------------------------------------------------------------------------
-# PARAGON  ·  EMA 100/200 ancladas, y rVWAP 365d
+# COMBOS DE EMAs  ·  21/34 · 55/115 · 300/600, y el rVWAP rolling
 #
-# Reconstruccion de los dos indicadores privados de DocXBT (The Paragon Group).
-# Los dos son EL MISMO par 100/200; lo unico que cambia es el timeframe de
-# anclaje: "Paragon Daily" ancla a 4h y "Paragon Weekly" ancla a 1D.
+# Reemplazan al Paragon 100/200, que se saco por pedido del usuario ("no
+# sirve"). El Paragon era una reconstruccion de dos indicadores privados y su
+# conjunto "diario" anclaba a velas de 4h que este pipeline no tiene, asi que
+# arrastraba una aproximacion y una constante k que nunca se pudo medir. Estos
+# tres combos anclan a 1D, que ES el timeframe de las barras: no hay conversion
+# de longitudes, no hay k, no hay nada aproximado.
 # ---------------------------------------------------------------------------
 
 def ema_pine(s, n):
@@ -289,111 +305,73 @@ def ema_pine(s, n):
     return pd.Series(out, index=s.index)
 
 
-def largo_equivalente(largo, k):
+def rvwap_dias(df, dias=365, fuente="hlc3"):
     """
-    Convierte la longitud de una EMA del timeframe ancla al del grafico.
+    VWAP rolling sobre una ventana de DIAS CALENDARIO, no de velas.
 
-    NO es largo/k. Lo que se conserva es la tasa de decaimiento por unidad de
-    tiempo calendario, y eso es multiplicativo:
+    ESTO ESTABA MAL Y ES LA CORRECCION QUE PIDIO EL USUARIO. La version
+    anterior restaba acumulados desplazados n VELAS (`pv - pv.shift(n)`), que
+    en un simbolo que cotiza todos los dias del año se parece a n dias, pero
+    en una accion NO: 365 ruedas son ~17,3 meses calendario, asi que el
+    "rVWAP 365d" venia medio año largo. El Pine de referencia corta por
+    `time - dias*86400000` y se queda con las velas de `time >= corte`.
 
-        (1 - a_ancla)^k = (1 - a_destino)   ->   a_destino = 1 - (1 - a_ancla)^k
-        L_destino = 2/a_destino - 1
+    Aca se replica esa semantica exacta con el indice de fechas:
+      - borde INCLUSIVO: entra la vela que cae justo en el corte;
+      - ventana EXPANSIVA mientras no haya historial para cubrirla, que es lo
+        mismo que un VWAP anclado al inicio del historico. La transicion es
+        continua, sin salto, y la fila queda marcada como no llena.
 
-    Para k chico las dos formulas casi coinciden (EMA 200 de 4h en diario:
-    33,33 lineal contra 33,39 exacta), pero para k grande divergen feo: en
-    semanal la EMA 100 de 4h da 2,38 lineal y 2,52 exacta, y eso cambia el
-    redondeo de 2 a 3.
+    Fuente hlc3 por defecto, que es la del script de referencia. El resto del
+    proyecto usa hl2 y por eso esto es un parametro aparte.
 
-    Con k=6 (cripto, seis velas de 4h por dia) da 17 y 33, que son exactamente
-    los numeros que documenta el Pine original. Es la comprobacion de que la
-    formula esta bien.
+    Devuelve (serie, serie_bool_ventana_llena).
     """
-    a = 2.0 / (float(largo) + 1.0)
-    a_dest = 1.0 - (1.0 - a) ** float(k)
-    if a_dest <= 0:
-        return int(largo)
-    return max(2, int(round(2.0 / a_dest - 1.0)))
-
-
-def rvwap_expansivo(df, n=365, fuente="hl2"):
-    """
-    VWAP rolling sobre las ultimas min(t+1, n) velas diarias.
-
-    El min() es deliberado: mientras el simbolo tenga menos de n velas la
-    ventana arranca desde la primera disponible en vez de devolver NaN. O sea
-    que hasta la vela n el valor es un VWAP anclado al inicio del historico, y
-    de ahi en adelante pasa a ser la ventana movil. La transicion es continua,
-    sin salto.
-
-    Devuelve (serie, ventana_llena_bool).
-
-    Fuente hl2 por defecto, que es la del Pine del usuario. El VWAP nativo de
-    TradingView usa hlc3, asi que queda configurable.
-    """
-    n = int(n)
-    if fuente == "hlc3":
-        px = (df["High"] + df["Low"] + df["Close"]) / 3.0
+    dias = int(dias)
+    if fuente == "hl2":
+        px = (df["High"] + df["Low"]) / 2.0
     elif fuente == "close":
         px = df["Close"].astype(float)
     else:
-        px = (df["High"] + df["Low"]) / 2.0
+        px = (df["High"] + df["Low"] + df["Close"]) / 3.0
     vol = df["Volume"].astype(float).fillna(0.0)
-    pv = (px * vol).cumsum()
-    cv = vol.cumsum()
-    # la diferencia de acumulados: donde todavia no hay n velas, el desplazado
-    # es NaN y el fillna(0) deja el acumulado COMPLETO, que es justo la ventana
-    # expansiva que se busca
-    pvn = pv - pv.shift(n).fillna(0.0)
-    cvn = cv - cv.shift(n).fillna(0.0)
+    pv = (px * vol).cumsum().to_numpy()
+    cv = vol.cumsum().to_numpy()
+    t = pd.DatetimeIndex(df.index).to_numpy(dtype="datetime64[ns]")
+    corte = t - np.timedelta64(dias, "D")
+    # primer indice cuya fecha ya entra en la ventana
+    j = np.searchsorted(t, corte, side="left")
+    base_pv = np.where(j > 0, pv[np.maximum(j - 1, 0)], 0.0)
+    base_cv = np.where(j > 0, cv[np.maximum(j - 1, 0)], 0.0)
+    pvn = pv - base_pv
+    cvn = cv - base_cv
     out = pd.Series(np.where(cvn > 0, pvn / cvn, np.nan), index=df.index)
-    return out, len(df) >= n
+    # llena = hay historial ANTES del corte, o sea que la ventana no se quedo
+    # corta. Es el `not na(_cv[_n])` del Pine.
+    return out, pd.Series(j > 0, index=df.index)
 
 
-def paragon_conjunto(cierre, rapida=100, lenta=200, k=1):
+def combo_emas(cierre, rapida, lenta):
     """
-    Un conjunto Paragon (el par 100/200) llevado al timeframe de las barras
-    que se le pasan.
+    Las dos EMAs de un combo sobre las barras que se le pasan.
 
-    k = velas del ancla por vela de la serie. Con k=1 el ancla ES la serie y
-    las longitudes van tal cual (el caso del conjunto SEMANAL sobre diarias:
-    exacto, sin aproximar nada). Con k>1 el ancla es mas fina que la serie y
-    las longitudes se convierten con largo_equivalente(), que es una
-    aproximacion: misma tasa de decaimiento, pero las dos EMAs comen series
-    distintas, asi que los valores no coinciden con los del ancla de verdad.
-
-    Devuelve (rapida_serie, lenta_serie, largo_rapida_usado, largo_lenta_usado).
+    Sin conversion de longitudes y sin recorte de warmup a mano: el ancla de
+    estos combos es 1D y las barras del screener SON diarias, asi que las
+    longitudes van tal cual y el NaN de las primeras n-1 velas ya lo pone
+    ema_pine. Todo lo que hacia falta para el Paragon -- largo_equivalente(),
+    el k, el warmup del ancla -- se fue con el.
     """
-    lr = largo_equivalente(rapida, k) if k != 1 else int(rapida)
-    ll = largo_equivalente(lenta, k) if k != 1 else int(lenta)
-    a, b = ema_pine(cierre, lr), ema_pine(cierre, ll)
-    # WARMUP: la longitud convertida gobierna la FORMA de la curva, pero no
-    # cuando puede existir. Para que el conjunto imprima hace falta juntar
-    # `largo` velas del ancla, o sea ceil(largo/k) velas de la serie. Con
-    # k=6 la EMA 200 de 4h necesita 200/6 = 33,33 dias, asi que la primera
-    # vela diaria que las completa es la 34 -- y no la 33, que es donde
-    # imprimiria una EMA(33) suelta. Ese uno de diferencia es justo el dato
-    # que identifica al indicador de Doc, asi que se respeta.
-    a = _recortar_warmup(a, int(np.ceil(rapida / float(k))))
-    b = _recortar_warmup(b, int(np.ceil(lenta / float(k))))
-    return a, b, lr, ll
+    return ema_pine(cierre, int(rapida)), ema_pine(cierre, int(lenta))
 
 
-def _recortar_warmup(s, velas):
-    """Deja en NaN las primeras `velas - 1`, sin tocar el resto."""
-    if velas <= 1:
-        return s
-    out = s.copy()
-    out.iloc[:min(velas - 1, len(out))] = np.nan
-    return out
-
-
-def senales_paragon(df, rap, len_, atr=None):
+def senales_nube(df, rap, len_, atr=None):
     """
-    Las columnas derivadas de un conjunto: sesgo, posicion del precio respecto
-    de la nube, ancho, distancia al borde mas cercano y velas desde el cruce.
+    Las columnas derivadas de una nube: sesgo, posicion del precio respecto de
+    ella, ancho, distancia al borde mas cercano y velas desde el cruce.
 
-    Todo NaN/None si el conjunto todavia no imprimio (simbolo joven): no se
-    inventa nada, se marca y se filtra.
+    Todo NaN/None si la nube todavia no imprimio (simbolo joven, o la EMA 600
+    sobre un papel con menos de 600 ruedas): no se inventa nada, se marca y se
+    filtra.
     """
     px = float(df["Close"].iloc[-1])
     a, b = rap.iloc[-1], len_.iloc[-1]
@@ -1280,7 +1258,7 @@ def cargar_precios(path=CACHE_PRECIOS):
 # 6. METRICAS
 # ==============================================================================
 
-def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
+def metricas(t, df, meta, bench_perf, cfg_ash=None, combos=None, adr_len=None,
              rsi_len=None, atr_len=None, adx_len=None, historial=0):
     """
     Calcula todas las metricas de un simbolo.
@@ -1293,7 +1271,7 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
     dibujar el sparkline en la tabla.
     """
     cfg = dict(cfg_ash or CFG_ASH)
-    par = dict(PARAGON, **(paragon or {}))
+    par = dict(COMBOS, **(combos or {}))
     adr_len = adr_len or ADR_LEN
     rsi_len = rsi_len or RSI_LEN
     atr_len = atr_len or ATR_LEN
@@ -1373,38 +1351,46 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
         "rotacion_float": vol20 / fs if (fs == fs and fs) else np.nan,
         "mcap_musd": mcap / 1e6 if mcap == mcap else np.nan,
     }
-    # --- PARAGON ---
-    # Conjunto W (ancla 1D): EXACTO, son la EMA 100/200 sobre las diarias que
-    # ya baja el screener. Conjunto D (ancla 4h): APROXIMADO, porque no hay
-    # velas de 4h en el pipeline; se convierten las longitudes conservando la
-    # tasa de decaimiento y la fila queda marcada.
+    # --- COMBOS DE EMAs ---
+    # Los tres anclan a 1D y las barras SON diarias, asi que las longitudes
+    # van tal cual. Un combo cuya EMA lenta no llega a imprimir (la 600 sobre
+    # un papel de menos de 600 ruedas) queda con sesgo None y se filtra: no se
+    # rellena con nada.
     atr_v = float(calc_atr(df, 14).iloc[-1])
-    rb, lb, _, _ = paragon_conjunto(c, par["rapida"], par["lenta"], 1)
-    ra, la, kra, kla = paragon_conjunto(c, par["rapida"], par["lenta"], par["k"])
-    B = senales_paragon(df, rb, lb, atr_v)
-    A = senales_paragon(df, ra, la, atr_v)
-    for pre, S in (("par_b", B), ("par_a", A)):
-        f[f"{pre}_sesgo"] = S["sesgo"]
-        f[f"{pre}_pos"] = S["pos"]
-        f[f"{pre}_ancho"] = S["ancho"]
-        f[f"{pre}_dist"] = S["dist"]
-        f[f"{pre}_dist_atr"] = S["dist_atr"]
-        f[f"{pre}_cruce"] = S["cruce"]
-        f[f"{pre}_fresco"] = bool(S["cruce"] == S["cruce"]
-                                  and S["cruce"] <= par["fresco"])
-    f["par_d_aprox"] = par["k"] != 1
-    f["par_d_largos"] = f"{kra}/{kla}"
-    if A["sesgo"] is None or B["sesgo"] is None:
+    sesgos = {}
+    for clave in ("c1", "c2", "c3"):
+        rap_l, len_l = par[clave]
+        r, l = combo_emas(c, rap_l, len_l)
+        S = senales_nube(df, r, l, atr_v)
+        sesgos[clave] = S["sesgo"]
+        f[f"{clave}_largos"] = f"{int(rap_l)}/{int(len_l)}"
+        f[f"{clave}_sesgo"] = S["sesgo"]
+        f[f"{clave}_pos"] = S["pos"]
+        f[f"{clave}_ancho"] = S["ancho"]
+        f[f"{clave}_dist"] = S["dist"]
+        f[f"{clave}_dist_atr"] = S["dist_atr"]
+        f[f"{clave}_cruce"] = S["cruce"]
+        f[f"{clave}_fresco"] = bool(S["cruce"] == S["cruce"]
+                                    and S["cruce"] <= par["fresco"])
+    # El REGIMEN cruza el combo rapido con el medio (21/34 contra 55/115), que
+    # es el contraste que se mira para entrar. El 300/600 NO entra aca: es la
+    # tendencia de fondo y vive como filtro propio, que es como lo pidio el
+    # usuario. Cuatro estados en un numero ordenable, de mas alcista a menos.
+    if sesgos["c1"] is None or sesgos["c2"] is None:
         f["regimen"], f["regimen_ord"] = "", np.nan
     else:
-        f["regimen"] = ("D+ W+" if (A["sesgo"] and B["sesgo"]) else
-                        "D− W+" if B["sesgo"] else
-                        "D+ W−" if A["sesgo"] else "D− W−")
-        f["regimen_ord"] = (2 if B["sesgo"] else 0) + (1 if A["sesgo"] else 0)
-    rv, llena = rvwap_expansivo(df, par["rv_len"], par["rv_fuente"])
-    f["rvwap"] = float(rv.iloc[-1]) if np.isfinite(rv.iloc[-1]) else np.nan
-    f["vs_rvwap"] = px / f["rvwap"] - 1 if f["rvwap"] == f["rvwap"] else np.nan
-    f["rv_llena"] = bool(llena)
+        f["regimen"] = ("R+ M+" if (sesgos["c1"] and sesgos["c2"]) else
+                        "R− M+" if sesgos["c2"] else
+                        "R+ M−" if sesgos["c1"] else "R− M−")
+        f["regimen_ord"] = (2 if sesgos["c2"] else 0) + (1 if sesgos["c1"] else 0)
+    # rVWAP por ventana de DIAS CALENDARIO, una por cada plazo del script de
+    # referencia. El de 365 es el que va por defecto en la tabla.
+    for d in par["rv_dias"]:
+        rv, llena = rvwap_dias(df, d, par["rv_fuente"])
+        val = float(rv.iloc[-1]) if np.isfinite(rv.iloc[-1]) else np.nan
+        f[f"rvwap_{d}"] = val
+        f[f"vs_rvwap_{d}"] = px / val - 1 if val == val else np.nan
+        f[f"rv_llena_{d}"] = bool(llena.iloc[-1])
     K = consolidacion(df, 60)
     f["consol"] = K["estado"]
     f["consol_rango"] = K["rango"]
@@ -1413,7 +1399,9 @@ def metricas(t, df, meta, bench_perf, cfg_ash=None, paragon=None, adr_len=None,
     f["consol_aprieta"] = K["aprieta"]
     f["consol_estrechez"] = K["estrechez"]
     # los que no llegan al warmup no se descartan en silencio
-    f["sin_historial"] = bool(A["sesgo"] is None or B["sesgo"] is None)
+    # "sin historial" mira los dos combos del REGIMEN. El 300/600 no entra:
+    # con 600 ruedas de warmup, meterlo aca marcaria medio universo.
+    f["sin_historial"] = bool(sesgos["c1"] is None or sesgos["c2"] is None)
     if historial:
         f["serie_d"] = [float(x) for x in ash_d.dropna().iloc[-historial:]]
         f["serie_w"] = ([float(x) for x in ash_w.dropna().iloc[-historial:]]
@@ -1593,7 +1581,9 @@ def main():
              ("smooth", CFG_ASH["smooth"]), ("ma_type", CFG_ASH["ma_type"]),
              ("semanal", "barras W-FRI armadas desde las diarias"), ("", ""),
              ("--- Otros ---", ""),
-             ("Paragon", f'{PARAGON["rapida"]}/{PARAGON["lenta"]} · k={PARAGON["k"]}'),
+             ("Combos EMA", f'{COMBOS["c1"][0]}/{COMBOS["c1"][1]} · '
+                            f'{COMBOS["c2"][0]}/{COMBOS["c2"][1]} · '
+                            f'{COMBOS["c3"][0]}/{COMBOS["c3"][1]}'),
              ("ADR", f"{ADR_LEN} ruedas"), ("RSI", RSI_LEN), ("", ""),
              ("--- Filtros activos ---", "")] + \
             [(k, v) for k, v in FILTROS.items() if v is not None]

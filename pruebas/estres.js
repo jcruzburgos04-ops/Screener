@@ -38,20 +38,22 @@ setTimeout(async()=>{
   $('#ashLen').dispatchEvent(new w.Event('input',{bubbles:true}));
   await esperar(400);
 
-  console.log('== Paragon con parametros extremos ==');
-  // k=12 lleva la EMA 200 de 4h a una longitud chiquita; k=1 la deja en 200
-  for(const k of ['12','1','6','2']){
-    $('#parK').value=k;$('#parK').dispatchEvent(new w.Event('input',{bubbles:true}));
-    await esperar(300);
-    ok('con k='+k+' sigue habiendo tabla',$$('#tabla tbody tr').length>100,
-       $$('#tabla tbody tr').length);}
-  // una ventana de rVWAP mas larga que el historial: tiene que dar valor igual
-  $('#rvLen').value='5000';$('#rvLen').dispatchEvent(new w.Event('input',{bubbles:true}));
-  await esperar(350);
-  ok('con la ventana mas larga que el historial sigue habiendo tabla',
-     $$('#tabla tbody tr').length>100,$$('#tabla tbody tr').length);
-  $('#rvLen').value='365';$('#rvLen').dispatchEvent(new w.Event('input',{bubbles:true}));
-  await esperar(350);
+  console.log('== combos de EMAs con longitudes extremas ==');
+  /* La 600 no imprime con el historial de la fixtura y eso esta bien: lo que
+     se verifica es que la tabla no se rompa ni se vacie por eso. Despues se
+     prueban longitudes absurdas en los dos extremos. */
+  for(const [r,l] of [['2','3'],['900','999'],['21','34']]){
+    $('#c1Rap').value=r;$('#c1Rap').dispatchEvent(new w.Event('input',{bubbles:true}));
+    $('#c1Len').value=l;$('#c1Len').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(350);
+    ok('con el combo 1 en '+r+'/'+l+' sigue habiendo tabla',
+       $$('#tabla tbody tr').length>100,$$('#tabla tbody tr').length);}
+  // la fuente del rVWAP, en las tres
+  for(const f of ['hl2','close','hlc3']){
+    $('#rvFuente').value=f;$('#rvFuente').dispatchEvent(new w.Event('input',{bubbles:true}));
+    await esperar(350);
+    ok('con la fuente '+f+' sigue habiendo tabla',
+       $$('#tabla tbody tr').length>100,$$('#tabla tbody tr').length);}
 
   console.log('== sin ninguna columna elegible ==');
   w.eval('ponerColumnas([])');

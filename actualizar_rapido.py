@@ -122,7 +122,7 @@ def main():
     if not precios:
         sys.exit("[X] Yahoo no devolvio nada. No publico.")
 
-    tope = int(payload.get("barras") or 400)
+    tope = int(payload.get("barras") or 850)
     porIndice = {s["t"]: s for s in simbolos}
     cambiados = 0
     for t, d in precios.items():

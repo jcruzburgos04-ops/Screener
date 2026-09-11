@@ -41,7 +41,7 @@ INDUSTRIAS = ['Semiconductors', 'Software', 'Banks', 'Oil & Gas',
               'Auto Manufacturers', 'Aerospace', 'REIT', 'Airlines']
 
 
-def series_falsas(tickers, n=760, semilla=7):
+def series_falsas(tickers, n=900, semilla=7):
     """Caminatas aleatorias. No se parecen al mercado y no tienen por qué."""
     rng = np.random.default_rng(semilla)
     idx = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=n)
@@ -60,7 +60,10 @@ def series_falsas(tickers, n=760, semilla=7):
 BARRAS_NUEVITO = 61        # las que tenia el SPCX el 9/9/2026
 
 
-def armar(destino=None, barras=400, atrasar=True):
+# 850, las mismas que publica el sitio. NO es un numero de adorno: la EMA 600
+# del combo de fondo necesita 600 ruedas solo para imprimir, asi que con 400 la
+# bateria nunca la ejercitaria y la columna saldria vacia en todas las pruebas.
+def armar(destino=None, barras=850, atrasar=True):
     destino = destino or os.path.join(AQUI, 'tmp', 'sitio')
     os.makedirs(destino, exist_ok=True)
 

@@ -27,7 +27,7 @@ on:
     inputs:
       barras:
         description: "Barras diarias por simbolo"
-        default: "400"
+        default: "850"
       sin_fundamentales:
         description: "Saltear sector/float (mas rapido)"
         type: boolean
@@ -76,7 +76,7 @@ jobs:
         id: build
         run: |
           set -e
-          BARRAS="${{ github.event.inputs.barras || '400' }}"
+          BARRAS="${{ github.event.inputs.barras || '850' }}"
           EXTRA=""
           if [ "${{ github.event.inputs.sin_fundamentales }}" = "true" ]; then
             EXTRA="--sin-fundamentales"

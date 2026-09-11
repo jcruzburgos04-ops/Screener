@@ -21,10 +21,11 @@ solo cambian los datos, el HTML sigue en cache.
 
 CUANTO HISTORIAL HACE FALTA
 ---------------------------
-400 barras alcanzan para todo lo que muestra la pagina: EMA 200 necesita 200,
-el maximo de 52 semanas necesita 252 y el ASH semanal queda con ~80 semanas.
-Por eso el sitio se genera con 400 y no con 600: un tercio menos de peso sin
-perder nada en pantalla.
+850 barras, y las manda la EMA 600 del combo de fondo: necesita 600 ruedas
+solo para imprimir su primer valor, mas las 220 que dibuja el grafico son 820.
+Antes eran 400, que alcanzaban cuando la media mas larga era la EMA 200. El
+archivo pasa de ~8,7 MB a ~18 MB: es el precio de tener ese combo, y se decidio
+a proposito. Lo demas entra de sobra (52 semanas son 252, el ASH semanal ~80).
 ================================================================================
 """
 
@@ -49,7 +50,7 @@ def main():
     ap.add_argument("--salida", default="sitio")
     ap.add_argument("--universo", default="universo.csv")
     ap.add_argument("--periodo", default="3y")
-    ap.add_argument("--barras", type=int, default=400)
+    ap.add_argument("--barras", type=int, default=850)
     ap.add_argument("--sin-fundamentales", action="store_true")
     ap.add_argument("--usar-cache", action="store_true")
     args = ap.parse_args()

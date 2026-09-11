@@ -13,7 +13,7 @@ tiene, en particular el **ASH** (Absolute Strength Histogram). Lo usa una sola
 persona, un trader argentino que opera CEDEARs y ADRs.
 
 El objetivo central: **filtrar y ordenar ~465 papeles por la señal del ASH**,
-cruzando eso con tendencia (las nubes Paragon), momentum (RSI, ADR, ADX), liquidez y fuerza
+cruzando eso con tendencia (los tres combos de EMAs), momentum (RSI, ADR, ADX), liquidez y fuerza
 relativa de la industria. El resultado se mira todos los días después del cierre
 de Nueva York.
 
@@ -196,15 +196,34 @@ filtro "ASH semanal creciendo" deja pasar a los que ni siquiera tienen semanal.
 
 ---
 
-## 4b. Paragon: las medias que reemplazaron a las EMAs 20/50
+## 4b. Combos de EMAs: 21/34 · 55/115 · 300/600
 
-Reconstrucción por ingeniería inversa de los dos indicadores privados de DocXBT
-(The Paragon Group). **Los dos son el mismo par 100/200**; lo único que cambia
-es el timeframe de anclaje. No es un error de tipeo:
+Son las medias del screener, y salen del Pine que usa el usuario (*XO / Ribbon /
+Combos EMA · VWAP MTF*). En ese script la **banda diaria** —6h a 1D— lleva esos
+tres pares **anclados a 1D**. Como el screener trabaja sobre velas diarias, el
+ancla *es* la serie: **las longitudes van tal cual, sin convertir nada**.
 
-- **Conjunto W** — "Paragon Weekly": EMA 100/200 ancladas a **1D**
-- **Conjunto D** — "Paragon Daily": EMA 100/200 ancladas a **4h**
-- **rVWAP 365d** — línea suelta, VWAP rolling sobre 365 velas diarias
+| Combo | Par | Para qué |
+|---|---|---|
+| 1 | 21/34 | el rápido, el que da el sesgo del día |
+| 2 | 55/115 | el medio |
+| 3 | 300/600 | la tendencia de fondo |
+
+### El Paragon 100/200 se sacó
+
+Lo mandó sacar el usuario (11/9/2026): *«elimina la paragon 100/200 que no
+sirve»*. Era una reconstrucción por ingeniería inversa de dos indicadores
+privados de DocXBT, y su conjunto «diario» anclaba a **velas de 4h que este
+pipeline no tiene**, así que arrastraba:
+
+- una conversión multiplicativa de longitudes (`largo_equivalente`),
+- una constante `k` **que nunca se pudo medir** y quedó asumida en 2,
+- un warmup que salía del ancla y no de la longitud,
+- y una marca `≈` en cada fila para avisar que el número era aproximado.
+
+Todo eso se fue con él. **No lo devuelvas**: si alguna vez hace falta una media
+anclada a un timeframe más fino, primero hay que meter velas intradiarias en el
+pipeline, no volver a aproximarlas.
 
 ### La EMA es la de Pine, y NO es la que usa el ASH
 
@@ -214,70 +233,99 @@ las L−1 primeras velas, y de ahí la recursión. **No** es `ewm(adjust=True)` 
 
 > **No unifiques las dos EMAs.** La `ema()` de más arriba siembra con el primer
 > precio, y eso es exactamente lo que sostiene la paridad de 6,7e-14 del ASH.
-> Son dos medias distintas a propósito. `pruebas/paragon.py` verifica que
+> Son dos medias distintas a propósito. `pruebas/combos.py` verifica que
 > `ema_pine` difiera de las dos variantes de `ewm`.
 
-### Conversión de longitudes: multiplicativa, no lineal
+### La EMA 600 es la que decide cuántas barras se publican
 
-Lo que se conserva es la tasa de decaimiento por unidad de tiempo calendario:
+No es un detalle de configuración, es **la restricción que gobierna el peso del
+sitio**. La EMA 600 necesita 600 ruedas sólo para imprimir su primer valor, y el
+gráfico dibuja 220, así que para que esa línea exista en todo el gráfico hacen
+falta **820 barras**. El sitio publica **850** y `PERIODO` subió a **5y**.
 
-```
-a_destino = 1 − (1 − a_ancla)^k          L_destino = 2/a_destino − 1
-```
+El precio, decidido a propósito con el usuario: el `datos.json` pasa de **8,7 MB
+a ~18 MB**. Antes eran 400 barras, que alcanzaban cuando la media más larga era
+la EMA 200.
 
-Con **k=6** (cripto) da **17 y 33**, que son exactamente los números que
-documenta el Pine original. Ésa es la comprobación de que la fórmula está bien,
-y está en `pruebas/paragon.py`. Con **k=2** (una rueda de 6,5 h son dos velas de
-4 h) el par 100/200 de 4h equivale a **50/100** en diario.
+> Si alguien vuelve a bajar las barras publicadas, **la columna del 300/600 se
+> vacía en silencio** para todo el universo. `pruebas/combos.py` y la prueba de
+> los combos en `interfaz.js` lo fijan: verifican que el payload traiga
+> `600 + 220` barras y que ese combo tenga sesgo de verdad.
 
-### El warmup sale del ANCLA, no de la longitud convertida
+Un papel con menos historial que eso muestra ese combo **vacío**, no un número
+inventado. Es el mismo criterio de siempre: los que no llegan al warmup van con
+`NaN` y con `sin_historial`, que se puede filtrar desde el panel.
 
-La longitud convertida gobierna la *forma* de la curva; cuándo puede existir lo
-gobierna el ancla. Para imprimir hacen falta `largo` velas del ancla, o sea
-`ceil(largo/k)` de la serie.
+### El Régimen cruza el rápido con el medio, y el de fondo va aparte
 
-> Con k=6 la EMA 200 de 4h necesita 200/6 = 33,33 días, así que **la primera
-> vela diaria que las completa es la 34** — no la 33, que es donde imprimiría
-> una EMA(33) suelta. Ese uno de diferencia es el dato que identifica al
-> indicador de Doc, y es lo que pidió verificar el usuario. Está en
-> `pruebas/paragon.py`.
+Lo eligió el usuario: **`regimen` = 21/34 × 55/115**, cuatro estados ordenables
+(`R+ M+`, `R− M+`, `R+ M−`, `R− M−`). El **300/600 no entra**: es la tendencia de
+fondo, tiene su columna propia (`Fondo 300/600`, una flecha) y **su propio
+filtro**.
 
-### Qué es exacto y qué es aproximado
+Hay un motivo técnico además del de criterio: con 600 ruedas de warmup, meter el
+300/600 adentro del régimen dejaría **sin régimen** a todo papel con menos de
+600 ruedas. Por lo mismo, `sin_historial` mira sólo el c1 y el c2.
 
-| | Ancla | Estado |
+> **El filtro del 300/600 deja afuera al que no lo tiene impreso**, por los dos
+> lados. Su fondo no se puede afirmar, y dejarlo pasar como alcista *o* como
+> bajista sería inventarlo. La prueba lo fija con la aritmética:
+> `alcistas + bajistas + sin_fondo = total`, y verifica que `sin_fondo > 0`.
+
+### rVWAP: la ventana son DÍAS CALENDARIO, no velas — esto estaba mal
+
+Es la otra mitad del pedido del usuario: *«fijate cómo está calculado el rolling
+vwap nuevo porque cambió la configuración»*. Su Pine trae la auditoría escrita y
+tenía razón.
+
+La versión vieja restaba acumulados desplazados **n velas**
+(`pv - pv.shift(365)`). En un símbolo que cotiza los siete días eso se parece a
+365 días; **en una acción no**:
+
+| | velas | días calendario que abarcaba |
 |---|---|---|
-| Conjunto W | 1D | **Exacto**: el proyecto ya baja velas diarias |
-| Conjunto D | 4h | **Aproximado**: no hay velas de 4h en el pipeline |
+| ventana «365» sobre ruedas | 365 | **511** |
 
-`interval="1d"` está fijo en `_descargar()`, y Yahoo ni siquiera tiene intervalo
-de 4h (el máximo es `1h`, sólo 730 días). El conjunto D usa la conversión
-multiplicativa con `k` configurable y **cada fila queda marcada con `≈`**.
+Medido sobre una serie de 900 ruedas: la ventana tapaba **511 días** y el valor
+se iba **1,07%** contra el correcto. El «rVWAP 365d» venía medio año largo.
 
-> **`k` no está medido, está asumido.** El usuario pidió medir empíricamente la
-> mediana de velas intradiarias por sesión y no hardcodear nada. Desde el
-> entorno de desarrollo no hay salida a Yahoo, así que k=2 es una deducción
-> (rueda de 6,5 h → dos velas de 4 h), no una medición. Si algún día se agrega
-> data intradiaria, medilo y ajustá el default.
+Ahora se corta por fecha, con **el borde inclusivo** (entra la vela que cae justo
+en el corte), que es la semántica de `time >= time − días·86400000` del script de
+referencia. En Python es un `searchsorted` sobre el índice; en JS, un puntero
+incremental sobre las fechas `AAAAMMDD` del payload, O(n) en total.
 
-### rVWAP: ventana expansiva
+Dos cambios más que vienen con esto:
 
-`rvwap[t] = Σ(precio·volumen) / Σ(volumen)` sobre las últimas `min(t+1, 365)`
-velas. El `min()` es deliberado: hasta el día 365 es un VWAP anclado al inicio
-del historial y de ahí pasa a ser la ventana móvil, **sin salto**. Las filas con
-la ventana incompleta se marcan con `*`. Fuente `hl2` por defecto (la del Pine
-del usuario), configurable a `hlc3` o `close`.
+- **La fuente por defecto pasó a `hlc3`**, que es la del script de referencia. El
+  resto del proyecto usa `hl2`, y por eso la fuente del rVWAP es un parámetro
+  aparte.
+- **Cuatro ventanas, no una**: 7, 30, 90 y 365 días, como el Pine. Sólo la de 365
+  va como columna por defecto; las otras tres se prenden.
+
+**La ventana expansiva se mantiene** y es lo mismo que hacía antes: mientras no
+haya historial para cubrirla, el valor es el VWAP anclado al inicio del
+histórico, la transición es continua y la fila se marca con `*`. Cada ventana
+lleva su propia marca (`rv_llena_7`, `rv_llena_30`, …).
+
+> **En el gráfico, el rVWAP se calcula sobre TODAS las barras y se recorta
+> después.** Pasarle sólo las 220 visibles daría otro número, que es exactamente
+> el error que este cambio vino a corregir.
+
+> `pruebas/paridad.py` compara las dos implementaciones en **tres fuentes × cuatro
+> ventanas**, incluida la marca de ventana llena. Verificado con el bug
+> reintroducido —volver a contar velas— : **72 desvíos**, hasta 11,3% de error.
+
+### En el gráfico, sólo una nube cambia de color
+
+Como en el Pine: la del **combo 1** vira verde/roja según su sesgo, y las otras
+dos llevan color fijo —azul el 55/115, violeta el 300/600—. Eso es lo que las
+hace leerse como marco y no como señal.
 
 ### Columnas derivadas
 
-Por conjunto: sesgo, posición del precio (arriba/adentro/abajo), ancho, distancia
-al borde más cercano en % y en ATR(14), velas desde el cruce, y cruce fresco.
-Más `vs_rvwap`, `rv_llena` y **`regimen`** — los dos sesgos cruzados en cuatro
-estados (`D+ W+`, `D− W+`, `D+ W−`, `D− W−`), que es la columna con la que se
-filtra el universo. Se ordena por `regimen_ord` (0 a 3), no alfabéticamente:
-para eso `COLS` acepta ahora un campo `ord` con el nombre del campo alternativo.
-
-Los que no llegan al warmup **no se descartan en silencio**: van con `NaN` y con
-`sin_historial`, que se puede filtrar desde el panel.
+Por combo: sesgo, posición del precio (arriba/adentro/abajo), ancho, distancia
+al borde más cercano en % y en ATR(14), y velas desde el cruce. Más `regimen`,
+que se ordena por `regimen_ord` (0 a 3) y no alfabéticamente.
 
 ## 4c. Consolidación: la caja
 
@@ -529,9 +577,9 @@ Con 465 símbolos × 400 barras, el recálculo completo son **3-35 ms** medidos 
 jsdom (más en un navegador real con pintura, pero el orden es ése). Está partido
 en tres capas para que mover un parámetro no rehaga todo:
 
-1. **`cacheBase`** — RSI, ADR, ATR, ADX, nubes Paragon, rVWAP, volúmenes,
+1. **`cacheBase`** — RSI, ADR, ATR, ADX, los tres combos de EMAs, rVWAP, volúmenes,
    performances, máximos de 52 semanas. Se invalida sólo si cambian esos
-   períodos o los parámetros de Paragon.
+   períodos o las longitudes de los combos.
 2. **`cacheSem`** — las barras semanales resampleadas. Nunca se invalida.
 3. **`memoAsh`** — un Map por configuración de ASH, guarda las últimas 4. Volver
    de 9/4 a 16/4 tarda **3 ms** en vez de recalcular todo.
@@ -546,9 +594,11 @@ tampoco. Sólo `recalcular()` toca el motor; `aplicar()` filtra y `render()` pin
 
 Otras decisiones de peso:
 
-- El sitio se genera con **400 barras**, no 600. Alcanzan para la EMA 200 del
-  conjunto B (200), el
-  máximo de 52 semanas (252) y ~80 semanas de ASH. Un tercio menos de peso.
+- El sitio se genera con **850 barras**, y las manda la **EMA 600** del combo de
+  fondo: 600 de warmup más las 220 que dibuja el gráfico. Eran 400 cuando la
+  media más larga era la EMA 200; el archivo pasó de 8,7 MB a ~18 MB y **se
+  decidió a propósito** (§4b). Todo lo demás entra de sobra: el máximo de 52
+  semanas son 252 y el ASH semanal ~80 semanas.
 - **Página y datos separados** en el sitio publicado: el navegador cachea el HTML
   aparte y las visitas siguientes sólo bajan los precios.
 - El payload del servidor se guarda **pre-comprimido** en `cache_datos.json.gz`
@@ -1029,7 +1079,7 @@ seguidos son una lista infinita donde no se encuentra nada.
 
 ### Gráfico
 
-Canvas propio. Velas + las dos nubes Paragon + rVWAP arriba, ASH abajo (bulls, bears,
+Canvas propio. Velas + las tres nubes de los combos + rVWAP arriba, ASH abajo (bulls, bears,
 histograma). Crosshair con OHLC. Selector diario/semanal.
 
 > **Bug ya corregido, no lo reintroduzcas:** la escala del panel del ASH **debe
@@ -1949,7 +1999,7 @@ viene en pesos, o sea que rompe el invariante 2. La corrida nocturna
 
 **No serviría de nada.** El tiempo se va esperando la red, no calculando:
 
-- El recálculo completo del motor —465 símbolos × 400 barras, ASH, Paragon,
+- El recálculo completo del motor —465 símbolos × 850 barras, ASH, los combos,
   RSI, ADX, líneas de tendencia— tarda **3-35 ms en JavaScript**.
 - La descarga tarda **~70 s**, y es todo espera de red y pausas deliberadas
   entre reintentos.
@@ -1978,8 +2028,8 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `paridad.py` + `paridad_js.js` | Python ↔ JS, 18 combinaciones + RSI/ATR/ADX/ADR |
 | `interfaz.js` | carga, filtros, orden, persistencia, URL, respaldo, teclas |
 | `grafico.js` | que nada se dibuje fuera del canvas y que el escapado funcione |
-| `estres.js` | períodos extremos, k de Paragon, sin columnas, industrias, CSV |
-| `paragon.py` | EMA de Pine, conversión de longitudes, warmup del ancla, rVWAP |
+| `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
+| `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
 | `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
@@ -2068,9 +2118,9 @@ necesitan internet.
 4. **`localStorage` siempre vía `leerLS`/`escribirLS`.**
 5. **El workflow no publica datos incompletos.** No aflojes los umbrales de 300
    símbolos y 40% de atraso.
-6. **La `ema()` del ASH y la `ema_pine()` de Paragon son dos medias distintas.**
-   No las unifiques: la primera siembra con el primer precio y es lo que
-   sostiene la paridad del ASH.
+6. **La `ema()` del ASH y la `ema_pine()` de los combos son dos medias
+   distintas.** No las unifiques: la primera siembra con el primer precio y es
+   lo que sostiene la paridad del ASH.
 7. **Los tres quirks del Pine se respetan** (STOCHASTIC con cierre, SMMA no
    recursiva, `sma(src,1)`).
 8. **Nada de dependencias externas en runtime.** El HTML no carga scripts de CDN;
@@ -2104,10 +2154,15 @@ necesitan internet.
 20. **Una ventana incompleta no se acorta y se sigue llamando igual.** Con
     menos de 252 ruedas no hay máximo de 52 semanas: la columna va vacía, no
     con el máximo de lo que haya. Es el mismo invariante 12 visto de costado.
-21. **Pocas barras no es un motivo para descartar; una serie recortada sí.** La
+21. **El rVWAP corta por días calendario, nunca por cantidad de velas.** En una
+    acción, 365 ruedas son ~17 meses. Si alguna vez ves un `shift(n)` sobre el
+    acumulado, es este bug volviendo.
+22. **Las barras publicadas no bajan de 820** mientras exista el combo 300/600.
+    Debajo de eso esa columna se vacía para todo el universo, y en silencio.
+23. **Pocas barras no es un motivo para descartar; una serie recortada sí.** La
     diferencia se la pregunta a la fuente (`firstTradeDate`), no se deduce de
     la serie ni se asume. Un papel que listó hace poco entra marcado.
-22. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
+24. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
     sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
     pero **no de la tabla**, y la tarjeta dice cuál y por qué.
 
@@ -2155,8 +2210,9 @@ necesitan internet.
 
 ### Medio
 
-5. **Formato binario para los precios**: Float32 en base64 en vez de JSON. De
-   ~8 MB a ~3 MB y parseo casi instantáneo.
+5. **Formato binario para los precios**: Float32 en base64 en vez de JSON.
+   **Subió de prioridad**: con 850 barras el `datos.json` pesa ~18 MB, así que
+   la mejora ya no es de ~8 MB a ~3 MB sino de ~18 MB a ~7 MB.
 6. **`optimizar_ash.py`** — banco de pruebas de parámetros con separación
    in-sample / out-of-sample (ver la sección 13).
 7. **Virtualización de la tabla** si el universo crece más allá de ~2.000

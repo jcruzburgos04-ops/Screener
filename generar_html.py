@@ -127,7 +127,7 @@ def main():
     ap.add_argument("--universo", default="universo.csv")
     ap.add_argument("--out", default=str(SALIDA))
     ap.add_argument("--periodo", default="3y")
-    ap.add_argument("--barras", type=int, default=600,
+    ap.add_argument("--barras", type=int, default=850,
                     help="barras diarias por simbolo que van al HTML")
     ap.add_argument("--sin-fundamentales", action="store_true")
     ap.add_argument("--usar-cache", action="store_true")
@@ -174,7 +174,7 @@ def main():
     print(f"\nListo -> {args.out}   ({len(payload['simbolos'])} simbolos, {mb:.1f} MB)")
     print("Abrilo con doble clic. No necesita servidor ni internet.")
     if mb > 25:
-        print("[!] Pesado. Bajá el historial con --barras 400 si tarda en abrir.")
+        print("[!] Pesado. Bajá el historial con --barras 400 si tarda en abrir\n      (sin la EMA 600, que necesita 850).")
 
 
 if __name__ == "__main__":

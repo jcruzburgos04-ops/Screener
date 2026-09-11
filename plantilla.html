@@ -1070,32 +1070,36 @@ body.cajon #velo{display:block}
       positiva = la verde por encima de la roja.</p>
   </div></details>
 
-  <details open><summary>Paragon · EMA 100/200</summary><div class="cuerpo">
+  <details open><summary>Combos de EMAs</summary><div class="cuerpo">
     <div class="par">
-      <div><label>EMA rápida</label><input type="number" id="parRap" value="100" min="2"></div>
-      <div><label>EMA lenta</label><input type="number" id="parLen" value="200" min="2"></div>
+      <div><label>Combo 1 · rápida</label><input type="number" id="c1Rap" value="21" min="2" max="1000"></div>
+      <div><label>lenta</label><input type="number" id="c1Len" value="34" min="2" max="1000"></div>
     </div>
     <div class="par">
-      <div><label>Velas de 4h por rueda (k)</label><input type="number" id="parK" value="2" min="1" max="12"></div>
+      <div><label>Combo 2 · rápida</label><input type="number" id="c2Rap" value="55" min="2" max="1000"></div>
+      <div><label>lenta</label><input type="number" id="c2Len" value="115" min="2" max="1000"></div>
+    </div>
+    <div class="par">
+      <div><label>Combo 3 · rápida</label><input type="number" id="c3Rap" value="300" min="2" max="1000"></div>
+      <div><label>lenta</label><input type="number" id="c3Len" value="600" min="2" max="1000"></div>
+    </div>
+    <div class="par">
       <div><label>Cruce fresco ≤</label><input type="number" id="parFresco" value="5" min="0" max="60"></div>
-    </div>
-    <p class="nota"><b style="color:var(--tenue)">Conjunto W</b> (ancla 1D) sale
-      <b>exacto</b>: son la EMA 100 y la 200 sobre las velas diarias que ya baja
-      el screener.<br>
-      <b style="color:var(--tenue)">Conjunto D</b> (ancla 4h) sale
-      <b style="color:var(--ambar)">aproximado</b>: no hay velas de 4h en el
-      pipeline, así que las longitudes se convierten conservando la tasa de
-      decaimiento (no dividiendo por k, que da distinto). Con
-      <code>k=2</code> —una rueda de 6,5 h son dos velas de 4 h— el par 100/200
-      de 4h equivale a <b>50/100</b> en diario. Con <code>k=6</code> (cripto)
-      daría 17/33, que son los números que documenta el Pine original.<br>
-      Las filas aproximadas se marcan con <b style="color:var(--ambar)">≈</b>.</p>
-    <div class="par">
-      <div><label>rVWAP ventana</label><input type="number" id="rvLen" value="365" min="2"></div>
       <div><label>rVWAP fuente</label>
-        <select id="rvFuente"><option value="hl2">hl2</option>
-          <option value="hlc3">hlc3</option><option value="close">close</option></select></div>
+        <select id="rvFuente"><option value="hlc3">hlc3</option>
+          <option value="hl2">hl2</option><option value="close">close</option></select></div>
     </div>
+    <p class="nota">Los tres están <b style="color:var(--tenue)">anclados al
+      diario</b>, que es el timeframe de las barras que baja el screener: las
+      longitudes van tal cual y no hay nada convertido ni aproximado.<br>
+      El <b style="color:var(--tenue)">Régimen</b> cruza el combo 1 con el 2
+      (21/34 contra 55/115). El <b style="color:var(--tenue)">300/600</b> es la
+      tendencia de fondo: tiene columna propia y filtro propio.</p>
+    <p class="nota">La <b style="color:var(--tenue)">EMA 600</b> necesita 600
+      ruedas sólo para imprimir su primer valor. Por eso el sitio publica 850
+      barras: 600 de arranque más las 220 que dibuja el gráfico. Un papel con
+      menos historial que eso muestra ese combo <b>vacío</b>, no un número
+      inventado.</p>
     <div class="par">
       <div><label>Caja · máx. ruedas</label>
         <input type="number" id="consolBarras" value="60" min="10" max="200"></div>
@@ -1117,9 +1121,13 @@ body.cajon #velo{display:block}
       <b style="color:var(--bajista)">Rompió ↓</b>: la caja de ayer era buena y
       hoy el cierre quedó afuera — se muestra la caja <i>de la que salió</i>, y
       la posición pasa de 100%.</p>
-    <p class="nota">El rVWAP da valor desde el día 1: mientras haya menos velas
-      que la ventana, es un VWAP anclado al inicio del historial. Las que todavía
-      no llenaron la ventana se marcan con <b style="color:var(--ambar)">*</b>.</p>
+    <p class="nota">El rVWAP corta por <b style="color:var(--tenue)">días
+      calendario</b>, no por cantidad de ruedas. No es lo mismo: en una acción,
+      365 ruedas abarcan unos 17 meses, así que el «365d» de antes venía medio
+      año largo. Se publican cuatro ventanas: 7, 30, 90 y 365 días.<br>
+      Da valor desde el día 1: mientras haya menos historial que la ventana, es
+      un VWAP anclado al inicio. Las que todavía no la llenaron se marcan con
+      <b style="color:var(--ambar)">*</b>.</p>
   </div></details>
 
   <details><summary>Otros indicadores</summary><div class="cuerpo">
@@ -1173,31 +1181,35 @@ body.cajon #velo{display:block}
       <div><label>RSI máx</label><input type="number" id="fRsiMax" value="100" min="0" max="100"></div>
     </div>
 
-    <div class="subt">Paragon</div>
-    <label>Régimen</label>
+    <div class="subt">Combos de EMAs</div>
+    <label>Régimen · 21/34 contra 55/115</label>
     <select id="fRegimen"><option value="">—</option>
-      <option value="3">D+ W+ · los dos alcistas</option>
-      <option value="2">D− W+ · sólo el semanal</option>
-      <option value="1">D+ W− · sólo el diario</option>
-      <option value="0">D− W− · los dos bajistas</option>
-      <option value="b+">W alcista (cualquiera sea D)</option>
-      <option value="b-">W bajista (cualquiera sea D)</option></select>
-    <label>Precio vs nube W (ancla 1D)</label>
+      <option value="3">R+ M+ · los dos alcistas</option>
+      <option value="2">R− M+ · sólo el medio</option>
+      <option value="1">R+ M− · sólo el rápido</option>
+      <option value="0">R− M− · los dos bajistas</option>
+      <option value="b+">Medio alcista (cualquiera sea el rápido)</option>
+      <option value="b-">Medio bajista (cualquiera sea el rápido)</option></select>
+    <label>Tendencia de fondo · 300/600</label>
+    <select id="fFondo"><option value="">—</option>
+      <option value="1">Alcista · la 300 arriba de la 600</option>
+      <option value="0">Bajista · la 300 abajo de la 600</option></select>
+    <label>Precio vs nube 21/34</label>
     <select id="fPosW"><option value="">—</option><option>arriba</option>
       <option>adentro</option><option>abajo</option></select>
-    <label>Precio vs nube D (ancla 4h)</label>
+    <label>Precio vs nube 55/115</label>
     <select id="fPosD"><option value="">—</option><option>arriba</option>
       <option>adentro</option><option>abajo</option></select>
-    <label>Cruce de B <b id="lParW">off</b></label>
+    <label>Cruce del 21/34 <b id="lParW">off</b></label>
     <select id="fCruceW"><option value="">—</option>
       <option value="1">Alcista, hace poco (≤ N)</option>
       <option value="1+">Alcista, hace rato (≥ N)</option>
       <option value="0">Bajista, hace poco (≤ N)</option>
       <option value="0+">Bajista, hace rato (≥ N)</option></select>
     <input type="range" id="fCruceWN" min="0" max="120" value="0">
-    <label>Ancho de la nube W ≥ <b id="lAnchoW">off</b></label>
+    <label>Ancho de la nube 21/34 ≥ <b id="lAnchoW">off</b></label>
     <input type="range" id="fAnchoW" min="0" max="30" step="0.5" value="0">
-    <label>Dist. a la nube W ≤ <b id="lDistW">off</b></label>
+    <label>Dist. a la nube 21/34 ≤ <b id="lDistW">off</b></label>
     <input type="range" id="fDistW" min="0" max="30" step="0.5" value="0">
     <label>vs rVWAP 365d ≥ <b id="lRvwap">off</b></label>
     <input type="range" id="fRvwap" min="-50" max="50" step="1" value="-50">
@@ -1353,7 +1365,7 @@ body.cajon #velo{display:block}
   <div class="kpis">
     <div class="kpi"><span>En el universo</span><b id="kUni">—</b></div>
     <div class="kpi"><span>Pasan el filtro</span><b id="kFil">—</b></div>
-    <div class="kpi" id="kpiReg" title="Los dos conjuntos Paragon alcistas: D+ W+"><span>Régimen D+ W+</span><b id="kR">—</b></div>
+    <div class="kpi" id="kpiReg" title="Los dos combos de entrada alcistas: el 21/34 y el 55/115"><span>Régimen R+ M+</span><b id="kR">—</b></div>
     <div class="kpi"><span>ASH diario +</span><b id="kD">—</b></div>
     <div class="kpi"><span>ASH semanal +</span><b id="kW">—</b></div>
     <div class="kpi"><span>Los dos +</span><b id="kDW">—</b></div>
@@ -1438,10 +1450,12 @@ function ema(x,n){const o=new Array(x.length).fill(NaN),a=2/(n+1);let p=NaN;
   for(let i=0;i<x.length;i++){const v=x[i];if(!isFinite(v)){o[i]=NaN;continue;}
     p=isFinite(p)?a*v+(1-a)*p:v;o[i]=p;}return o;}
 
-/* ---------- PARAGON: EMA 100/200 ancladas, y rVWAP 365d ----------
-   Reconstruccion de los dos indicadores privados de DocXBT. Los dos son EL
-   MISMO par 100/200: lo unico que cambia es el timeframe de anclaje.
-   "Paragon Daily" ancla a 4h; "Paragon Weekly" ancla a 1D.               */
+/* ---------- COMBOS DE EMAs: 21/34 · 55/115 · 300/600, y el rVWAP ----------
+   Reemplazan al Paragon 100/200, que se saco por pedido del usuario. El
+   Paragon reconstruia dos indicadores privados y su conjunto "diario" anclaba
+   a velas de 4h que este pipeline no tiene, asi que arrastraba una constante
+   k que nunca se pudo medir. Estos tres anclan a 1D, que ES el timeframe de
+   las barras: sin conversion de longitudes y sin nada aproximado.         */
 
 /* ta.ema de Pine, que NO es la ema() de arriba.
    Semilla = SMA de los primeros n, y NaN durante las n-1 primeras velas.
@@ -1460,35 +1474,50 @@ function emaPine(x,n){
     p=a*v+(1-a)*p;o[i]=p;}
   return o;}
 
-/* Convierte la longitud del ancla al timeframe de la serie.
-   NO es largo/k: lo que se conserva es la tasa de decaimiento por unidad de
-   tiempo calendario, y eso es multiplicativo.
-       a_dest = 1 - (1-a_ancla)^k        L_dest = 2/a_dest - 1
-   Con k=6 (seis velas de 4h por dia) da 17 y 33, que son exactamente los
-   numeros que documenta el Pine original. Esa es la comprobacion. */
-function largoEquivalente(largo,k){
-  const a=2/(+largo+1), ad=1-Math.pow(1-a,k);
-  if(!(ad>0))return Math.trunc(largo);
-  return Math.max(2,Math.round(2/ad-1));}
+/* Las dos EMAs de un combo. Nada mas que eso: el ancla es 1D y las barras son
+   diarias, asi que las longitudes van tal cual y el NaN del warmup ya lo pone
+   emaPine. Todo lo que hacia falta para el Paragon -- largoEquivalente(), el
+   k, el recorte del warmup del ancla -- se fue con el. */
+function comboSeries(c,rapida,lenta){
+  return {rap:emaPine(c,rapida),len:emaPine(c,lenta)};}
 
-/* VWAP rolling sobre las ultimas min(t+1,n) velas.
-   El min() es deliberado: mientras el simbolo tenga menos de n velas la
-   ventana arranca desde la primera disponible en vez de dar NaN. Hasta la
-   vela n el valor es un VWAP anclado al inicio del historico y de ahi pasa a
-   ser la ventana movil, sin salto. */
-function rvwapExpansivo(b,n,fuente){
-  const L=b.c.length,o=new Array(L).fill(NaN);
-  let pv=0,cv=0;
-  const px=i=>fuente==='hlc3'?(b.h[i]+b.l[i]+b.c[i])/3
-            :fuente==='close'?b.c[i]:(b.h[i]+b.l[i])/2;
+/* VWAP rolling sobre una ventana de DIAS CALENDARIO, no de velas.
+
+   ESTO ESTABA MAL. La version anterior restaba acumulados desplazados n
+   VELAS, que en una accion NO son n dias: 365 ruedas abarcan unos 17 meses.
+   Medido sobre una serie de 900 ruedas, la ventana "365" tapaba 511 dias
+   calendario y el valor se iba 1,07%. El corte va por fecha, con el borde
+   INCLUSIVO (entra la vela que cae justo en el corte), que es la semantica
+   del script de referencia.
+
+   La ventana sigue siendo EXPANSIVA: mientras no haya historial para
+   cubrirla, el valor es el VWAP anclado al inicio del historico. La
+   transicion es continua y la fila queda marcada como no llena. */
+function rvwapDias(b,dias,fuente){
+  const L=b.c.length,o=new Array(L).fill(NaN),llena=new Array(L).fill(false);
+  const px=i=>fuente==='hl2'?(b.h[i]+b.l[i])/2
+            :fuente==='close'?b.c[i]:(b.h[i]+b.l[i]+b.c[i])/3;
   const apv=new Array(L),acv=new Array(L);
+  let pv=0,cv=0;
   for(let i=0;i<L;i++){const v=isFinite(b.v[i])?b.v[i]:0;
     pv+=px(i)*v;cv+=v;apv[i]=pv;acv[i]=cv;}
+  /* Las fechas viajan como enteros AAAAMMDD, asi que hay que pasarlas a epoch
+     para poder restar dias. Se cachean una vez: hacerlo adentro del bucle son
+     cuatro Date.UTC por vela y por ventana. */
+  const t=new Array(L);
+  for(let i=0;i<L;i++){const f=b.d[i];
+    t[i]=Date.UTC(Math.floor(f/10000),Math.floor(f/100)%100-1,f%100);}
+  const ms=dias*86400000;
+  /* Puntero incremental: j es la primera vela que todavia entra en la
+     ventana. Solo avanza, asi que el barrido entero es O(L). */
+  let j=0;
   for(let i=0;i<L;i++){
-    const j=i-n;
-    const p=apv[i]-(j>=0?apv[j]:0), c=acv[i]-(j>=0?acv[j]:0);
-    o[i]=c>0?p/c:NaN;}
-  return {serie:o,llena:L>=n};}
+    const corte=t[i]-ms;
+    while(j<i&&t[j]<corte)j++;
+    const p=apv[i]-(j>0?apv[j-1]:0), c=acv[i]-(j>0?acv[j-1]:0);
+    o[i]=c>0?p/c:NaN;
+    llena[i]=j>0;}            // hay historial ANTES del corte
+  return {serie:o,llena:llena};}
 
 /* ---------- CONSOLIDACION: la caja de la foto ----------
    Encontrar lo que se esta moviendo en un mismo rango. La trampa es que un
@@ -1592,22 +1621,10 @@ function mejorCaja(b,hasta,maxL,minL){
     if(!mejor||est<mejor.est)mejor={L,techo,piso,est};}
   return mejor;}
 
-/* Un conjunto: las dos EMAs con la longitud convertida y el warmup del ancla.
-   El warmup NO sale de la longitud convertida: para que el conjunto imprima
-   hacen falta `largo` velas del ancla, o sea ceil(largo/k) de la serie. Con
-   k=6 la EMA 200 de 4h necesita 33,33 dias y la primera vela diaria que las
-   completa es la 34, no la 33 donde imprimiria una EMA(33) suelta. Ese uno de
-   diferencia es el dato que identifica al indicador de Doc. */
-function paragonSeries(c,rapida,lenta,k){
-  const lr=k===1?Math.trunc(rapida):largoEquivalente(rapida,k);
-  const ll=k===1?Math.trunc(lenta):largoEquivalente(lenta,k);
-  const corta=(s,velas)=>{for(let i=0;i<Math.min(velas-1,s.length);i++)s[i]=NaN;return s;};
-  return {rap:corta(emaPine(c,lr),Math.ceil(rapida/k)),
-          len:corta(emaPine(c,ll),Math.ceil(lenta/k)),lr,ll};}
-
-/* Las columnas derivadas de un conjunto. Si el conjunto todavia no imprimio
-   (simbolo joven) devuelve todo vacio: no se inventa nada, se marca. */
-function senalesParagon(b,rap,len_,atrv){
+/* Las columnas derivadas de una nube. Si todavia no imprimio -- simbolo joven,
+   o la EMA 600 sobre un papel de menos de 600 ruedas -- devuelve todo vacio:
+   no se inventa nada, se marca. */
+function senalesNube(b,rap,len_,atrv){
   const n=b.c.length,px=b.c[n-1],a=rap[n-1],z=len_[n-1];
   if(!isFinite(a)||!isFinite(z))
     return {sesgo:null,pos:'',ancho:NaN,dist:NaN,dist_atr:NaN,cruce:NaN};
@@ -1978,39 +1995,43 @@ function calcularBase(s,cfg){
   f.tl_res_dist=T.distRes; f.tl_sop_dist=T.distSop;
   f.tl_res_pend=T.pendRes; f.tl_sop_pend=T.pendSop;
   f.tl_toques=Math.min(T.tocRes,T.tocSop);
-  /* --- PARAGON ---
-     Conjunto W ("Paragon Weekly", ancla 1D): EXACTO. El proyecto baja velas
-     diarias, asi que la EMA 100/200 diaria es literalmente la del ancla.
-     Conjunto D ("Paragon Daily", ancla 4h): APROXIMADO. No hay velas de 4h en
-     el pipeline, asi que se usa la conversion multiplicativa con el k medido
-     (velas de 4h por rueda). Cada fila queda marcada con par_d_aprox. */
+  /* --- COMBOS DE EMAs ---
+     Los tres anclan a 1D y las barras SON diarias, asi que las longitudes van
+     tal cual: nada convertido, nada aproximado. Un combo cuya lenta no llega a
+     imprimir -- la 600 sobre un papel de menos de 600 ruedas -- queda con
+     sesgo null y se filtra, no se rellena. */
   const atrv=ultimo(atr(b,cfg.atrLen));
-  const B=paragonDe(b,cfg,1);
-  const A=paragonDe(b,cfg,cfg.parK);
-  f.par_w_sesgo=B.sesgo; f.par_w_pos=B.pos; f.par_w_ancho=B.ancho;
-  f.par_w_dist=B.dist; f.par_w_dist_atr=B.dist_atr; f.par_w_cruce=B.cruce;
-  f.par_w_fresco=isFinite(B.cruce)&&B.cruce<=cfg.parFresco;
-  f.par_d_sesgo=A.sesgo; f.par_d_pos=A.pos; f.par_d_ancho=A.ancho;
-  f.par_d_dist=A.dist; f.par_d_dist_atr=A.dist_atr; f.par_d_cruce=A.cruce;
-  f.par_d_fresco=isFinite(A.cruce)&&A.cruce<=cfg.parFresco;
-  f.par_d_aprox=cfg.parK!==1;
-  // el regimen: cruzar los dos sesgos. Cuatro estados, ordenables de mas
-  // alcista a mas bajista, que es la columna con la que se filtra el universo
-  f.regimen=(A.sesgo===null||B.sesgo===null)?''
-    :(B.sesgo?(A.sesgo?'D+ W+':'D− W+'):(A.sesgo?'D+ W−':'D− W−'));
-  f.regimen_ord=(A.sesgo===null||B.sesgo===null)?NaN
-    :((B.sesgo?2:0)+(A.sesgo?1:0));
-  // rVWAP 365d: da valor desde el dia 1, con la ventana marcada
-  const R=rvwapExpansivo(b,cfg.rvLen,cfg.rvFuente);
-  f.rvwap=R.serie[n-1];
-  f.vs_rvwap=isFinite(f.rvwap)?px/f.rvwap-1:NaN;
-  f.rv_llena=R.llena;
+  const NB={};
+  for(const k of ['c1','c2','c3']){
+    const P=comboSeries(b.c,cfg.combos[k][0],cfg.combos[k][1]);
+    const S=senalesNube(b,P.rap,P.len,atrv);
+    NB[k]=S;
+    f[k+'_largos']=cfg.combos[k][0]+'/'+cfg.combos[k][1];
+    f[k+'_sesgo']=S.sesgo; f[k+'_pos']=S.pos; f[k+'_ancho']=S.ancho;
+    f[k+'_dist']=S.dist; f[k+'_dist_atr']=S.dist_atr; f[k+'_cruce']=S.cruce;
+    f[k+'_fresco']=isFinite(S.cruce)&&S.cruce<=cfg.parFresco;}
+  /* El REGIMEN cruza el combo RAPIDO con el MEDIO (21/34 contra 55/115), que
+     es el contraste que se mira para entrar. El 300/600 NO entra aca: es la
+     tendencia de fondo y tiene su propia columna y su propio filtro, que es
+     como lo pidio el usuario. Cuatro estados ordenables. */
+  const R1=NB.c1.sesgo,R2=NB.c2.sesgo;
+  f.regimen=(R1===null||R2===null)?''
+    :(R2?(R1?'R+ M+':'R\u2212 M+'):(R1?'R+ M\u2212':'R\u2212 M\u2212'));
+  f.regimen_ord=(R1===null||R2===null)?NaN:((R2?2:0)+(R1?1:0));
+  /* rVWAP por ventana de DIAS CALENDARIO, uno por plazo. Da valor desde el
+     dia 1 (ventana expansiva) y cada uno dice si la suya esta llena. */
+  for(const d of cfg.rvDias){
+    const R=rvwapDias(b,d,cfg.rvFuente);
+    const v=R.serie[n-1];
+    f['rvwap_'+d]=v;
+    f['vs_rvwap_'+d]=isFinite(v)?px/v-1:NaN;
+    f['rv_llena_'+d]=R.llena[n-1];}
   // --- consolidacion: la caja ---
   const K=consolidacion(b,cfg);
   f.consol=K.estado; f.consol_rango=K.rango; f.consol_barras=K.barras;
   f.consol_pos=K.pos; f.consol_aprieta=K.aprieta; f.consol_estrechez=K.estrechez;
   // Los que no llegan al warmup no se descartan en silencio
-  f.sin_historial=(B.sesgo===null||A.sesgo===null);
+  f.sin_historial=(NB.c1.sesgo===null||NB.c2.sesgo===null);
   return f;
 }
 
@@ -2049,12 +2070,6 @@ function pasaCruce(f,F){
   return dir.slice(-1)==='+'?f.ash_d_cruce>=F.cruceMax:f.ash_d_cruce<=F.cruceMax;
 }
 
-/* Un conjunto Paragon sobre las barras dadas. k=1 -> las longitudes van tal
-   cual (ancla = serie, exacto). k>1 -> se convierten (aproximado). */
-function paragonDe(b,cfg,k){
-  const P=paragonSeries(b.c,cfg.parRap,cfg.parLen,k);
-  return senalesParagon(b,P.rap,P.len,ultimo(atr(b,cfg.atrLen)));}
-
 /* Las cuatro lecturas del cruce de la nube, igual que el del ASH: alcista o
    bajista, y hace poco (<= N) o hace rato (>= N). "Bajista hace rato" es lo
    que sirve para encontrar lo que lleva mucho en rojo. */
@@ -2071,16 +2086,22 @@ function pasaFiltros(f,F){
   const bo=(v,x)=>x===null||(!!v)===x;
   return ge(f.vol20,F.vol20)&&ge(f.dolar_vol20,F.dvol20)&&ge(f.rel_vol,F.relVol)&&
     ge(f.adr,F.adr)&&ge(f.rsi,F.rsiMin)&&le(f.rsi,F.rsiMax)&&
-    // --- Paragon ---
-    (F.regimen===null||(F.regimen==='b+'?f.par_w_sesgo===true
-       :F.regimen==='b-'?f.par_w_sesgo===false
+    // --- combos de EMAs ---
+    /* El regimen cruza el rapido (c1) con el medio (c2). Las dos opciones
+       "b+/b-" preguntan por el MEDIO solo, que es el marco. */
+    (F.regimen===null||(F.regimen==='b+'?f.c2_sesgo===true
+       :F.regimen==='b-'?f.c2_sesgo===false
        :f.regimen_ord===+F.regimen))&&
-    (F.posW===null||f.par_w_pos===F.posW)&&(F.posD===null||f.par_d_pos===F.posD)&&
-    pasaCruceNube(f.par_w_cruce,f.par_w_sesgo,F.cruceW,F.cruceWN)&&
-    (F.anchoW===null||(isFinite(f.par_w_ancho)&&f.par_w_ancho*100>=F.anchoW))&&
-    (F.distW===null||(isFinite(f.par_w_dist)&&Math.abs(f.par_w_dist)*100<=F.distW))&&
-    (F.rvwapMin===null||(isFinite(f.vs_rvwap)&&f.vs_rvwap*100>=F.rvwapMin))&&
-    (!F.rvLlena||f.rv_llena)&&(!F.conHistorial||!f.sin_historial)&&
+    /* El 300/600 va aparte: es la tendencia de fondo y no entra al regimen.
+       Un papel sin la EMA 600 impresa NO pasa este filtro -- no se puede
+       afirmar su fondo, y dejarlo pasar seria inventarlo. */
+    (F.fondo===null||f.c3_sesgo===(F.fondo==='1'))&&
+    (F.posW===null||f.c1_pos===F.posW)&&(F.posD===null||f.c2_pos===F.posD)&&
+    pasaCruceNube(f.c1_cruce,f.c1_sesgo,F.cruceW,F.cruceWN)&&
+    (F.anchoW===null||(isFinite(f.c1_ancho)&&f.c1_ancho*100>=F.anchoW))&&
+    (F.distW===null||(isFinite(f.c1_dist)&&Math.abs(f.c1_dist)*100<=F.distW))&&
+    (F.rvwapMin===null||(isFinite(f.vs_rvwap_365)&&f.vs_rvwap_365*100>=F.rvwapMin))&&
+    (!F.rvLlena||f.rv_llena_365)&&(!F.conHistorial||!f.sin_historial)&&
     // --- consolidacion ---
     (F.consol===null||(F.consol==='any'?!!f.consol
        :F.consol==='quieto'?(!!f.consol&&f.consol.indexOf('Rompió')<0)
@@ -2109,7 +2130,7 @@ function pasaFiltros(f,F){
 }
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
-  emaPine,largoEquivalente,rvwapExpansivo,senalesParagon,paragonSeries,consolidacion,mejorCaja,
+  emaPine,rvwapDias,senalesNube,comboSeries,consolidacion,mejorCaja,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -2142,7 +2163,7 @@ let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
    los presets (que arrancan de cero) y la restauracion de perfiles. Antes
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
- fRegimen:'',fPosW:'',fPosD:'',fCruceW:'',fCruceWN:'0',fAnchoW:'0',fDistW:'0',
+ fRegimen:'',fFondo:'',fPosW:'',fPosD:'',fCruceW:'',fCruceWN:'0',fAnchoW:'0',fDistW:'0',
  fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',
  fRvwap:'-50',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
@@ -2153,9 +2174,10 @@ const NEUTRO_CHECK={fSinAtraso:false,fRvLlena:false,fConHistorial:false};
 const NOMBRE_FILTRO={
   vol20:'Volumen mínimo', dvol20:'Volumen en dólares', relVol:'Volumen relativo',
   adr:'ADR mínimo', rsiMin:'RSI mínimo', rsiMax:'RSI máximo',
-  regimen:'Régimen', posW:'Precio vs nube W', posD:'Precio vs nube D',
-  cruceW:'Cruce de la nube W', anchoW:'Ancho de la nube W',
-  distW:'Distancia a la nube W', rvwapMin:'vs rVWAP 365d',
+  regimen:'Régimen', fondo:'Tendencia de fondo 300/600',
+  posW:'Precio vs nube 21/34', posD:'Precio vs nube 55/115',
+  cruceW:'Cruce de la nube 21/34', anchoW:'Ancho de la nube 21/34',
+  distW:'Distancia a la nube 21/34', rvwapMin:'vs rVWAP 365d',
   consol:'Estado de la caja', cajaAlto:'Alto de la caja',
   cajaRuedas:'Ruedas en la caja', cajaPos:'Dónde en la caja',
   rvLlena:'Ventana del rVWAP llena', conHistorial:'Con historial suficiente',
@@ -2192,6 +2214,12 @@ function ruedasHasta(aaaammdd){
   return n;}
 const num=(v,d)=>isFinite(v)?v.toFixed(d):'';
 const pct=v=>isFinite(v)?(v*100).toFixed(1)+'%':'';
+/* El asterisco del rVWAP: la ventana se mide en DIAS CALENDARIO, asi que un
+   papel joven puede no tenerla llena. Decirlo es obligatorio -- el valor es
+   correcto pero abarca menos de lo que dice el encabezado. */
+const fmtRv=(v,llena)=>!isFinite(v)?'<span class="gris">·</span>'
+  :pct(v)+(llena?'':'<i class="aprox" title="La ventana todavía no está llena: '
+    +'el valor es el VWAP anclado al inicio del historial">*</i>');
 /* Con signo: en las tarjetas el "+" se lee antes que el color, y en una
    captura en blanco y negro es lo unico que queda. */
 const pctS=v=>isFinite(v)?(v>0?'+':'')+(v*100).toFixed(2)+'%':'';
@@ -2293,37 +2321,55 @@ const COLS=[
   {k:'avwap',  t:'AVWAP $', fmt:v=>num(v,2)},
   {k:'avwap_barras',t:'Ancla hace', fmt:v=>isFinite(v)?v:''},
   {k:'avwap_cruce',t:'Cruce DVWAP', fmt:v=>isFinite(v)?v:''},
-  // --- PARAGON ---
+  // --- COMBOS DE EMAs ---
   /* El regimen primero, y por defecto: es la columna con la que se filtra el
-     universo. Cuatro estados ordenables de mas alcista a mas bajista. */
+     universo. Cruza el combo RAPIDO con el MEDIO. Cuatro estados ordenables
+     de mas alcista a mas bajista. */
   {k:'regimen', t:'Régimen', izq:1, def:1, ord:'regimen_ord',
    fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
      const c=f.regimen_ord===3?'up':f.regimen_ord===0?'dn':'gris';
-     return `<span class="${c}" title="D = Paragon Daily (ancla 4h) · W = Paragon Weekly (ancla 1D)">`+
-       esc(v)+'</span>'+(f.par_d_aprox?'<i class="aprox" title="El conjunto D es aproximado: no hay velas de 4h">≈</i>':'');}},
-  {k:'par_w_pos', t:'Precio vs W', def:1, izq:1,
+     return `<span class="${c}" title="R = combo rápido ${esc(f.c1_largos||'')} · `+
+       `M = combo medio ${esc(f.c2_largos||'')}">`+esc(v)+'</span>';}},
+  /* El sesgo del 300/600 va SOLO, como columna propia: es la tendencia de
+     fondo y no forma parte del regimen. */
+  {k:'c3_sesgo', t:'Fondo 300/600', izq:1, def:1,
+   fmt:(v,f)=>(v===null||v===undefined)?'<span class="gris">·</span>'
+     :`<span class="${v?'up':'dn'}" title="EMA ${esc(f.c3_largos||'')}: `+
+      `${v?'la rápida va arriba de la lenta':'la rápida va abajo de la lenta'}">`+
+      (v?'↑':'↓')+'</span>'},
+  {k:'c1_pos', t:'Precio vs 21/34', def:1, izq:1,
    fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
           :'<span class="gris">·</span>'},
-  {k:'par_w_dist', t:'Dist. nube W', def:1, fmt:pct, color:1},
-  {k:'par_w_dist_atr', t:'Dist. W (ATR)', fmt:v=>num(v,2), color:1},
-  {k:'par_w_ancho', t:'Ancho W', def:1, fmt:pct},
-  {k:'par_w_cruce', t:'Cruce W', def:1,
+  {k:'c1_dist', t:'Dist. 21/34', def:1, fmt:pct, color:1},
+  {k:'c1_dist_atr', t:'Dist. 21/34 (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'c1_ancho', t:'Ancho 21/34', def:1, fmt:pct},
+  {k:'c1_cruce', t:'Cruce 21/34', def:1,
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
-     :(f.par_w_fresco?`<b class="${f.par_w_sesgo?'up':'dn'}">${v}</b>`:String(v))},
-  {k:'par_d_pos', t:'Precio vs D', izq:1,
+     :(f.c1_fresco?`<b class="${f.c1_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  {k:'c2_pos', t:'Precio vs 55/115', izq:1,
    fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
           :'<span class="gris">·</span>'},
-  {k:'par_d_dist', t:'Dist. nube D', fmt:pct, color:1},
-  {k:'par_d_dist_atr', t:'Dist. D (ATR)', fmt:v=>num(v,2), color:1},
-  {k:'par_d_ancho', t:'Ancho D', fmt:pct},
-  {k:'par_d_cruce', t:'Cruce D', def:1,
+  {k:'c2_dist', t:'Dist. 55/115', fmt:pct, color:1},
+  {k:'c2_dist_atr', t:'Dist. 55/115 (ATR)', fmt:v=>num(v,2), color:1},
+  {k:'c2_ancho', t:'Ancho 55/115', fmt:pct},
+  {k:'c2_cruce', t:'Cruce 55/115', def:1,
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
-     :(f.par_d_fresco?`<b class="${f.par_d_sesgo?'up':'dn'}">${v}</b>`:String(v))},
-  {k:'vs_rvwap', t:'vs rVWAP', def:1,
+     :(f.c2_fresco?`<b class="${f.c2_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  {k:'c3_pos', t:'Precio vs 300/600', izq:1,
+   fmt:v=>v?`<span class="${v==='arriba'?'up':v==='abajo'?'dn':'gris'}">${esc(v)}</span>`
+          :'<span class="gris">·</span>'},
+  {k:'c3_dist', t:'Dist. 300/600', fmt:pct, color:1},
+  {k:'c3_cruce', t:'Cruce 300/600',
    fmt:(v,f)=>!isFinite(v)?'<span class="gris">·</span>'
-     :pct(v)+(f.rv_llena?'':'<i class="aprox" title="La ventana de 365 ruedas todavía no está llena">*</i>'),
-   color:1},
-  {k:'rvwap', t:'rVWAP $', fmt:v=>num(v,2)},
+     :(f.c3_fresco?`<b class="${f.c3_sesgo?'up':'dn'}">${v}</b>`:String(v))},
+  /* Las cuatro ventanas del rVWAP. Solo la de 365 va por defecto, que es la
+     que reemplaza a la de antes; las otras tres estan para prenderlas. */
+  {k:'vs_rvwap_7',   t:'vs rVWAP 7d',   fmt:(v,f)=>fmtRv(v,f.rv_llena_7),  color:1},
+  {k:'vs_rvwap_30',  t:'vs rVWAP 30d',  fmt:(v,f)=>fmtRv(v,f.rv_llena_30), color:1},
+  {k:'vs_rvwap_90',  t:'vs rVWAP 90d',  fmt:(v,f)=>fmtRv(v,f.rv_llena_90), color:1},
+  {k:'vs_rvwap_365', t:'vs rVWAP 365d', def:1,
+   fmt:(v,f)=>fmtRv(v,f.rv_llena_365), color:1},
+  {k:'rvwap_365', t:'rVWAP 365d $', fmt:v=>num(v,2)},
   // --- consolidacion ---
   {k:'consol', t:'Caja', izq:1, def:1, ord:'consol_estrechez',
    fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
@@ -2400,9 +2446,13 @@ function config(){
   $('#almaBox').style.display=t==='ALMA'?'flex':'none';
   return {ash:{modo:$('#ashModo').value,ma_type:t,length:+$('#ashLen').value,
       smooth:+$('#ashSmooth').value,alma_offset:+$('#almaOff').value,alma_sigma:+$('#almaSig').value},
-    parRap:+$('#parRap').value, parLen:+$('#parLen').value,
-    parK:+$('#parK').value, parFresco:+$('#parFresco').value,
-    rvLen:+$('#rvLen').value, rvFuente:$('#rvFuente').value,
+    combos:{c1:[+$('#c1Rap').value,+$('#c1Len').value],
+            c2:[+$('#c2Rap').value,+$('#c2Len').value],
+            c3:[+$('#c3Rap').value,+$('#c3Len').value]},
+    parFresco:+$('#parFresco').value,
+    // las cuatro ventanas del rVWAP son fijas: son las del script de
+    // referencia y no hay motivo para que cada uno invente las suyas
+    rvDias:[7,30,90,365], rvFuente:$('#rvFuente').value,
     consolBarras:+$('#consolBarras').value, consolAlto:+$('#consolAlto').value,
     adrLen:+$('#adrLen').value,rsiLen:+$('#rsiLen').value,
     atrLen:+$('#atrLen').value,adxLen:+$('#adxLen').value,
@@ -2414,7 +2464,8 @@ function filtros(){return{
   vol20:val('#fVol')||null, dvol20:val('#fDVol')||null, relVol:val('#fRelVol')||null,
   adr:val('#fAdr')||null, rsiMin:val('#fRsiMin')||null,
   rsiMax:val('#fRsiMax')===100?null:val('#fRsiMax'),
-  regimen:$('#fRegimen').value||null, posW:$('#fPosW').value||null,
+  regimen:$('#fRegimen').value||null, fondo:$('#fFondo').value||null,
+  posW:$('#fPosW').value||null,
   posD:$('#fPosD').value||null,
   cruceW:$('#fCruceW').value||null,
   // el N solo cuenta como filtro si hay direccion elegida: si no, un slider
@@ -2446,8 +2497,9 @@ function filtros(){return{
 function recalcular(){
   const t0=performance.now(), cfg=config();
   const nuevaClave=[cfg.adrLen,cfg.rsiLen,cfg.atrLen,cfg.adxLen,
-                    cfg.tlBarras,cfg.tlPivote,cfg.parRap,cfg.parLen,cfg.parK,
-                    cfg.parFresco,cfg.rvLen,cfg.rvFuente,cfg.consolBarras,cfg.consolAlto].join('|');
+                    cfg.tlBarras,cfg.tlPivote,
+                    cfg.combos.c1,cfg.combos.c2,cfg.combos.c3,
+                    cfg.parFresco,cfg.rvFuente,cfg.consolBarras,cfg.consolAlto].join('|');
   if(nuevaClave!==claveBase){cacheBase.clear();memoAsh.clear();claveBase=nuevaClave;}
 
   const bench=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
@@ -2694,9 +2746,10 @@ const GRUPOS_COL=[
           'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
   ['Consolidación',['consol','consol_rango','consol_barras','consol_pos','consol_aprieta']],
-  ['Paragon',['regimen','par_w_pos','par_w_dist','par_w_dist_atr','par_w_ancho',
-    'par_w_cruce','par_d_pos','par_d_dist','par_d_dist_atr','par_d_ancho',
-    'par_d_cruce','vs_rvwap','rvwap']],
+  ['Combos EMA',['regimen','c3_sesgo','c1_pos','c1_dist','c1_dist_atr','c1_ancho',
+    'c1_cruce','c2_pos','c2_dist','c2_dist_atr','c2_ancho','c2_cruce',
+    'c3_pos','c3_dist','c3_cruce',
+    'vs_rvwap_7','vs_rvwap_30','vs_rvwap_90','vs_rvwap_365','rvwap_365']],
   ['Momentum y tendencia',['rsi','adr','atr_pct','adx','dist_max52',
           'dist_min52','perf_1m','perf_3m','perf_12m','rs_rank']],
   ['Volumen y tamaño',['rel_vol','vol20','dolar_vol20','float_musd','rotacion','mcap_musd']],
@@ -2943,12 +2996,20 @@ function dibujar(cursor){
   const A=calcAsh(b,cfg.ash), cor=k=>k.slice(ini);
   const D=cor(b.d),O=cor(b.o),H=cor(b.h),L=cor(b.l),C=cor(b.c),
         BU=cor(A.bulls),BE=cor(A.bears),HI=cor(A.hist);
-  /* Las dos nubes Paragon en vez de las EMAs sueltas. B (ancla 1D) es la
-     grande y va en gris neutro, como en los graficos de Doc; A (ancla 4h) es
-     la rapida y se tiñe segun su propio sesgo. */
-  const nubes=[1,cfg.parK].map((k,i)=>{
-    const P=paragonSeries(b.c,cfg.parRap,cfg.parLen,k);
-    return {set:i?'D':'W',k,lr:P.lr,ll:P.ll,r:cor(P.rap),l:cor(P.len)};});
+  /* Las tres nubes de los combos. Como en el Pine del usuario, la del combo 1
+     es LA UNICA que vira de color -- verde mientras la rapida va arriba de la
+     lenta, roja mientras va abajo -- y las otras dos llevan un color fijo, que
+     es lo que las hace leerse como marco y no como señal.
+     Las EMAs se calculan sobre TODAS las barras y recien despues se recorta a
+     la ventana que se dibuja: si no, la 600 no imprimiria nunca. */
+  const COMBO_COL={c1:null,c2:['#42A5F5','rgba(66,165,245,.12)'],
+                   c3:['#AB47BC','rgba(171,71,188,.12)']};
+  const nubes=['c1','c2','c3'].map(k=>{
+    const P=comboSeries(b.c,cfg.combos[k][0],cfg.combos[k][1]);
+    return {set:k,fijo:COMBO_COL[k]?COMBO_COL[k][0]:null,
+            relleno:COMBO_COL[k]?COMBO_COL[k][1]:null,
+            etq:cfg.combos[k][0]+'/'+cfg.combos[k][1],
+            r:cor(P.rap),l:cor(P.len)};});
 
   const cv=$('#grafico'), dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth||900, Hpx=286;
@@ -2989,9 +3050,9 @@ function dibujar(cursor){
       p?(g.moveTo(x,y),p=false):g.lineTo(x,y);});g.stroke();};
   nubes.forEach(nb=>{
     const alcista=isFinite(nb.r[N-1])&&isFinite(nb.l[N-1])&&nb.r[N-1]>=nb.l[N-1];
-    // B neutra (es el marco), A teñida por su sesgo (es la señal)
-    const relleno=nb.set==='W'?'rgba(132,146,165,.13)'
-      :(alcista?'rgba(79,178,134,.16)':'rgba(207,75,62,.16)');
+    // sólo el combo 1 se tiñe por su sesgo; los otros dos van con su color
+    const relleno=nb.relleno
+      ||(alcista?'rgba(79,178,134,.16)':'rgba(207,75,62,.16)');
     g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
     g.fillStyle=relleno;g.beginPath();
     let abrio=false;
@@ -3002,11 +3063,10 @@ function dibujar(cursor){
       g.lineTo(x0+paso*(i+.5),escY(nb.l[i],mn,mx,8,h1));}
     if(abrio){g.closePath();g.fill();}
     g.restore();
-    const col=nb.set==='W'?'#8492A5':(alcista?C_.up:C_.dn);
+    const col=nb.fijo||(alcista?C_.up:C_.dn);
     linea(nb.r,col,1.3);linea(nb.l,col,1.3);
     g.fillStyle=col;g.font='10px ui-monospace,monospace';g.textAlign='left';
-    g.fillText(`${nb.set} ${nb.lr}/${nb.ll}`+(nb.k!==1?' ≈':''),
-               x0+6+(nb.set==='W'?0:78),20);});
+    g.fillText(nb.etq,x0+6+({c1:0,c2:62,c3:132})[nb.set],20);});
   /* LA CAJA DE LA CONSOLIDACION.
      Se dibuja como en el grafico que mando el usuario: un rectangulo translucido
      desde donde arranco la caja hasta hoy, con el techo y el piso marcados. El
@@ -3034,9 +3094,12 @@ function dibujar(cursor){
                 xa+4,Math.max(18,ya-4));
      g.restore();}}
 
-  /* El rVWAP 365d, la linea suelta del conjunto semanal. */
-  {const R=rvwapExpansivo({c:C,h:H,l:L,v:cor(b.v)},cfg.rvLen,cfg.rvFuente);
-   linea(R.serie,'#FFA726',1.2);}
+  /* El rVWAP de 365 dias, la linea naranja suelta del Pine.
+     Se calcula sobre TODAS las barras y se recorta despues: la ventana son
+     DIAS CALENDARIO, asi que pasarle solo las 220 visibles daria otro numero
+     -- justamente el error que este cambio vino a corregir. */
+  {const R=rvwapDias(b,365,cfg.rvFuente);
+   linea(R.serie.slice(ini),'#FFA726',1.2);}
 
   /* ---- AVWAP anclado al ultimo maximo ----
      Se dibuja desde el ancla hasta hoy, con una marca en el ancla para que se
@@ -5436,8 +5499,9 @@ function iniciar(){
      el proximo cambio. */
   const recalcIds=['ashModo','ashMa','ashLen','ashSmooth','almaOff','almaSig',
                    'adrLen','rsiLen','atrLen','adxLen',
-                   // los de Paragon rehacen las EMAs, asi que son pesados
-                   'parRap','parLen','parK','parFresco','rvLen','rvFuente',
+                   // los combos rehacen las EMAs, asi que son pesados
+                   'c1Rap','c1Len','c2Rap','c2Len','c3Rap','c3Len',
+                   'parFresco','rvFuente',
                    'consolBarras','consolAlto'];
   let timer=null, pendientePesado=false;
   $$(CTRL).forEach(el=>{

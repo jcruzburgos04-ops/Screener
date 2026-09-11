@@ -23,7 +23,7 @@ from fixtura import armar
 tmp = Path(tempfile.mkdtemp())
 previo_dir = tmp / "previo"
 previo_dir.mkdir()
-armar(str(previo_dir), barras=400)
+armar(str(previo_dir), barras=850)
 previo = json.loads((previo_dir / "datos.json").read_text())
 antes = {s["t"]: (len(s["d"]), s["d"][-1], s["c"][-1]) for s in previo["simbolos"]}
 print(f"payload previo: {len(previo['simbolos'])} simbolos, "
@@ -80,11 +80,11 @@ print("sin fechas duplicadas: OK")
 # barras -- se leia como historial perdido. Lo que hay que verificar es que
 # ninguno ADELGACE, que es lo que rompia la fusion vieja.
 largos = {len(s["d"]) for s in nuevo["simbolos"]}
-assert max(largos) <= 400, f"el historial crecio: {max(largos)}"
+assert max(largos) <= 850, f"el historial crecio: {max(largos)}"
 achicados = [(s["t"], antes[s["t"]][0], len(s["d"])) for s in nuevo["simbolos"]
              if len(s["d"]) < antes[s["t"]][0]]
 assert not achicados, f"se perdio historial: {achicados[:5]}"
-print(f"historial acotado a 400 barras y ninguno adelgazo: OK "
+print(f"historial acotado a 850 barras y ninguno adelgazo: OK "
       f"(entre {min(largos)} y {max(largos)})")
 
 for s in nuevo["simbolos"]:

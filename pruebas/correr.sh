@@ -44,8 +44,8 @@ python3 series.py
 node paridad_js.js
 python3 paridad.py
 
-echo; echo "== Paragon: EMA de Pine, conversion y rVWAP =="
-python3 paragon.py
+echo; echo "== combos de EMAs: EMA de Pine y rVWAP por dias calendario =="
+python3 combos.py
 echo; echo "== consolidacion: la caja =="
 python3 consolidacion.py
 echo; echo "== lineas de tendencia =="

@@ -212,7 +212,7 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   // configuro cosas variadas
   $('#fAdr').value='2.5';$('#fAdr').dispatchEvent(new w.Event('input',{bubbles:true}));
   $('#buscar').value='NV';$('#buscar').dispatchEvent(new w.Event('input',{bubbles:true}));
-  $('#parK').value='6';$('#parK').dispatchEvent(new w.Event('input',{bubbles:true}));
+  $('#c3Rap').value='150';$('#c3Rap').dispatchEvent(new w.Event('input',{bubbles:true}));
   const chipGr=$$('#chipsGrupo .chip')[0];const grupoElegido=chipGr.dataset.v;
   chipGr.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await new Promise(r=>setTimeout(r,700));
@@ -222,14 +222,14 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   const guardado=JSON.parse(almacen.getItem('screener_ash_sesion'));
   ok('guardo el ADR',guardado.fAdr==='2.5',guardado.fAdr);
   ok('guardo la busqueda',guardado._buscar==='NV',guardado._buscar);
-  ok('guardo el k de Paragon',guardado.parK==='6',guardado.parK);
+  ok('guardo la EMA rápida del combo 3',guardado.c3Rap==='150',guardado.c3Rap);
   ok('guardo los grupos',guardado._grupos.includes(grupoElegido),JSON.stringify(guardado._grupos));
 
   console.log('\n== reabrir con la misma sesion ==');
   const b=await abrir(almacen);
   ok('vuelve el ADR',b.$('#fAdr').value==='2.5',b.$('#fAdr').value);
   ok('vuelve la busqueda',b.$('#buscar').value==='NV',b.$('#buscar').value);
-  ok('vuelve el k de Paragon',b.$('#parK').value==='6',b.$('#parK').value);
+  ok('vuelve la EMA rápida del combo 3',b.$('#c3Rap').value==='150',b.$('#c3Rap').value);
   ok('vuelve el grupo',b.$$('#chipsGrupo .chip').find(c=>c.dataset.v===grupoElegido)
       .classList.contains('on'));
   ok('la tabla filtro por la busqueda',b.$$('#tabla tbody tr').length<50,
@@ -273,7 +273,7 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
   const c=await abrir(nuevoAlmacen(),hash);
   ok('la URL manda sobre un almacen vacio',c.$('#fAdr').value==='2.5',c.$('#fAdr').value);
   ok('la URL trae la busqueda',c.$('#buscar').value==='NV',c.$('#buscar').value);
-  ok('la URL trae el k de Paragon',c.$('#parK').value==='6',c.$('#parK').value);
+  ok('la URL trae la EMA rápida del combo 3',c.$('#c3Rap').value==='150',c.$('#c3Rap').value);
 
   console.log('\n== respaldo: exportar e importar ==');
   const d1=await abrir(nuevoAlmacen());
@@ -357,6 +357,68 @@ function ok(nombre,cond,extra){pruebas++;if(!cond){fallas++;
       ok('y el que si las tiene la muestra igual',
          !!otro.children[col].textContent.trim());
     }
+  }
+
+  /* ---- los combos de EMAs ----
+     Reemplazaron al Paragon 100/200. Lo que hay que fijar es lo que se decidio
+     a mano y se puede deshacer sin querer: que el REGIMEN cruce el rapido con
+     el medio y NO con el de fondo, que el 300/600 tenga su propio filtro, y
+     que la EMA 600 exista de verdad en la tabla -- si alguien vuelve a bajar
+     las barras publicadas, esa columna se vacia en silencio. */
+  console.log('\n== combos de EMAs ==');
+  {
+    const g=await abrir(nuevoAlmacen());
+    const PL=JSON.parse(datos);
+    const barras=PL.simbolos[0].d.length;
+    ok('el payload trae barras para la EMA 600 mas el gráfico',
+       barras>=600+220,barras);
+    const f=g.w.eval('filas[0]');
+    ok('los tres combos vienen con sus longitudes',
+       f.c1_largos==='21/34'&&f.c2_largos==='55/115'&&f.c3_largos==='300/600',
+       [f.c1_largos,f.c2_largos,f.c3_largos].join(' '));
+    ok('la EMA 600 imprime: el combo de fondo tiene sesgo',
+       f.c3_sesgo===true||f.c3_sesgo===false,f.c3_sesgo);
+    /* EN TODAS LAS FILAS, no en una. Con una sola fila la prueba pasa de
+       casualidad cada vez que el c2 y el c3 coinciden, y eso es la mitad del
+       universo: probé el sabotaje (cruzar con el c3) y no lo agarraba. */
+    const malReg=g.w.eval(`filas.filter(f=>f.regimen&&
+      f.regimen_ord!==((f.c2_sesgo?2:0)+(f.c1_sesgo?1:0))).length`);
+    ok('el régimen sale del c1 y el c2 en TODAS las filas',malReg===0,malReg);
+    const difC2C3=g.w.eval('filas.filter(f=>f.c2_sesgo!==null&&f.c3_sesgo!==null&&f.c2_sesgo!==f.c3_sesgo).length');
+    ok('y hay filas donde el c2 y el c3 difieren, o no probaría nada',
+       difC2C3>20,difC2C3);
+    ok('y se escribe con R (rápido) y M (medio)',/^R[+\u2212] M[+\u2212]$/.test(f.regimen),f.regimen);
+    // el rVWAP: cuatro ventanas, y la de 7 dias NO puede ser la de 365
+    ok('vienen las cuatro ventanas del rVWAP',
+       [7,30,90,365].every(d=>isFinite(f['rvwap_'+d])),
+       [7,30,90,365].map(d=>f['rvwap_'+d]).join(' '));
+    ok('y son distintas entre sí',
+       new Set([7,30,90,365].map(d=>f['rvwap_'+d].toFixed(6))).size===4);
+    // el filtro del 300/600, que es lo que pidió el usuario
+    const antes=g.$$('#tabla tbody tr').length;
+    g.$('#fFondo').value='1';
+    g.$('#fFondo').dispatchEvent(new g.w.Event('input',{bubbles:true}));
+    await new Promise(r=>setTimeout(r,350));
+    const alcistas=g.$$('#tabla tbody tr').length;
+    ok('el 300/600 filtra por su cuenta',alcistas>0&&alcistas<antes,
+       `${alcistas} de ${antes}`);
+    // se mira la COLUMNA, que es lo que ve el usuario, y no el motor
+    const colF=[...g.$$('#tabla thead th')].findIndex(th=>/Fondo/.test(th.textContent));
+    const flechas=new Set(g.$$('#tabla tbody tr').map(tr=>tr.children[colF].textContent.trim()));
+    ok('y todos los que quedan muestran el fondo alcista',
+       flechas.size===1&&flechas.has('\u2191'),[...flechas].join(''));
+    g.$('#fFondo').value='0';
+    g.$('#fFondo').dispatchEvent(new g.w.Event('input',{bubbles:true}));
+    await new Promise(r=>setTimeout(r,350));
+    const bajistas=g.$$('#tabla tbody tr').length;
+    ok('y al revés, con los bajistas',bajistas>0,bajistas);
+    /* Las dos mitades NO suman el total, y eso es correcto: el papel que no
+       tiene 600 ruedas queda afuera de LAS DOS. Su fondo no se puede afirmar
+       y dejarlo pasar por cualquiera de los dos lados sería inventarlo. */
+    const sinFondo=g.w.eval('filas.filter(f=>f.c3_sesgo===null).length');
+    ok('los que no llegan a la EMA 600 no pasan por ninguno de los dos lados',
+       alcistas+bajistas+sinFondo===antes&&sinFondo>0,
+       `${alcistas}+${bajistas}+${sinFondo} vs ${antes}`);
   }
 
   console.log('\n== almacen bloqueado ==');
