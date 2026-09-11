@@ -77,11 +77,39 @@ print("\n== LA EMA 600 ES LA QUE MANDA CUANTAS BARRAS SE PUBLICAN ==")
 # grafico hacen falta 600 de warmup + 220 de vista = 820, y por eso el sitio
 # publica 850 y el periodo subio a 5y. Si alguien vuelve a bajar las barras,
 # esta prueba lo dice antes de que salga publicado con la columna vacia.
+import argparse  # noqa: E402
 import generar_sitio  # noqa: E402
-_defaults = generar_sitio.main.__defaults__
-BARRAS_SITIO = 850
-ok("el default del sitio alcanza para la EMA 600 mas la ventana del grafico",
-   BARRAS_SITIO >= 600 + 220, BARRAS_SITIO)
+import generar_html  # noqa: E402
+
+
+def _defaults(mod):
+    """Los defaults del argparse de un generador, sin correrlo."""
+    guardado = argparse.ArgumentParser.parse_args
+    capturado = {}
+
+    def espia(self, *a, **k):
+        capturado.update({x.dest: x.default for x in self._actions})
+        raise SystemExit(0)
+
+    argparse.ArgumentParser.parse_args = espia
+    try:
+        mod.main()
+    except SystemExit:
+        pass
+    finally:
+        argparse.ArgumentParser.parse_args = guardado
+    return capturado
+
+
+for nombre, mod in (("generar_sitio", generar_sitio), ("generar_html", generar_html)):
+    d = _defaults(mod)
+    ok(f"{nombre}: publica al menos 600+220 barras",
+       d.get("barras", 0) >= 600 + 220, d.get("barras"))
+    # Y EL PERIODO SALE DEL MODULO, no escrito a mano. Tenerlo repetido ya costo
+    # una corrida: el sitio salio con 754 barras en vez de 850 porque
+    # generar_sitio.py tenia su propio "3y".
+    ok(f"{nombre}: el periodo es el de screener.PERIODO",
+       d.get("periodo") == S.PERIODO, f'{d.get("periodo")!r} vs {S.PERIODO!r}')
 corto = df.iloc[-500:]
 rap, len_ = S.combo_emas(corto["Close"], 300, 600)
 ok("con 500 barras la EMA 600 no imprime NADA (y eso es correcto)",

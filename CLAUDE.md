@@ -247,6 +247,12 @@ El precio, decidido a propósito con el usuario: el `datos.json` pasa de **8,7 M
 a ~18 MB**. Antes eran 400 barras, que alcanzaban cuando la media más larga era
 la EMA 200.
 
+> **El período vive en `screener.PERIODO` y en ningún otro lado.** La primera
+> corrida con este cambio publicó **754 barras en vez de 850**, porque
+> `generar_sitio.py` tenía su propio `--periodo` con `"3y"` escrito a mano y el
+> del módulo no lo tocaba. Los dos generadores lo leen ahora del módulo y
+> `pruebas/combos.py` lo fija — verificado volviendo a escribir el `"3y"`.
+
 > Si alguien vuelve a bajar las barras publicadas, **la columna del 300/600 se
 > vacía en silencio** para todo el universo. `pruebas/combos.py` y la prueba de
 > los combos en `interfaz.js` lo fijan: verifican que el payload traiga

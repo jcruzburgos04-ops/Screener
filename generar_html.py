@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from screener import (BENCHMARK, MIN_BARRAS_NUEVO, atrasos, bajar_fundamentales,
+from screener import (BENCHMARK, MIN_BARRAS_NUEVO, PERIODO, atrasos, bajar_fundamentales,
                       bajar_precios, cargar_precios, guardar_precios,
                       leer_universo, repescar_atrasados)
 
@@ -126,7 +126,7 @@ def main():
     ap = argparse.ArgumentParser(description="Genera el screener.html")
     ap.add_argument("--universo", default="universo.csv")
     ap.add_argument("--out", default=str(SALIDA))
-    ap.add_argument("--periodo", default="3y")
+    ap.add_argument("--periodo", default=PERIODO)
     ap.add_argument("--barras", type=int, default=850,
                     help="barras diarias por simbolo que van al HTML")
     ap.add_argument("--sin-fundamentales", action="store_true")

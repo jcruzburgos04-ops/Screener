@@ -49,7 +49,10 @@ def main():
     ap = argparse.ArgumentParser(description="Arma el sitio para publicar")
     ap.add_argument("--salida", default="sitio")
     ap.add_argument("--universo", default="universo.csv")
-    ap.add_argument("--periodo", default="3y")
+    # Del modulo, NO escrito aca: tenerlo repetido fue justamente lo que dejo
+    # la primera corrida con 754 barras en vez de 850. El periodo lo decide
+    # la EMA 600 y vive en screener.PERIODO.
+    ap.add_argument("--periodo", default=screener.PERIODO)
     ap.add_argument("--barras", type=int, default=850)
     ap.add_argument("--sin-fundamentales", action="store_true")
     ap.add_argument("--usar-cache", action="store_true")

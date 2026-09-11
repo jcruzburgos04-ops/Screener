@@ -50,6 +50,16 @@ from urllib.parse import parse_qs, urlparse
 PLANTILLA = Path("plantilla.html")
 CACHE_WEB = Path("cache_datos.json.gz")
 
+# El periodo por defecto sale del modulo y NO se escribe aca. Tenerlo repetido
+# ya costo una corrida: el sitio publico 754 barras en vez de 850 porque
+# generar_sitio.py tenia su propio "3y" escrito a mano.
+def _periodo_default():
+    from screener import PERIODO
+    return PERIODO
+
+
+_PERIODO_DEF = _periodo_default()
+
 # Estado compartido entre el hilo de la descarga y el de las respuestas.
 # Un lock alcanza: son cuatro campos y se escriben de a poco.
 CANDADO = threading.Lock()
@@ -202,11 +212,11 @@ class Manejador(BaseHTTPRequestHandler):
             self._responder(404, b"no existe", "text/plain; charset=utf-8")
             return
         q = parse_qs(p.query)
-        periodo = (q.get("periodo") or ["3y"])[0]
+        periodo = (q.get("periodo") or [_PERIODO_DEF])[0]
         fund = (q.get("fund") or ["1"])[0] != "0"
         completo = (q.get("completo") or ["0"])[0] == "1"
         if periodo not in ("1y", "2y", "3y", "5y", "10y", "max"):
-            periodo = "3y"
+            periodo = _PERIODO_DEF
         arranco = lanzar(periodo, fund, completo)
         self._json({"lanzado": arranco, **leer_estado()})
 
@@ -230,7 +240,7 @@ def main():
     print("Ctrl+C para cortar.")
     if args.actualizar or not CACHE_WEB.exists():
         print("No hay datos todavia: los empiezo a bajar.")
-        lanzar("3y", True, False)
+        lanzar(_PERIODO_DEF, True, False)
     if not args.sin_abrir:
         threading.Timer(0.7, lambda: webbrowser.open(url)).start()
     try:
