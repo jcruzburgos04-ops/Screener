@@ -3231,10 +3231,18 @@ function esNegativo(v){return isFinite(v)&&v<0;}
    Sin grilla: en 96 px una grilla es ruido. Lo que si hace falta son tres
    numeros a la derecha —el techo del rango, el 0% y el piso—, porque sin eso
    no se sabe si la forma es un movimiento de 0,3% o de 12%. */
-function miniGrafico(cv,s,barras){
+/* `combo` son las dos longitudes del combo rapido (21/34 por defecto). Las
+   EMAs se calculan sobre TODA la serie y recien despues se recorta a la ventana
+   que se dibuja: pasarle solo las 60 visibles daria otra curva, porque una EMA
+   arrastra todo lo anterior. Es el mismo cuidado que en el grafico grande. */
+function miniGrafico(cv,s,barras,combo){
   const n=Math.min(s.c.length,barras||60), ini=s.c.length-n;
   if(n<2)return;
   const O=s.o.slice(ini),H=s.h.slice(ini),L=s.l.slice(ini),C=s.c.slice(ini);
+  let ER=null,EL=null;
+  if(combo){
+    const P=comboSeries(s.c,combo[0],combo[1]);
+    ER=P.rap.slice(ini);EL=P.len.slice(ini);}
   const dpr=window.devicePixelRatio||1;
   const W=cv.clientWidth||240, Hp=cv.clientHeight||96;
   cv.width=W*dpr;cv.height=Hp*dpr;
@@ -3245,6 +3253,13 @@ function miniGrafico(cv,s,barras){
   const AG=Math.max(20,W-GUT);
   let mn=Infinity,mx=-Infinity;
   for(let i=0;i<n;i++){if(L[i]<mn)mn=L[i];if(H[i]>mx)mx=H[i];}
+  /* Las medias entran en la escala. Si no, cuando el precio se despega la nube
+     se dibuja FUERA del canvas y se come las etiquetas de al lado -- es el
+     mismo bug que ya hubo con el histograma del ASH en el grafico grande. */
+  if(ER)for(let i=0;i<n;i++){
+    for(const v of [ER[i],EL[i]]){
+      if(!isFinite(v))continue;
+      if(v<mn)mn=v;if(v>mx)mx=v;}}
   if(!isFinite(mn)||!isFinite(mx)||mx===mn)return;
   const ref=C[n-2];                   // el cierre previo es el 0%
   const m=(mx-mn)*.10;mn-=m;mx+=m;
@@ -3264,6 +3279,35 @@ function miniGrafico(cv,s,barras){
     g.fillText(rot(mx/ref-1),AG+5,10);
     g.fillText(rot(mn/ref-1),AG+5,Hp-3);
   }
+
+  /* LA NUBE DEL COMBO RAPIDO, debajo de las velas para no taparlas. Vira de
+     color como en el grafico grande y en el Pine: verde mientras la rapida va
+     arriba de la lenta. En una tarjeta de 96 px eso es lo unico que hace falta
+     leer -- el numero exacto esta en la tabla. */
+  if(ER&&isFinite(ER[n-1])&&isFinite(EL[n-1])){
+    const alza=ER[n-1]>=EL[n-1];
+    g.save();g.beginPath();g.rect(0,0,AG,Hp);g.clip();
+    g.fillStyle=alza?'rgba(79,178,134,.15)':'rgba(212,86,71,.15)';
+    g.beginPath();
+    let abrio=false;
+    for(let i=0;i<n;i++){
+      if(!isFinite(ER[i])||!isFinite(EL[i]))continue;
+      const x=paso*(i+.5),yy=y(ER[i]);
+      abrio?g.lineTo(x,yy):(g.moveTo(x,yy),abrio=true);}
+    for(let i=n-1;i>=0;i--){
+      if(!isFinite(ER[i])||!isFinite(EL[i]))continue;
+      g.lineTo(paso*(i+.5),y(EL[i]));}
+    if(abrio){g.closePath();g.fill();}
+    g.strokeStyle=alza?'rgba(79,178,134,.75)':'rgba(212,86,71,.75)';
+    g.lineWidth=1;
+    for(const serie of [ER,EL]){
+      g.beginPath();let primero=true;
+      for(let i=0;i<n;i++){
+        const v=serie[i];if(!isFinite(v))continue;
+        const x=paso*(i+.5),yy=y(v);
+        primero?(g.moveTo(x,yy),primero=false):g.lineTo(x,yy);}
+      g.stroke();}
+    g.restore();}
 
   for(let i=0;i<n;i++){
     if(!isFinite(C[i]))continue;
@@ -3401,8 +3445,10 @@ function renderPanorama(){
       `<div class="tj-vol">Vol 20d ${dolares(f.dolar_vol20)}</div>`+
     `</div>`;}).join('');
   // los canvas se dibujan despues de que el navegador les dio ancho
+  // config() lee el DOM entero: se resuelve UNA vez y no una por tarjeta
+  const comboPan=config().combos.c1;
   requestAnimationFrame(()=>$$('#tarjetas canvas[data-mini]').forEach(cv=>{
-    const s=porT.get(cv.dataset.mini);if(s)miniGrafico(cv,s,60);}));
+    const s=porT.get(cv.dataset.mini);if(s)miniGrafico(cv,s,60,comboPan);}));
 }
 
 /* EL INTERRUPTOR DE VISTAS. Eran dos posiciones (tabla / panorama) y ahora son

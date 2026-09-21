@@ -23,6 +23,14 @@ function abrir(payload,almacen){
   const texto=JSON.stringify(payload||base);
   return new Promise(res=>{
     const dibujos=[];
+    /* LAS POLILINEAS DE LOS MINI GRAFICOS, cada una por separado.
+       La nube 21/34 se dibuja con moveTo/lineTo y fill(), no con fillRect, asi
+       que contando fillRect no se la ve. Pero contar puntos sueltos TAMPOCO
+       sirve: las mechas de las velas son moveTo/lineTo y ya pasan cualquier
+       umbral -- probe el sabotaje (sacarle las medias a la tarjeta) y la prueba
+       seguia en verde. Por eso se guarda CADA trazo aparte, y despues se busca
+       uno que avance en x, que es lo que una mecha vertical nunca hace. */
+    const trazos=[];
     const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,
       url:'https://local/',
       beforeParse(w){
@@ -31,8 +39,11 @@ function abrir(payload,almacen){
         // mide 286 px y mezclarlos daba un falso positivo
         w.HTMLCanvasElement.prototype.getContext=function(){
           const mini=this.hasAttribute&&this.hasAttribute('data-mini');
-          return {setTransform:noop,clearRect:noop,beginPath:noop,closePath:noop,fill:noop,roundRect:noop,moveTo:noop,
-            lineTo:noop,stroke:noop,setLineDash:noop,save:noop,restore:noop,
+          let actual=[];
+          const punto=(x,y)=>{if(mini)actual.push([x,y]);};
+          const cerrar=()=>{if(mini&&actual.length)trazos.push(actual);actual=[];};
+          return {setTransform:noop,clearRect:noop,beginPath:cerrar,closePath:noop,fill:cerrar,roundRect:noop,
+            moveTo:punto,lineTo:punto,stroke:cerrar,setLineDash:noop,save:noop,restore:noop,
             clip:noop,rect:noop,roundRect:noop,measureText:()=>({width:8}),fillText:noop,
             fillRect:(x,y,ww,hh)=>{if(mini)dibujos.push([x,y,ww,hh]);},
             set strokeStyle(v){},set fillStyle(v){},set lineWidth(v){},
@@ -54,7 +65,8 @@ function abrir(payload,almacen){
     const t=setInterval(()=>{
       if(dom.window.document.querySelectorAll('#tabla tbody tr').length ||
          dom.window.document.querySelectorAll('.tarjeta').length){
-        clearInterval(t);dom.window.__dibujos=dibujos;res(dom.window);}},20);
+        clearInterval(t);dom.window.__dibujos=dibujos;
+        dom.window.__trazos=trazos;res(dom.window);}},20);
   });
 }
 
@@ -124,6 +136,23 @@ function abrir(payload,almacen){
      /W [▲▼·]/.test(t0.textContent),t0.querySelector('.tj-pie').textContent);
   ok('tiene su mini grafico',!!t0.querySelector('canvas[data-mini]'));
   ok('los mini graficos dibujaron velas',w.__dibujos.length>100,w.__dibujos.length);
+  /* LAS MEDIAS 21/34 EN LAS TARJETAS. Las pidió el usuario y lo único que se
+     puede verificar sin ojo humano es que se dibujen de verdad. Una media es un
+     trazo LARGO que AVANZA en x; una mecha son dos puntos en la misma x y la
+     línea del 0% son dos puntos a la misma altura. */
+  const avanza=t=>t.length>20&&t[t.length-1][0]>t[0][0]&&
+                  t.some((p,i)=>i>0&&p[1]!==t[i-1][1]);
+  const medias=w.__trazos.filter(avanza);
+  const tarjetas=w.document.querySelectorAll('#tarjetas canvas[data-mini]').length;
+  /* Sin las medias esto da CERO: la línea del 0% son dos puntos y cada mecha
+     también, así que ningún otro trazo del mini gráfico pasa el filtro.
+     El conteo NO se compara exacto porque el registro acumula todos los
+     repintados de la corrida, y el panel se repinta varias veces. */
+  ok('las tarjetas dibujan las medias móviles',medias.length>=tarjetas*2,
+     `${medias.length} trazos largos para ${tarjetas} tarjetas`);
+  const lineaFuera=medias.flat().filter(([x,y])=>!isFinite(x)||!isFinite(y)||y<-1||y>85);
+  ok('y ninguna se sale de la tarjeta',lineaFuera.length===0,
+     JSON.stringify(lineaFuera.slice(0,3)));
   const fuera=w.__dibujos.filter(([x,y,ww,hh])=>!isFinite(x)||!isFinite(y)||y<-1||y+hh>85);
   ok('ninguna vela se sale de la tarjeta',fuera.length===0,JSON.stringify(fuera.slice(0,3)));
 

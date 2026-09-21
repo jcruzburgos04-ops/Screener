@@ -327,6 +327,12 @@ Como en el Pine: la del **combo 1** vira verde/roja según su sesgo, y las otras
 dos llevan color fijo —azul el 55/115, violeta el 300/600—. Eso es lo que las
 hace leerse como marco y no como señal.
 
+**En las tarjetas de Panorama va el combo 1 y nada más** (lo pidió el usuario,
+21/9/2026). Los otros dos no entran: en 84 px de alto, tres nubes tapan las
+velas y la tarjeta deja de servir para lo que sirve, que es el vistazo. Las
+longitudes salen de la misma configuración que la tabla, así que si las cambiás
+desde el panel las tarjetas siguen.
+
 ### Columnas derivadas
 
 Por combo: sesgo, posición del precio (arriba/adentro/abajo), ancho, distancia
@@ -627,9 +633,16 @@ Seis paneles: Índices · Sectores · Temáticos · Commodities · Mundo · Favo
 Yahoo: a un ETF de semiconductores lo clasifica como *Technology*, igual que a
 Apple.
 
-Cada tarjeta trae precio, variación con signo, mini-velas de 60 ruedas, **RS**,
-el estado del **ASH diario y semanal** (▲/▼), la figura si la hay, el volumen en
-dólares y la etiqueta `PRE`/`AH` cuando hay precio fuera de hora.
+Cada tarjeta trae precio, variación con signo, mini-velas de 60 ruedas con la
+**nube 21/34** encima, **RS**, el estado del **ASH diario y semanal** (▲/▼), la
+figura si la hay, el volumen en dólares y la etiqueta `PRE`/`AH` cuando hay
+precio fuera de hora.
+
+**Las EMAs de la tarjeta se calculan sobre TODA la serie y recién después se
+recorta a las 60 visibles.** Pasarle sólo las 60 daría otra curva, porque una
+EMA arrastra todo lo anterior. Y **entran en la escala** del mini gráfico: si no,
+cuando el precio se despega la nube se dibuja fuera del canvas y se come las
+etiquetas de porcentaje de la derecha.
 
 **El mini-gráfico está en porcentaje, no en precio.** La línea punteada es el
 cierre previo (el 0%) y a la derecha van tres números: el techo del rango, el 0%
@@ -2041,6 +2054,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
 | `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |
 | `yahoo.js` | parseo, ajuste por dividendos, husos, fusión, CORS bloqueado, 429 |
+| `panorama.js` | las tarjetas: el conteo, la nube 21/34 de cada mini gráfico, y que nada se dibuje fuera |
 | `movil.js` | el panel como cajón en pantallas angostas y la pastilla de frescura |
 | `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial, y que el bucle del workflow relea lo publicado antes de fusionar |
 | `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
@@ -2091,6 +2105,14 @@ Chromium, para que la batería siga corriendo en cualquier máquina.
 > mal» y las pruebas están en verde, **sacá la foto antes de teorizar** — yo
 > perdí un rato largo razonando sobre grid y `min-width` cuando la respuesta
 > estaba en `getComputedStyle(...).stroke`.
+
+> **Contar puntos de canvas no prueba que algo se dibuje.** Para verificar que
+> las tarjetas de Panorama traen las medias, la primera versión contaba los
+> `moveTo`/`lineTo` del mini gráfico — y **las mechas de las velas ya pasaban
+> cualquier umbral**, así que el sabotaje (sacarle las medias a la tarjeta)
+> quedaba en verde. `panorama.js` guarda ahora **cada trazo por separado** y
+> busca uno que *avance en x*, que es lo que una mecha vertical nunca hace. Sin
+> medias da **cero**.
 
 > **Trampa que ya mordió cinco veces, con otra cara cada vez: el alcance.**
 > En `interfaz.js` las pruebas comparten una ventana, y las de más arriba dejan
