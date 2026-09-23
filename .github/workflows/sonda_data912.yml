@@ -1,0 +1,101 @@
+# =============================================================================
+# SONDA: ¿data912 deja que el navegador le pida precios directo?
+#
+# A mano y TEMPORAL: contesta una pregunta y se borra, como sonda_velocidad.py.
+#
+# La pregunta es si data912 manda la cabecera CORS. Yahoo no la manda, y por eso
+# el navegador tira "Failed to fetch" y la pagina depende del workflow intradia
+# para tener precios del dia. Si data912 la manda, la pagina abierta podria
+# pedirle los precios cada minuto ella sola, sin servidor y sin proxy.
+#
+# Se prueba como lo haria el navegador: con la cabecera Origin del sitio
+# publicado, y tambien el preflight OPTIONS. Ademas se mide lo que hace falta
+# saber para usarlo: que campos trae, de que hora es el dato, y cuantos papeles
+# del universo cubre EN DOLARES.
+# =============================================================================
+name: Sonda data912
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt
+
+      - name: Cabeceras CORS, como las veria el navegador
+        run: |
+          ORIGEN="https://jcruzburgos04-ops.github.io"
+          for ruta in live/usa_stocks live/usa_adrs; do
+            URL="https://data912.com/$ruta"
+            echo "================ GET $URL"
+            curl -sS -D - -o /dev/null --max-time 30 -H "Origin: $ORIGEN" "$URL" \
+              | tr -d '\r' | grep -iE '^(HTTP|access-control|cache-control|age|content-type|content-length|vary|cf-cache-status|date)'
+            echo "================ OPTIONS (preflight) $URL"
+            curl -sS -D - -o /dev/null --max-time 30 -X OPTIONS \
+              -H "Origin: $ORIGEN" -H "Access-Control-Request-Method: GET" "$URL" \
+              | tr -d '\r' | grep -iE '^(HTTP|access-control|allow|vary)'
+          done
+          echo
+          echo "================ GitHub Pages: cuanto cachea el datos.json publicado"
+          curl -sS -D - -o /dev/null --max-time 60 "$ORIGEN/Screener/datos.json" \
+            | tr -d '\r' | grep -iE '^(HTTP|cache-control|age|expires|x-cache|last-modified|etag)'
+
+      - name: Que trae, de que hora es, y cuanto del universo cubre
+        run: |
+          python - <<'PY'
+          import json, time, urllib.request
+          from collections import Counter
+          from screener import leer_universo, BENCHMARK
+
+          def bajar(ruta):
+              t0 = time.time()
+              req = urllib.request.Request("https://data912.com/" + ruta,
+                                           headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  cuerpo = r.read()
+              return json.loads(cuerpo), time.time() - t0, len(cuerpo)
+
+          filas = {}
+          for ruta in ("live/usa_stocks", "live/usa_adrs"):
+              d, seg, peso = bajar(ruta)
+              print(f"\n{ruta}: {len(d)} filas · {seg:.2f} s · {peso/1024:.0f} KB")
+              print("  claves:", sorted(d[0].keys()) if d else "-")
+              for f in d[:2]:
+                  print("  ej:", json.dumps(f, ensure_ascii=False)[:300])
+              claves = Counter(k for f in d for k in f)
+              print("  presencia de cada clave:", dict(claves))
+              for f in d:
+                  s = f.get("symbol") or f.get("ticker") or f.get("s")
+                  if s:
+                      filas.setdefault(s, (ruta, f))
+
+          uni = leer_universo("universo.csv")
+          tks = uni["ticker"].tolist() + [BENCHMARK]
+          dentro = [t for t in tks if t in filas]
+          fuera = [t for t in tks if t not in filas]
+          print(f"\nuniverso: {len(tks)} · cubiertos por data912: {len(dentro)} · "
+                f"no: {len(fuera)}")
+          print("NO cubiertos:", " ".join(sorted(fuera)))
+
+          # control de cordura: un precio de data912 contra el ultimo cierre de
+          # Yahoo tiene que estar cerca. Si da cualquier cosa, el campo no es el
+          # que creo o viene en otra moneda.
+          import yfinance as yf
+          for t in ("AAPL", "MSFT", "KO", "VALE", "TSM"):
+              if t not in filas:
+                  print(f"  {t}: no esta en data912"); continue
+              ruta, f = filas[t]
+              y = yf.Ticker(t).history(period="5d")["Close"]
+              print(f"  {t:5s} data912={json.dumps(f)[:160]}")
+              print(f"        yahoo ultimo cierre={float(y.iloc[-1]):.2f}")
+          PY
