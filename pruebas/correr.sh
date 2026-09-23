@@ -60,6 +60,8 @@ echo; echo "== estres =="
 node estres.js
 echo; echo "== precios de Yahoo desde el navegador =="
 node yahoo.js
+echo; echo "== precios en vivo desde data912 (cada minuto, en la rueda) =="
+node vivo.js
 echo; echo "== teclado =="
 node teclado.js
 echo; echo "== Python: renta fija y los cronogramas de los soberanos =="

@@ -61,6 +61,11 @@ eso es un extra: **Yahoo no manda CORS y el navegador lo bloquea con un "Failed
 to fetch"** (verificado con el usuario, 13/8/2026). Cuando falla no pasa nada
 grave y **no se muestra ninguna alarma**, porque lo publicado ya está fresco.
 
+**Y encima de eso, con el mercado abierto, la página le pide el último precio a
+data912 cada minuto** — data912 sí manda CORS. Cubre sólo acciones y ADRs de
+EE.UU. (no ETFs) y sólo toca el cierre de la vela de hoy: ver *Precios en vivo
+desde data912*, en la sección 8b.
+
 ### B. Servidor local (`servidor.py`)
 
 Para cuando se quieren precios del momento sin esperar al cron. Levanta un HTTP
@@ -2014,6 +2019,57 @@ viene en pesos, o sea que rompe el invariante 2. La corrida nocturna
 > puede subir 4% un día que el papel no se movió. Sirven para la sección
 > Argentina, no para el screener.
 
+### Precios en vivo desde data912: cada minuto, en la página
+
+Lo pidió el usuario («no se puede hacer que los precios vaya actualizando
+constantemente?» → «proba con data 912»). **data912 sí manda CORS**, que es lo
+que Yahoo no hace: `access-control-allow-origin: *`, el preflight contesta, y
+cachea 30 s. Verificado el 23/9/2026 con una sonda desde Actions (borrada):
+dos lecturas separadas un minuto dieron precios distintos, y contra Yahoo
+coinciden a ~0,2%. Así que la página le pide los dos paneles
+(`/live/usa_stocks` + `/live/usa_adrs`, ~412 KB sin comprimir) **cada minuto**
+y le pega el último precio encima a la vela de hoy. Vive en `aplicarVivo()` /
+`pedirVivo()` de `plantilla.html`; la pastilla dice `en vivo` con un punto que
+late.
+
+**Lo que trae y lo que no, que decide todas las reglas:** `symbol`, `c` (último),
+`pct_change`, puntas y cantidades. **No trae apertura, máximo ni mínimo**, y su
+`v` **no es el volumen del día**. Cubre **342 de 493** del universo. **No hay
+ningún ETF** (`SPY QQQ XL* EW* GLD`): sólo aparecen en `arg_cedears`, en pesos,
+y eso está prohibido (invariante 18). O sea que en Panorama **los índices y los
+sectores no van en vivo**: siguen con el refresco de 10 minutos del sitio.
+
+Las reglas del parche, cada una con su sabotaje en `pruebas/vivo.js`:
+
+- **Sólo en la rueda regular de Nueva York** (9:30-16:00, hora de NY, no del
+  navegador). En el after-hours el último precio pisaría el cierre, y el
+  pre/after ya tienen su columna aparte.
+- **Sólo si la última vela guardada ES la de hoy.** Si no, ese precio no tiene
+  dónde ir: inventar una vela nueva sin apertura ni volumen es un dato falso.
+  Hasta ~10 minutos después de la apertura (lo que tarda la intradía en
+  publicar la vela del día) no se parchea nada, y está bien.
+- **Se toca el cierre y se estira máximo/mínimo si el precio los pasa.**
+  **Nunca la apertura ni el volumen**: no los trae, y dejar los de la intradía
+  es lo único honesto.
+- **Un precio a más de 15% del guardado se descarta** como dato roto
+  (`VIVO_SALTO_MAX`) y el `title` de la pastilla lo cuenta.
+- **Los de otro mercado no se tocan** (`.SA`, `.DE`, `.T`…): data912 es de EE.UU.
+  y un ticker igual en otra bolsa es otro papel.
+- data912 escribe las clases con punto: `BRK-B` de Yahoo es `BRK.B` allá.
+- **Pestaña oculta = cero pedidos**; al volver, pide enseguida.
+- Si data912 no contesta, **sin alarma**: la pastilla deja de decir `en vivo` y
+  vuelve a decir de cuándo es lo publicado.
+
+Sólo se tiran del caché (`cacheBase`, `cacheSem`, `memoAsh`) los símbolos que
+cambiaron, y se recalcula; los filtros y el orden se aplican sobre los precios
+nuevos igual que siempre.
+
+> **Pruebas que cuentan pedidos:** si una prueba cuenta los `fetch` de la
+> página, el de data912 se le suma **sólo cuando Nueva York está abierto** al
+> correrla. `yahoo.js` lo sufrió (pasaba a la noche, fallaba a la tarde); su
+> stub ahora rechaza data912 sin contarlo. Cualquier prueba nueva que cuente
+> pedidos tiene que hacer lo mismo.
+
 ### Sobre reescribir en C++ (se preguntó, se midió)
 
 **No serviría de nada.** El tiempo se va esperando la red, no calculando:
@@ -2059,6 +2115,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial, y que el bucle del workflow relea lo publicado antes de fusionar |
 | `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
 | `bonos.js` | la vista de bonos: que lo que el payload trae llegue a la pantalla, la curva, el cronograma que se abre, las ONs por emisor |
+| `vivo.js` | el precio en vivo de data912: sólo en la rueda, sólo la vela de hoy, sin tocar apertura ni volumen, los saltos descartados, la pastilla, y cero pedidos con la pestaña oculta |
 | `menus.js` | los desplegables de la barra, el engranaje, y **que ningún control quede huérfano al mudarse de contenedor** |
 
 Los de renta fija cubren además **lo que se mantiene solo**: que una familia
@@ -2193,6 +2250,9 @@ necesitan internet.
 24. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
     sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
     pero **no de la tabla**, y la tarjeta dice cuál y por qué.
+25. **El precio en vivo sólo toca el cierre de la vela de HOY.** Nunca crea una
+    vela, nunca toca apertura ni volumen, nunca fuera de la rueda regular, y
+    nunca de un papel de otro mercado. data912 no trae con qué hacerlo bien.
 
 ---
 
@@ -2211,7 +2271,9 @@ necesitan internet.
 3. **Tabla de correcciones manuales de sector/industria**, para pisar los errores
    de Yahoo (el caso `ACH`). Un CSV `correcciones.csv` que se aplique después de
    `bajar_fundamentales`.
-4. **Pedirle los precios del día a data912 en vez de a Yahoo.** Medido: cubre
+4. **Pedirle los precios del día a data912 en vez de a Yahoo, también en la
+   intradía.** La página ya lo hace cada minuto (§8b, *Precios en vivo*); lo
+   que falta es el lado del servidor. Medido: cubre
    **374 de los 465 en dólares con dos pedidos** contra los 465 de Yahoo (ver la
    sección 8b). Es un 81% menos de pedidos contra la única fuente que
    rate-limitea, y es la causa real de que los precios lleguen tarde. Yahoo

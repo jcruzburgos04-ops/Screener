@@ -56,6 +56,9 @@ function abrir(respondedor){
         w.fetch=async(u)=>{
           const s=String(u);
           if(s.indexOf('api/')===0)throw new Error('sin servidor');
+          // data912 lo prueba vivo.js; aca contaria como un pedido a Yahoo y la
+          // cuenta pasaria a depender de si Nueva York esta abierto al correr
+          if(s.indexOf('data912.com')>=0)throw new TypeError('Failed to fetch');
           if(s.indexOf('datos.json')>=0)
             return {ok:true,body:null,text:async()=>JSON.stringify(datos)};
           w.__pedidos.push(s);
@@ -90,6 +93,9 @@ function abrirCon(datosTexto,respondedor,almacenInicial){
         w.fetch=async u=>{
           const s=String(u);
           if(s.indexOf('api/')===0)throw new Error('sin servidor');
+          // data912 lo prueba vivo.js; aca contaria como un pedido a Yahoo y la
+          // cuenta pasaria a depender de si Nueva York esta abierto al correr
+          if(s.indexOf('data912.com')>=0)throw new TypeError('Failed to fetch');
           if(s.indexOf('datos.json')>=0)return {ok:true,body:null,text:async()=>datosTexto};
           w.__pedidos.push(s);return respondedor(s,w);};
       }});

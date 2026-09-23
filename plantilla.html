@@ -311,6 +311,12 @@ main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;posit
 .pastilla::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;
   box-shadow:0 0 0 3px color-mix(in srgb,currentColor 22%,transparent)}
 .pastilla.fresco{color:var(--alcista);background:var(--alcista-t);border-color:rgba(74,222,128,.28)}
+/* "en vivo": un punto que late, para que se distinga de "hace 3 min" sin leer */
+.pastilla.vivo::before{content:'';display:inline-block;width:6px;height:6px;
+  border-radius:50%;background:currentColor;margin-right:5px;vertical-align:1px;
+  animation:latido 2s ease-in-out infinite}
+@keyframes latido{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pastilla.vivo::before{animation:none}}
 .pastilla.tibio{color:var(--ambar);background:var(--ambar-t);border-color:rgba(232,163,61,.28)}
 .pastilla.viejo{color:var(--bajista);background:var(--bajista-t);border-color:rgba(240,85,75,.32)}
 
@@ -5278,11 +5284,137 @@ function fechaMayoritaria(){
   return mejor;
 }
 
+/* ---------- PRECIOS EN VIVO DESDE data912 ----------
+   El navegador NO le puede pedir precios a Yahoo: no manda CORS. data912 SI
+   (medido el 23/9/2026 desde Actions: allow-origin *, preflight OK, cache de
+   30 s), y dos pedidos traen el ultimo precio de 3.359 papeles de EE.UU. en
+   DOLARES. Asi la pagina abierta se actualiza sola cada minuto, sin servidor y
+   sin proxy.
+
+   LO QUE data912 NO TRAE, y por eso esto es un PARCHE sobre la vela del dia y
+   no una fuente de barras:
+     - ni apertura, ni maximo ni minimo: solo el ultimo precio. Se pisa el
+       cierre y se ESTIRAN el maximo y el minimo si el precio los pasa. La
+       apertura no se toca nunca.
+     - un volumen que no es el del dia (AAPL daba 62 mil acciones media hora
+       despues de la apertura). No se usa.
+     - ningun ETF: SPY, QQQ, los XL* y los EW* solo estan en arg_cedears, que
+       es EN PESOS y no se puede usar para esto (invariante 18). Esos siguen con
+       el refresco del sitio.
+
+   Tres reglas para no inventar nada:
+     1. solo durante la rueda regular de Nueva York. Fuera de horario el precio
+        puede ser del after-hours y pisaria el cierre de la vela diaria.
+     2. solo si la ultima vela publicada YA ES la de hoy. La vela del dia la
+        arma la intradia con la apertura de verdad; antes de eso no hay sobre
+        que parchear, y fabricar una vela con apertura = precio seria inventarla.
+     3. un precio que se aleja mas de 15% de lo publicado hace minutos se
+        descarta: es un dato roto, no un movimiento. Si fuera un movimiento, la
+        intradia lo trae en menos de diez minutos. */
+const URLS_D912=['https://data912.com/live/usa_stocks','https://data912.com/live/usa_adrs'];
+const VIVO_CADA=60*1000, VIVO_SALTO_MAX=0.15;
+const VIVO={ts:NaN,cubiertos:0,cambiados:0,descartados:0,error:'',timer:null,pidiendo:false};
+
+/* La fecha y la hora de Nueva York, con su propio huso. No se deduce del reloj
+   del navegador: el usuario esta en Buenos Aires. */
+function relojNY(ahora){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',
+    hour12:false,weekday:'short'}).formatToParts(ahora);
+  const g=k=>(p.find(x=>x.type===k)||{}).value;
+  return {fecha:+(g('year')+g('month')+g('day')),
+          min:(+g('hour')%24)*60+(+g('minute')), dia:g('weekday')};
+}
+function enRuedaNY(ahora){
+  const r=relojNY(ahora);
+  return r.dia!=='Sat'&&r.dia!=='Sun'&&r.min>=9*60+30&&r.min<16*60;
+}
+
+/* Aplica una lectura de data912 sobre DATOS. Devuelve que toco, para que el
+   que llama invalide solo esos del cache y no recalcule el universo a ciegas.
+   `ahora` viaja como parametro para poder probarlo con la hora que haga falta. */
+function aplicarVivo(lista,ahora){
+  const res={cambiados:[],cubiertos:0,descartados:[]};
+  if(!enRuedaNY(ahora))return res;
+  const hoy=relojNY(ahora).fecha, px=new Map();
+  for(const f of lista||[]){const c=f&&+f.c;
+    if(f&&f.symbol&&isFinite(c)&&c>0)px.set(String(f.symbol),c);}
+  for(const s of DATOS.simbolos){
+    // otro mercado (.SA, .DE, .T...): data912 es de EE.UU. y un ticker igual
+    // en otra bolsa es otro papel
+    if(s.t.slice(1).indexOf('.')>=0)continue;
+    // data912 escribe las clases con punto: BRK-B de Yahoo es BRK.B alla
+    const p=px.get(s.t.replace('-','.'));
+    if(p===undefined)continue;
+    const n=s.c.length-1;
+    if(n<0||s.d[n]!==hoy)continue;
+    const antes=s.c[n];
+    if(!(antes>0)||Math.abs(p/antes-1)>VIVO_SALTO_MAX){res.descartados.push(s.t);continue;}
+    res.cubiertos++;
+    if(p===antes)continue;
+    s.c[n]=p;
+    if(p>s.h[n])s.h[n]=p;
+    if(p<s.l[n])s.l[n]=p;
+    res.cambiados.push(s.t);
+  }
+  return res;
+}
+
+/* Solo se tiran del cache los que cambiaron. Con los 480 recalculando cada
+   minuto no pasaria nada grave, pero no hay motivo para rehacer lo que no se
+   movio. El semanal tambien: la semana en curso lleva el cierre de hoy. */
+function invalidarSimbolos(ts){
+  for(const t of ts){cacheBase.delete(t);cacheSem.delete(t);
+    for(const m of memoAsh.values())m.delete(t);}
+}
+
+async function pedirVivo(){
+  if(VIVO.pidiendo||document.hidden||!(DATOS.simbolos&&DATOS.simbolos.length))return;
+  const ahora=new Date();
+  if(!enRuedaNY(ahora)){pintarFrescura();return;}
+  VIVO.pidiendo=true;
+  try{
+    const rs=await Promise.all(URLS_D912.map(u=>
+      fetch(u,{credentials:'omit'}).then(r=>{
+        if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})));
+    const R=aplicarVivo([].concat(...rs),ahora);
+    VIVO.ts=Date.now();VIVO.cubiertos=R.cubiertos;
+    VIVO.cambiados=R.cambiados.length;VIVO.descartados=R.descartados.length;VIVO.error='';
+    if(R.cambiados.length){
+      invalidarSimbolos(R.cambiados);
+      recalcular();
+      if(vistaPanorama)renderPanorama();
+    }
+  }catch(e){
+    // Sin alarma, igual que con Yahoo: lo publicado sigue ahi y la intradia lo
+    // refresca cada diez minutos. Solo se deja de decir "en vivo".
+    VIVO.error=String(e&&e.message||e);
+  }finally{VIVO.pidiendo=false;pintarFrescura();}
+}
+
+function arrancarVivo(){
+  if(VIVO.timer)return;
+  VIVO.timer=setInterval(pedirVivo,VIVO_CADA);
+  // al volver a la pestaña se pide enseguida, no al minuto
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)pedirVivo();});
+  pedirVivo();
+}
+
 /* Lo primero que hay que poder contestar de un vistazo: ¿esto esta al dia?
    Verde = se actualizo recien. Ambar = es el cierre de la ultima rueda, que es
    lo correcto con el mercado cerrado. Rojo = el archivo quedo viejo de verdad. */
 function pintarFrescura(){
   const el=$('#frescura');if(!el)return;
+  /* EN VIVO solo si la ultima lectura de data912 es de hace menos de tres
+     minutos y efectivamente toco papeles. Si data912 dejo de contestar, la
+     pastilla vuelve sola a decir de cuando es lo publicado. */
+  if(isFinite(VIVO.ts)&&Date.now()-VIVO.ts<3*60000&&VIVO.cubiertos>0&&!VIVO.error){
+    el.className='pastilla fresco vivo';el.textContent='en vivo';
+    el.title=`${VIVO.cubiertos} papeles de EE.UU. se actualizan cada minuto desde `+
+      'data912. Los ETF y los de otros mercados siguen con el refresco del sitio, '+
+      'cada 10 minutos: tocá ⟳ para traerlos.'+
+      (VIVO.descartados?` ${VIVO.descartados} lecturas descartadas por alejarse más de 15%.`:'');
+    return;}
   const f=fechaMayoritaria(), r=ruedasHasta(f);
   const t=momentoDatos();
   const min=isFinite(t)?Math.round((Date.now()-t)/60000):NaN;
@@ -5292,9 +5424,9 @@ function pintarFrescura(){
           'anterior queda en pie a propósito.';}
   else if(isFinite(min)&&min<75){cls='fresco';
     txt=min<2?'precios de recién':`hace ${min} min`;
-    ayuda='El sitio se actualiza solo cada media hora mientras Nueva York opera.';}
+    ayuda='El sitio se actualiza solo cada 10 minutos mientras Nueva York opera.';}
   else{cls='tibio';txt='cierre del '+fechaCorta(f);
-    ayuda='Precios del último cierre. Durante la rueda se refrescan solos cada media hora.';}
+    ayuda='Precios del último cierre. Durante la rueda se refrescan solos.';}
   el.className='pastilla '+cls;el.textContent=txt;el.title=ayuda;
 }
 
@@ -5538,6 +5670,8 @@ function iniciar(){
   iniciado=true;
   pintarInfoDatos();
   montarChips();
+  // despues de que termine de armarse la pagina, no en el medio
+  setTimeout(arrancarVivo,0);
 
   /* Un solo temporizador para todos los controles, pero con memoria de si
      quedo pendiente un cambio PESADO. Antes, tocar el ASH y enseguida un filtro
