@@ -5284,36 +5284,53 @@ function fechaMayoritaria(){
   return mejor;
 }
 
-/* ---------- PRECIOS EN VIVO DESDE data912 ----------
-   El navegador NO le puede pedir precios a Yahoo: no manda CORS. data912 SI
-   (medido el 23/9/2026 desde Actions: allow-origin *, preflight OK, cache de
-   30 s), y dos pedidos traen el ultimo precio de 3.359 papeles de EE.UU. en
-   DOLARES. Asi la pagina abierta se actualiza sola cada minuto, sin servidor y
-   sin proxy.
+/* ---------- PRECIOS EN VIVO: data912 primero, CNBC para el resto ----------
+   El navegador NO le puede pedir precios a Yahoo: no manda CORS. Estas dos SI,
+   medido desde Actions el 23/9/2026 (allow-origin *):
 
-   LO QUE data912 NO TRAE, y por eso esto es un PARCHE sobre la vela del dia y
-   no una fuente de barras:
-     - ni apertura, ni maximo ni minimo: solo el ultimo precio. Se pisa el
-       cierre y se ESTIRAN el maximo y el minimo si el precio los pasa. La
-       apertura no se toca nunca.
-     - un volumen que no es el del dia (AAPL daba 62 mil acciones media hora
-       despues de la apertura). No se usa.
-     - ningun ETF: SPY, QQQ, los XL* y los EW* solo estan en arg_cedears, que
-       es EN PESOS y no se puede usar para esto (invariante 18). Esos siguen con
-       el refresco del sitio.
+   data912 (/live/usa_stocks + /live/usa_adrs): el ultimo precio de las
+     acciones y ADRs de EE.UU., en dolares, y nada mas. Ni apertura, ni maximo
+     ni minimo, y su volumen NO es el del dia. Ningun ETF: esos solo estan en
+     arg_cedears, EN PESOS, que no se puede usar (invariante 18).
 
-   Tres reglas para no inventar nada:
-     1. solo durante la rueda regular de Nueva York. Fuera de horario el precio
-        puede ser del after-hours y pisaria el cierre de la vela diaria.
-     2. solo si la ultima vela publicada YA ES la de hoy. La vela del dia la
-        arma la intradia con la apertura de verdad; antes de eso no hay sobre
-        que parchear, y fabricar una vela con apertura = precio seria inventarla.
-     3. un precio que se aleja mas de 15% de lo publicado hace minutos se
-        descarta: es un dato roto, no un movimiento. Si fuera un movimiento, la
-        intradia lo trae en menos de diez minutos. */
+   CNBC (quote.cnbc.com): tiempo real (realTime=true, la hora de la ultima
+     operacion al segundo, a <0,1% de data912 en la misma lectura), con maximo,
+     minimo y volumen del dia, la moneda, y la HORA LOCAL de cada bolsa. Cubre
+     los ETF y las bolsas de afuera (Sao Paulo, Francfort, Paris, Tokio, Taiwan,
+     Londres) y devuelve los 480 del universo en un solo pedido. Es la que tapa
+     lo que data912 no tiene y la que la RESPALDA cuando data912 no contesta.
+     Sin cubrir quedo 000660.KS: CNBC solo lo tiene como OTC en dolares, que es
+     otro instrumento. Ese sigue con el refresco del sitio.
+
+   Es un PARCHE sobre la vela de hoy, no una fuente de barras. Reglas, las
+   mismas para las dos fuentes:
+     1. EE.UU. solo durante la rueda regular de Nueva York: fuera de horario el
+        precio puede ser del after-hours y pisaria el cierre.
+     2. la cotizacion tiene que ser del MISMO DIA que la ultima vela publicada.
+        data912 no dice de cuando es su precio, asi que vale la rueda de NY en
+        curso; CNBC trae la fecha de la operacion en la hora de su bolsa, que
+        es la fecha que usa Yahoo para la vela. Si la vela de hoy todavia no
+        existe (los primeros minutos de la rueda, hasta que la arma la
+        intradia) no hay sobre que parchear: fabricar una vela seria inventarla.
+     3. la moneda tiene que ser la del papel: euro contra dolar difiere menos
+        de 15% y la regla 4 sola no lo ataja.
+     4. un precio a mas de 15% de lo publicado hace minutos es un dato roto, no
+        un movimiento. Si la intradia lo confirma, llega en diez minutos.
+   Se pisa el cierre y se ESTIRAN maximo y minimo; el volumen solo sube (en el
+   dia nunca baja) y solo desde CNBC. La apertura no se toca nunca. */
 const URLS_D912=['https://data912.com/live/usa_stocks','https://data912.com/live/usa_adrs'];
+const URL_CNBC='https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol'+
+  '?requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&symbols=';
+const CNBC_LOTE=200;
+/* Como escribe CNBC el mercado. No es una lista de tickers: es una por bolsa,
+   y la que no esta aca se pide con el simbolo de Yahoo tal cual. Se piden las
+   dos formas porque ninguna sola alcanza: ABEV3 solo sale como ABEV3.SA y
+   MBG.DE solo como MBG-DE (medido). */
+const CNBC_BOLSA={SA:'BR',DE:'DE',PA:'FR',T:'JP',TW:'TW',IL:'GB',KS:'KR'};
 const VIVO_CADA=60*1000, VIVO_SALTO_MAX=0.15;
-const VIVO={ts:NaN,cubiertos:0,cambiados:0,descartados:0,error:'',timer:null,pidiendo:false};
+const VIVO={ts:NaN,rueda:false,cubiertos:0,cambiados:0,descartados:0,
+  porFuente:{d912:0,cnbc:0},caidas:{d912:'',cnbc:''},sinFuente:[],error:'',
+  timer:null,pidiendo:false};
 
 /* La fecha y la hora de Nueva York, con su propio huso. No se deduce del reloj
    del navegador: el usuario esta en Buenos Aires. */
@@ -5329,33 +5346,73 @@ function enRuedaNY(ahora){
   const r=relojNY(ahora);
   return r.dia!=='Sat'&&r.dia!=='Sun'&&r.min>=9*60+30&&r.min<16*60;
 }
+const deOtraBolsa=t=>t.slice(1).indexOf('.')>=0;
+function variantesCnbc(t){
+  if(!deOtraBolsa(t))return [t.replace('-','.')];
+  const i=t.lastIndexOf('.'), cc=CNBC_BOLSA[t.slice(i+1)];
+  return cc?[t.slice(0,i)+'-'+cc,t]:[t];
+}
+/* CNBC manda los numeros como texto y con separador de miles: "1,799.89". */
+const numCnbc=x=>{const v=parseFloat(String(x==null?'':x).replace(/,/g,''));return isFinite(v)?v:NaN;};
+function leerCnbc(json){
+  const m=new Map();
+  let q=json&&json.FormattedQuoteResult&&json.FormattedQuoteResult.FormattedQuote;
+  if(!q)return m;
+  for(const f of Array.isArray(q)?q:[q]){
+    const p=f&&numCnbc(f.last);
+    if(!f||!f.symbol||!(p>0))continue;
+    // "2026-09-23T17:13:18.000+0200" o "2026-09-18": la fecha ya viene en la
+    // hora de su bolsa, que es la que corresponde a la vela
+    const lt=String(f.last_time||'');
+    m.set(String(f.symbol),{p,h:numCnbc(f.high),l:numCnbc(f.low),v:numCnbc(f.volume),
+      mon:String(f.currencyCode||''),fecha:/^\d{4}-\d\d-\d\d/.test(lt)?+lt.slice(0,10).replace(/-/g,''):NaN});
+  }
+  return m;
+}
 
-/* Aplica una lectura de data912 sobre DATOS. Devuelve que toco, para que el
-   que llama invalide solo esos del cache y no recalcule el universo a ciegas.
-   `ahora` viaja como parametro para poder probarlo con la hora que haga falta. */
-function aplicarVivo(lista,ahora){
-  const res={cambiados:[],cubiertos:0,descartados:[]};
-  if(!enRuedaNY(ahora))return res;
-  const hoy=relojNY(ahora).fecha, px=new Map();
-  for(const f of lista||[]){const c=f&&+f.c;
+/* Un precio sobre la vela de hoy de UN papel. null = no le corresponde (no es
+   de la misma rueda); 'descartado' = dato roto, sin tocar nada. */
+function parchear(s,q){
+  const n=s.c.length-1;
+  if(n<0||s.d[n]!==q.fecha)return null;
+  if(q.mon&&s.mon&&q.mon!==s.mon)return 'descartado';
+  const antes=s.c[n], sano=x=>x>0&&Math.abs(x/antes-1)<=VIVO_SALTO_MAX;
+  if(!(antes>0)||!sano(q.p))return 'descartado';
+  let cambio=false;
+  const hi=Math.max(q.p,sano(q.h)?q.h:q.p), lo=Math.min(q.p,sano(q.l)?q.l:q.p);
+  if(q.p!==antes){s.c[n]=q.p;cambio=true;}
+  if(hi>s.h[n]){s.h[n]=hi;cambio=true;}
+  if(lo<s.l[n]){s.l[n]=lo;cambio=true;}
+  if(q.v>0&&!(q.v<=s.v[n])){s.v[n]=q.v;cambio=true;}
+  return cambio?'cambio':'igual';
+}
+
+/* Aplica las dos lecturas sobre DATOS. d912 = filas de data912, cnbc = Map de
+   leerCnbc; cualquiera puede venir null (no contesto). Devuelve que toco, para
+   que el que llama invalide solo esos del cache. `ahora` viaja como parametro
+   para poder probarlo con la hora que haga falta. */
+function aplicarVivo(d912,cnbc,ahora){
+  const res={cambiados:[],cubiertos:0,descartados:[],porFuente:{d912:0,cnbc:0},sinFuente:[]};
+  const rueda=enRuedaNY(ahora), hoy=relojNY(ahora).fecha, px=new Map();
+  for(const f of d912||[]){const c=f&&+f.c;
     if(f&&f.symbol&&isFinite(c)&&c>0)px.set(String(f.symbol),c);}
   for(const s of DATOS.simbolos){
-    // otro mercado (.SA, .DE, .T...): data912 es de EE.UU. y un ticker igual
-    // en otra bolsa es otro papel
-    if(s.t.slice(1).indexOf('.')>=0)continue;
-    // data912 escribe las clases con punto: BRK-B de Yahoo es BRK.B alla
-    const p=px.get(s.t.replace('-','.'));
-    if(p===undefined)continue;
-    const n=s.c.length-1;
-    if(n<0||s.d[n]!==hoy)continue;
-    const antes=s.c[n];
-    if(!(antes>0)||Math.abs(p/antes-1)>VIVO_SALTO_MAX){res.descartados.push(s.t);continue;}
-    res.cubiertos++;
-    if(p===antes)continue;
-    s.c[n]=p;
-    if(p>s.h[n])s.h[n]=p;
-    if(p<s.l[n])s.l[n]=p;
-    res.cambiados.push(s.t);
+    const afuera=deOtraBolsa(s.t);
+    if(!afuera&&!rueda)continue;
+    const candidatas=[];
+    // data912 es de EE.UU.: un ticker igual en otra bolsa es otro papel. Y
+    // escribe las clases con punto: BRK-B de Yahoo es BRK.B alla
+    if(!afuera){const p=px.get(s.t.replace('-','.'));
+      if(p!==undefined)candidatas.push(['d912',{p,fecha:hoy}]);}
+    if(cnbc)for(const v of variantesCnbc(s.t)){const x=cnbc.get(v);
+      if(x){candidatas.push(['cnbc',x]);break;}}
+    if(!candidatas.length){res.sinFuente.push(s.t);continue;}
+    let r=null,fuente='';
+    for(const [f,q] of candidatas){r=parchear(s,q);fuente=f;if(r!=='descartado')break;}
+    if(r==='descartado'){res.descartados.push(s.t);continue;}
+    if(r===null)continue;
+    res.cubiertos++;res.porFuente[fuente]++;
+    if(r==='cambio')res.cambiados.push(s.t);
   }
   return res;
 }
@@ -5368,26 +5425,57 @@ function invalidarSimbolos(ts){
     for(const m of memoAsh.values())m.delete(t);}
 }
 
+const pedirJSON=u=>fetch(u,{credentials:'omit'}).then(r=>{
+  if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});
+
 async function pedirVivo(){
   if(VIVO.pidiendo||document.hidden||!(DATOS.simbolos&&DATOS.simbolos.length))return;
-  const ahora=new Date();
-  if(!enRuedaNY(ahora)){pintarFrescura();return;}
+  const ahora=new Date(), rueda=enRuedaNY(ahora), ny=relojNY(ahora);
+  // con Nueva York cerrado solo quedan las bolsas de afuera, y el fin de
+  // semana no opera ninguna
+  if(!rueda&&(ny.dia==='Sat'||ny.dia==='Sun'||!DATOS.simbolos.some(s=>deOtraBolsa(s.t)))){
+    VIVO.rueda=false;pintarFrescura();return;}
   VIVO.pidiendo=true;
   try{
-    const rs=await Promise.all(URLS_D912.map(u=>
-      fetch(u,{credentials:'omit'}).then(r=>{
-        if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})));
-    const R=aplicarVivo([].concat(...rs),ahora);
-    VIVO.ts=Date.now();VIVO.cubiertos=R.cubiertos;
-    VIVO.cambiados=R.cambiados.length;VIVO.descartados=R.descartados.length;VIVO.error='';
+    let d912=null;const caidas={d912:'',cnbc:''};
+    if(rueda){
+      try{d912=[].concat(...await Promise.all(URLS_D912.map(pedirJSON)));}
+      catch(e){caidas.d912=String(e&&e.message||e);}
+    }
+    // a CNBC se le pide lo que data912 no trajo, o todo si data912 se cayo
+    const tiene=new Set((d912||[]).map(f=>f&&String(f.symbol)));
+    const pedir=[];
+    for(const s of DATOS.simbolos){
+      const afuera=deOtraBolsa(s.t);
+      if(!afuera&&!rueda)continue;
+      if(!afuera&&tiene.has(s.t.replace('-','.')))continue;
+      pedir.push(...variantesCnbc(s.t));
+    }
+    let cnbc=null;
+    if(pedir.length){
+      const lotes=[];
+      for(let i=0;i<pedir.length;i+=CNBC_LOTE)lotes.push(pedir.slice(i,i+CNBC_LOTE));
+      const rs=await Promise.allSettled(lotes.map(l=>
+        pedirJSON(URL_CNBC+encodeURIComponent(l.join('|')))));
+      for(const r of rs){
+        if(r.status!=='fulfilled'){caidas.cnbc=String(r.reason&&r.reason.message||r.reason);continue;}
+        cnbc=cnbc||new Map();for(const [k,v] of leerCnbc(r.value))cnbc.set(k,v);
+      }
+    }
+    const R=aplicarVivo(d912,cnbc,ahora);
+    VIVO.rueda=rueda;VIVO.caidas=caidas;VIVO.porFuente=R.porFuente;
+    VIVO.sinFuente=R.sinFuente;VIVO.cubiertos=R.cubiertos;
+    VIVO.cambiados=R.cambiados.length;VIVO.descartados=R.descartados.length;
+    // Sin alarma, igual que con Yahoo: lo publicado sigue ahi y la intradia lo
+    // refresca cada diez minutos. Solo se deja de decir "en vivo".
+    VIVO.error=(!d912&&!cnbc)?(caidas.d912||caidas.cnbc||'sin respuesta'):'';
+    if(!VIVO.error)VIVO.ts=Date.now();
     if(R.cambiados.length){
       invalidarSimbolos(R.cambiados);
       recalcular();
       if(vistaPanorama)renderPanorama();
     }
   }catch(e){
-    // Sin alarma, igual que con Yahoo: lo publicado sigue ahi y la intradia lo
-    // refresca cada diez minutos. Solo se deja de decir "en vivo".
     VIVO.error=String(e&&e.message||e);
   }finally{VIVO.pidiendo=false;pintarFrescura();}
 }
@@ -5405,15 +5493,19 @@ function arrancarVivo(){
    lo correcto con el mercado cerrado. Rojo = el archivo quedo viejo de verdad. */
 function pintarFrescura(){
   const el=$('#frescura');if(!el)return;
-  /* EN VIVO solo si la ultima lectura de data912 es de hace menos de tres
-     minutos y efectivamente toco papeles. Si data912 dejo de contestar, la
-     pastilla vuelve sola a decir de cuando es lo publicado. */
-  if(isFinite(VIVO.ts)&&Date.now()-VIVO.ts<3*60000&&VIVO.cubiertos>0&&!VIVO.error){
+  /* EN VIVO solo con Nueva York abierto, si la ultima lectura es de hace menos
+     de tres minutos y efectivamente toco papeles. Si las dos fuentes dejaron
+     de contestar, la pastilla vuelve sola a decir de cuando es lo publicado. */
+  if(VIVO.rueda&&isFinite(VIVO.ts)&&Date.now()-VIVO.ts<3*60000&&VIVO.cubiertos>0&&!VIVO.error){
+    const F=VIVO.porFuente, sf=VIVO.sinFuente;
     el.className='pastilla fresco vivo';el.textContent='en vivo';
-    el.title=`${VIVO.cubiertos} papeles de EE.UU. se actualizan cada minuto desde `+
-      'data912. Los ETF y los de otros mercados siguen con el refresco del sitio, '+
-      'cada 10 minutos: tocá ⟳ para traerlos.'+
-      (VIVO.descartados?` ${VIVO.descartados} lecturas descartadas por alejarse más de 15%.`:'');
+    el.title=`${VIVO.cubiertos} papeles se actualizan cada minuto: `+
+      `${F.d912} desde data912 y ${F.cnbc} desde CNBC.`+
+      (VIVO.caidas.d912?' data912 no contestó: CNBC hace de respaldo.':'')+
+      (VIVO.caidas.cnbc?' CNBC no contestó: los ETF y los de afuera siguen con el refresco del sitio.':'')+
+      (sf.length?` Sin precio en vivo: ${sf.slice(0,8).join(', ')}${sf.length>8?` y ${sf.length-8} más`:''}`+
+        ' (siguen con el refresco del sitio, cada 10 minutos).':'')+
+      (VIVO.descartados?` ${VIVO.descartados} lecturas descartadas por moneda distinta o por alejarse más de 15%.`:'');
     return;}
   const f=fechaMayoritaria(), r=ruedasHasta(f);
   const t=momentoDatos();

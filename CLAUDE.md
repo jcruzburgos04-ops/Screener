@@ -61,10 +61,10 @@ eso es un extra: **Yahoo no manda CORS y el navegador lo bloquea con un "Failed
 to fetch"** (verificado con el usuario, 13/8/2026). Cuando falla no pasa nada
 grave y **no se muestra ninguna alarma**, porque lo publicado ya está fresco.
 
-**Y encima de eso, con el mercado abierto, la página le pide el último precio a
-data912 cada minuto** — data912 sí manda CORS. Cubre sólo acciones y ADRs de
-EE.UU. (no ETFs) y sólo toca el cierre de la vela de hoy: ver *Precios en vivo
-desde data912*, en la sección 8b.
+**Y encima de eso, la página pide el último precio cada minuto a data912 y a
+CNBC**, que sí mandan CORS: data912 para las acciones y ADRs de EE.UU., CNBC
+para los ETF y las bolsas de afuera, y CNBC de respaldo si data912 se cae. Sólo
+tocan la vela de hoy: ver *Precios en vivo en la página*, en la sección 8b.
 
 ### B. Servidor local (`servidor.py`)
 
@@ -2019,56 +2019,94 @@ viene en pesos, o sea que rompe el invariante 2. La corrida nocturna
 > puede subir 4% un día que el papel no se movió. Sirven para la sección
 > Argentina, no para el screener.
 
-### Precios en vivo desde data912: cada minuto, en la página
+### Precios en vivo en la página: data912 primero, CNBC para el resto
 
-Lo pidió el usuario («no se puede hacer que los precios vaya actualizando
-constantemente?» → «proba con data 912»). **data912 sí manda CORS**, que es lo
-que Yahoo no hace: `access-control-allow-origin: *`, el preflight contesta, y
-cachea 30 s. Verificado el 23/9/2026 con una sonda desde Actions (borrada):
-dos lecturas separadas un minuto dieron precios distintos, y contra Yahoo
-coinciden a ~0,2%. Así que la página le pide los dos paneles
-(`/live/usa_stocks` + `/live/usa_adrs`, ~412 KB sin comprimir) **cada minuto**
-y le pega el último precio encima a la vela de hoy. Vive en `aplicarVivo()` /
-`pedirVivo()` de `plantilla.html`; la pastilla dice `en vivo` con un punto que
-late.
+Lo pidió el usuario en dos pasos: «no se puede hacer que los precios vaya
+actualizando constantemente?» → «proba con data 912», y después «todas las
+cosas que no cubre data912, reemplazalo por alguna api que sí las cubra, o si
+llega a fallar algo que haya backup». La página pide precios **cada minuto**
+directo desde el navegador y le pega el último encima a la vela de hoy. Vive en
+`aplicarVivo()` / `parchear()` / `pedirVivo()` de `plantilla.html`; la pastilla
+dice `en vivo` con un punto que late, y su `title` dice cuántos vinieron de cada
+fuente y cuáles quedaron sin precio en vivo.
 
-**Lo que trae y lo que no, que decide todas las reglas:** `symbol`, `c` (último),
-`pct_change`, puntas y cantidades. **No trae apertura, máximo ni mínimo**, y su
-`v` **no es el volumen del día**. Cubre **342 de 493** del universo. **No hay
-ningún ETF** (`SPY QQQ XL* EW* GLD`): sólo aparecen en `arg_cedears`, en pesos,
-y eso está prohibido (invariante 18). O sea que en Panorama **los índices y los
-sectores no van en vivo**: siguen con el refresco de 10 minutos del sitio.
+**Las dos fuentes, medidas desde Actions el 23/9/2026** con dos sondas (las dos
+borradas):
 
-Las reglas del parche, cada una con su sabotaje en `pruebas/vivo.js`:
+| | data912 | CNBC (`quote.cnbc.com/.../restQuote`) |
+|---|---|---|
+| CORS | `*` | `*` |
+| Qué cubre | acciones y ADRs de EE.UU.: **343 de 480** | **los 480**, salvo `000660.KS` |
+| ETF | **ninguno** (sólo en `arg_cedears`, en pesos: prohibido) | todos (105 de 105) |
+| Otras bolsas | no | 31 de 32 (Brasil, Alemania, París, Tokio, Taiwán, Londres) |
+| Campos | sólo el último precio; su `v` **no** es el volumen del día | último, máximo, mínimo, volumen del día, moneda, hora de la operación |
+| Frescura | se mueve minuto a minuto | `realTime=true`, hora al segundo, a <0,1% de data912 en la misma lectura |
+| Pedidos | 2 (~412 KB) | los 480 en **un** pedido (~770 KB, ~1 s); se parte en lotes de 200 |
 
-- **Sólo en la rueda regular de Nueva York** (9:30-16:00, hora de NY, no del
-  navegador). En el after-hours el último precio pisaría el cierre, y el
-  pre/after ya tienen su columna aparte.
-- **Sólo si la última vela guardada ES la de hoy.** Si no, ese precio no tiene
-  dónde ir: inventar una vela nueva sin apertura ni volumen es un dato falso.
-  Hasta ~10 minutos después de la apertura (lo que tarda la intradía en
-  publicar la vela del día) no se parchea nada, y está bien.
-- **Se toca el cierre y se estira máximo/mínimo si el precio los pasa.**
-  **Nunca la apertura ni el volumen**: no los trae, y dejar los de la intradía
-  es lo único honesto.
-- **Un precio a más de 15% del guardado se descarta** como dato roto
-  (`VIVO_SALTO_MAX`) y el `title` de la pastilla lo cuenta.
-- **Los de otro mercado no se tocan** (`.SA`, `.DE`, `.T`…): data912 es de EE.UU.
-  y un ticker igual en otra bolsa es otro papel.
-- data912 escribe las clases con punto: `BRK-B` de Yahoo es `BRK.B` allá.
+**El orden:** data912 para lo suyo, CNBC para lo que data912 no trae (ETFs y
+bolsas de afuera), y **CNBC para todo si data912 no contesta**. Si data912 trae
+un precio roto para un papel que CNBC también tiene, se prueba con CNBC. Si se
+caen las dos queda el refresco de 10 minutos del sitio (`intradia.yml`, Yahoo
+del lado del servidor), que es la tercera red y ya existía. **Se probaron y NO
+sirven desde el navegador**: MarketWatch/Dow Jones (cubre 31 de 32 de afuera
+pero sin CORS), Cboe (sin CORS, 15 min de demora y la mitad de los ETF), Stooq
+(404) y Nasdaq (sin CORS). Yahoo, ya se sabía: sin CORS.
+
+**Cómo escribe CNBC los símbolos.** EE.UU. con punto en las clases (`BRK.B`).
+Las bolsas de afuera con `-` y un código **por bolsa**, no por ticker
+(`CNBC_BOLSA`: `.SA→-BR`, `.DE→-DE`, `.PA→-FR`, `.T→-JP`, `.TW→-TW`,
+`.IL→-GB`), y se pide **también** el símbolo de Yahoo tal cual, porque ninguna
+forma sola alcanza: `ABEV3` sólo sale como `ABEV3.SA` y `MBG.DE` sólo como
+`MBG-DE`. `000660.KS` (SK Hynix) CNBC sólo lo tiene como OTC en dólares
+(`HXSCL`), que es otro instrumento: queda sin precio en vivo, y la pastilla lo
+dice. Los números vienen como texto con coma de miles (`"1,799.89"`).
+
+Las reglas del parche, **las mismas para las dos fuentes**, cada una con su
+sabotaje en `pruebas/vivo.js`:
+
+- **EE.UU. sólo durante la rueda regular de Nueva York** (9:30-16:00, hora de
+  NY, no del navegador). En el after-hours el último precio pisaría el cierre.
+- **La cotización tiene que ser del mismo día que la última vela.** data912 no
+  dice de cuándo es su precio, así que vale la rueda de NY en curso. CNBC trae
+  `last_time` **en la hora de su bolsa** (`…+0200`, `…-0300`, o sólo la fecha
+  si hace días que no opera, como Tokio con feriados), que es la misma fecha
+  que usa Yahoo para la vela. Por eso las bolsas de afuera se actualizan también
+  con Nueva York cerrado, y el fin de semana no se pide nada.
+- **Si la vela de hoy todavía no existe no se toca nada.** Hasta ~10 minutos
+  después de la apertura (lo que tarda la intradía) no hay sobre qué parchear, y
+  fabricar una vela sería inventarla.
+- **La moneda tiene que ser la del papel** (`mon` del payload contra
+  `currencyCode`). Euro contra dólar difiere menos de 15% y la regla de abajo
+  sola no lo ataja.
+- **Un precio a más de 15% del guardado se descarta** (`VIVO_SALTO_MAX`), y lo
+  mismo un máximo o mínimo de CNBC que se vaya de ahí.
+- **Se pisa el cierre y se estiran máximo y mínimo.** El volumen **sólo sube**
+  (en el día nunca baja) y **sólo desde CNBC**. **La apertura no se toca nunca.**
+- data912 escribe las clases con punto: `BRK-B` de Yahoo es `BRK.B` allá. Y un
+  papel de otra bolsa nunca toma el precio de data912: un ticker igual en otra
+  bolsa es otro papel.
 - **Pestaña oculta = cero pedidos**; al volver, pide enseguida.
-- Si data912 no contesta, **sin alarma**: la pastilla deja de decir `en vivo` y
-  vuelve a decir de cuándo es lo publicado.
+- **A CNBC no se le pide lo que data912 ya trajo**, salvo que data912 se haya
+  caído.
+- **Sin alarmas.** Si se cae una, la pastilla sigue `en vivo` y el `title` dice
+  cuál está de respaldo; si se caen las dos, vuelve a decir de cuándo es lo
+  publicado. **Con Nueva York cerrado nunca dice `en vivo`**, aunque se estén
+  moviendo los de San Pablo: sería exagerar lo que se está actualizando.
 
 Sólo se tiran del caché (`cacheBase`, `cacheSem`, `memoAsh`) los símbolos que
-cambiaron, y se recalcula; los filtros y el orden se aplican sobre los precios
-nuevos igual que siempre.
+cambiaron, y se recalcula; los filtros, el orden y las tarjetas de Panorama se
+aplican sobre los precios nuevos igual que siempre.
+
+> **Las dos son servicios de terceros sin contrato.** El endpoint de CNBC es el
+> que usa su propia página (`partnerId=2`), no una API publicada: puede cambiar
+> sin aviso. Por eso hay dos, y por eso lo publicado cada 10 minutos sigue
+> siendo la base y esto va encima.
 
 > **Pruebas que cuentan pedidos:** si una prueba cuenta los `fetch` de la
-> página, el de data912 se le suma **sólo cuando Nueva York está abierto** al
-> correrla. `yahoo.js` lo sufrió (pasaba a la noche, fallaba a la tarde); su
-> stub ahora rechaza data912 sin contarlo. Cualquier prueba nueva que cuente
-> pedidos tiene que hacer lo mismo.
+> página, los de data912 y CNBC se le suman **sólo cuando hay alguna bolsa
+> abierta** al correrla. `yahoo.js` lo sufrió (pasaba a la noche, fallaba a la
+> tarde); su stub ahora rechaza las dos sin contarlas. Cualquier prueba nueva
+> que cuente pedidos tiene que hacer lo mismo.
 
 ### Sobre reescribir en C++ (se preguntó, se midió)
 
@@ -2115,7 +2153,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `rapido.py` | la fusión intradía: sin duplicar fechas, sin perder historial, y que el bucle del workflow relea lo publicado antes de fusionar |
 | `renta_fija.py` | **la cuenta contra casos analíticos** (un bono a la par rinde su cupón, la duration de un cupón cero es su plazo) **y los cronogramas contra la referencia externa**. Separados a propósito: si falla lo primero está mal el programa, si falla lo segundo está mal el CSV. |
 | `bonos.js` | la vista de bonos: que lo que el payload trae llegue a la pantalla, la curva, el cronograma que se abre, las ONs por emisor |
-| `vivo.js` | el precio en vivo de data912: sólo en la rueda, sólo la vela de hoy, sin tocar apertura ni volumen, los saltos descartados, la pastilla, y cero pedidos con la pestaña oculta |
+| `vivo.js` | el precio en vivo: data912 y CNBC, las reglas del parche para las dos (rueda, misma fecha, moneda, saltos, apertura y volumen), los símbolos de CNBC por bolsa, CNBC de respaldo cuando data912 se cae, lo que se le pide a cada una, la pastilla, y cero pedidos el fin de semana o con la pestaña oculta |
 | `menus.js` | los desplegables de la barra, el engranaje, y **que ningún control quede huérfano al mudarse de contenedor** |
 
 Los de renta fija cubren además **lo que se mantiene solo**: que una familia
@@ -2250,9 +2288,10 @@ necesitan internet.
 24. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
     sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
     pero **no de la tabla**, y la tarjeta dice cuál y por qué.
-25. **El precio en vivo sólo toca el cierre de la vela de HOY.** Nunca crea una
-    vela, nunca toca apertura ni volumen, nunca fuera de la rueda regular, y
-    nunca de un papel de otro mercado. data912 no trae con qué hacerlo bien.
+25. **El precio en vivo sólo toca la vela de la MISMA rueda que la cotización.**
+    Nunca crea una vela, nunca toca la apertura, nunca en otra moneda, nunca un
+    papel de EE.UU. fuera de la rueda regular, y el volumen sólo sube y sólo
+    desde CNBC (el de data912 no es el del día).
 
 ---
 
@@ -2272,7 +2311,8 @@ necesitan internet.
    de Yahoo (el caso `ACH`). Un CSV `correcciones.csv` que se aplique después de
    `bajar_fundamentales`.
 4. **Pedirle los precios del día a data912 en vez de a Yahoo, también en la
-   intradía.** La página ya lo hace cada minuto (§8b, *Precios en vivo*); lo
+   intradía.** La página ya lo hace cada minuto, con CNBC para el resto (§8b,
+   *Precios en vivo*); lo
    que falta es el lado del servidor. Medido: cubre
    **374 de los 465 en dólares con dos pedidos** contra los 465 de Yahoo (ver la
    sección 8b). Es un 81% menos de pedidos contra la única fuente que
