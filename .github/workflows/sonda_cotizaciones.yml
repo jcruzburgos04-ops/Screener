@@ -100,7 +100,7 @@ jobs:
               for v in (f"{b}-{PAIS[s]}", t):
                   f = q.get(v)
                   if f:
-                      print(f"  {t:10s} {v:10s} {f.get('last'):>10s} {str(f.get('currencyCode')):4s} {S[t].get('mon'):4s} {S[t]['c'][-1]:>10.2f}  {f.get('last_time','-'):24s} {f.get('name')}")
+                      print(f"  {t:10s} {v:10s} {str(f.get('last')):>10s} {str(f.get('currencyCode')):4s} {str(S[t].get('mon')):4s} {S[t]['c'][-1]:>10.2f}  {f.get('last_time','-'):24s} {f.get('name')}")
                   else:
                       print(f"  {t:10s} {v:10s} -- nada")
           # extra para los dos que faltaron: otras formas
