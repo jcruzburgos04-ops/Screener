@@ -2093,6 +2093,14 @@ sabotaje en `pruebas/vivo.js`:
   publicado. **Con Nueva York cerrado nunca dice `en vivo`**, aunque se estén
   moviendo los de San Pablo: sería exagerar lo que se está actualizando.
 
+**Verificado en un Chromium de verdad sobre el sitio publicado** (23/9/2026,
+15:56 UTC, desde Actions con Playwright; la sonda se borró): las dos fuentes
+contestaron 200 al navegador sin bloqueo de CORS, **478 de 480** quedaron en
+vivo —343 por data912 y 135 por CNBC—, el único sin fuente fue `000660.KS`, y
+la pastilla decía `en vivo`. La máquina de desarrollo no llega a ninguna de las
+dos (el proxy las rechaza), así que ésa es la única verificación de punta a
+punta posible: si algo cambia, se repite con una sonda igual.
+
 Sólo se tiran del caché (`cacheBase`, `cacheSem`, `memoAsh`) los símbolos que
 cambiaron, y se recalcula; los filtros, el orden y las tarjetas de Panorama se
 aplican sobre los precios nuevos igual que siempre.
