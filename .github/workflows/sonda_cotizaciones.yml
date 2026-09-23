@@ -1,0 +1,242 @@
+# =============================================================================
+# SONDA: ¿quien cubre lo que data912 no cubre?
+#
+# A mano y TEMPORAL: contesta una pregunta y se borra, como sonda_data912.yml.
+#
+# data912 da en vivo 342 de 493 y deja afuera TODOS los ETF (los paneles de
+# Indices y Sectores de Panorama) y todo lo que cotiza fuera de EE.UU. (.SA,
+# .DE, .PA, .T, .TW, .KS, .IL). Aca se prueba cada candidata contra ESOS
+# papeles y contra una muestra de acciones de EE.UU. (para saber si sirve de
+# respaldo cuando data912 se cae), y se mide lo que decide si se puede usar:
+#
+#   - CORS: si la respuesta trae access-control-allow-origin para el origen
+#     de GitHub Pages. Sin eso el navegador la tira, como pasa con Yahoo.
+#   - que el precio CIERRE contra el ultimo cierre publicado (8%): un ticker
+#     igual puede ser otra empresa (el caso SI) u otra moneda (peniques).
+#   - que campos trae: apertura, maximo, minimo, volumen.
+#   - si se mueve entre dos lecturas separadas un minuto.
+# =============================================================================
+name: Sonda cotizaciones
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+
+      - name: Candidatas contra lo que data912 no cubre
+        run: |
+          python - <<'PY'
+          import json, time, urllib.request, urllib.parse, csv, io
+
+          ORIGEN = "https://jcruzburgos04-ops.github.io"
+          UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36"
+
+          def pedir(url, cab=None):
+              h = {"User-Agent": UA, "Origin": ORIGEN, "Accept": "*/*"}
+              h.update(cab or {})
+              req = urllib.request.Request(url, headers=h)
+              t = time.time()
+              try:
+                  with urllib.request.urlopen(req, timeout=25) as r:
+                      cuerpo = r.read()
+                      return r.status, dict(r.headers), cuerpo, time.time() - t
+              except urllib.error.HTTPError as e:
+                  return e.code, dict(e.headers), e.read()[:300], time.time() - t
+              except Exception as e:
+                  return None, {}, str(e).encode(), time.time() - t
+
+          def cors(cab):
+              v = {k.lower(): x for k, x in cab.items()}.get("access-control-allow-origin")
+              return v if v in ("*", ORIGEN) else ("NO" if v is None else f"otro:{v}")
+
+          datos = json.loads(pedir("https://raw.githubusercontent.com/jcruzburgos04-ops/Screener/gh-pages/datos.json")[2])
+          cierre = {s["t"]: s["c"][-1] for s in datos["simbolos"]}
+          grupo = {s["t"]: s.get("g") for s in datos["simbolos"]}
+          d912 = set()
+          for u in ("https://data912.com/live/usa_stocks", "https://data912.com/live/usa_adrs"):
+              d912 |= {f["symbol"] for f in json.loads(pedir(u)[2])}
+          extranjero = lambda t: "." in t[1:]
+          faltan = [t for t in cierre if extranjero(t) or t.replace("-", ".") not in d912]
+          faltan_us = [t for t in faltan if not extranjero(t)]
+          faltan_ex = [t for t in faltan if extranjero(t)]
+          muestra = ["AAPL", "MSFT", "NVDA", "KO", "BRK-B", "MELI", "TSM", "BABA"]
+          print(f"universo {len(cierre)} · data912 cubre {len(cierre)-len(faltan)} · "
+                f"faltan {len(faltan)}: {len(faltan_us)} de EE.UU. y {len(faltan_ex)} de otras bolsas")
+          print("faltan de EE.UU.:", " ".join(faltan_us))
+          print("faltan de otras bolsas:", " ".join(faltan_ex))
+
+          def cierra(t, p):
+              c = cierre.get(t)
+              return bool(c and p and 0.92 < p / c < 1.08)
+
+          # ---- variantes de simbolo por fuente, para las bolsas de afuera ----
+          PAIS = {"SA": "BR", "DE": "DE", "PA": "FR", "T": "JP", "TW": "TW", "KS": "KR", "IL": "UK"}
+          def base(t): return t.rsplit(".", 1)[0]
+          def suf(t): return t.rsplit(".", 1)[1]
+
+          informe = {}
+
+          def resumir(nombre, res, extra=""):
+              # res: {ticker_yahoo: (precio, campos, nombre, variante)}
+              ok_us = [t for t in faltan_us if t in res and cierra(t, res[t][0])]
+              ok_ex = [t for t in faltan_ex if t in res and cierra(t, res[t][0])]
+              ok_m = [t for t in muestra if t in res and cierra(t, res[t][0])]
+              raros = [(t, res[t][0], cierre.get(t), res[t][2]) for t in res if not cierra(t, res[t][0])]
+              campos = sorted({c for v in res.values() for c in v[1]})
+              informe[nombre] = (len(ok_us), len(ok_ex), len(ok_m))
+              print(f"\n##### {nombre} {extra}")
+              print(f"  cierran: ETF/EE.UU. {len(ok_us)}/{len(faltan_us)} · otras bolsas "
+                    f"{len(ok_ex)}/{len(faltan_ex)} · muestra de respaldo {len(ok_m)}/{len(muestra)}")
+              print(f"  campos con dato: {' '.join(campos)}")
+              print(f"  sin cubrir EE.UU.: {' '.join(t for t in faltan_us if t not in ok_us)}")
+              print(f"  sin cubrir afuera: {' '.join(t for t in faltan_ex if t not in ok_ex)}")
+              vari = {t: res[t][3] for t in ok_ex}
+              if vari: print(f"  variantes que sirvieron: {vari}")
+              for r in raros[:15]:
+                  print(f"  NO CIERRA {r[0]}: fuente {r[1]} vs publicado {r[2]} · {r[3]}")
+
+          def num(x):
+              try:
+                  x = float(str(x).replace(",", "").replace("%", ""))
+                  return x if x == x else None
+              except Exception:
+                  return None
+
+          # ======================= CNBC =======================
+          def cnbc(simbolos):
+              u = ("https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols="
+                   + urllib.parse.quote("|".join(simbolos)) +
+                   "&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1")
+              st, cab, cu, dt = pedir(u)
+              out = {}
+              try:
+                  q = json.loads(cu)["FormattedQuoteResult"]["FormattedQuote"]
+                  q = q if isinstance(q, list) else [q]
+                  for f in q:
+                      out[f.get("symbol")] = f
+              except Exception as e:
+                  pass
+              return st, cab, out, dt
+
+          def var_cnbc(t):
+              if not extranjero(t): return [t.replace("-", ".")]
+              b, s = base(t), suf(t)
+              return [f"{b}-{PAIS[s]}", t, f"{b}.{PAIS[s]}"]
+
+          res, info = {}, None
+          todos = faltan + muestra
+          intentos = {t: var_cnbc(t) for t in todos}
+          for k in range(3):
+              lote = [(t, intentos[t][k]) for t in todos if t not in res and len(intentos[t]) > k]
+              for i in range(0, len(lote), 40):
+                  trozo = lote[i:i+40]
+                  st, cab, out, dt = cnbc([v for _, v in trozo])
+                  if info is None: info = (st, cors(cab), round(dt, 2))
+                  for t, v in trozo:
+                      f = out.get(v)
+                      if not f: continue
+                      p = num(f.get("last"))
+                      if p is None: continue
+                      campos = [c for c in ("open", "high", "low", "volume", "previous_day_closing", "currencyCode", "last_time") if f.get(c) not in (None, "", "UNCH")]
+                      res[t] = (p, campos, f"{f.get('name')} {f.get('currencyCode')}", v)
+          resumir("CNBC", res, f"(HTTP {info[0]}, CORS {info[1]}, {info[2]} s por lote de 40)")
+
+          # ======================= Cboe (demorado 15 min, solo EE.UU.) =======================
+          res, info = {}, None
+          for t in faltan_us + muestra:
+              st, cab, cu, dt = pedir(f"https://cdn.cboe.com/api/global/delayed_quotes/quotes/{t.replace('-', '.')}.json")
+              if info is None: info = (st, cors(cab), round(dt, 2))
+              try:
+                  f = json.loads(cu)["data"]
+                  p = num(f.get("current_price"))
+                  campos = [c for c in ("open", "high", "low", "volume", "prev_day_close", "last_trade_time") if f.get(c) not in (None, "", 0)]
+                  if p: res[t] = (p, campos, f.get("symbol"), t)
+              except Exception:
+                  pass
+          resumir("Cboe", res, f"(HTTP {info[0]}, CORS {info[1]}, {info[2]} s por simbolo)")
+
+          # ======================= Stooq =======================
+          SQ = {"SA": None, "DE": "de", "PA": "fr", "T": "jp", "TW": None, "KS": None, "IL": "uk"}
+          def var_sq(t):
+              if not extranjero(t): return t.replace("-", ".").lower() + ".us"
+              s = SQ.get(suf(t)); return f"{base(t).lower()}.{s}" if s else None
+          res, info = {}, None
+          lista = [(t, var_sq(t)) for t in todos if var_sq(t)]
+          for i in range(0, len(lista), 40):
+              trozo = lista[i:i+40]
+              st, cab, cu, dt = pedir("https://stooq.com/q/l/?s=" + "+".join(v for _, v in trozo) + "&f=sd2t2ohlcvn&h&e=csv")
+              if info is None: info = (st, cors(cab), round(dt, 2), cu[:120])
+              filas = {r.get("Symbol", "").lower(): r for r in csv.DictReader(io.StringIO(cu.decode("utf-8", "replace")))}
+              for t, v in trozo:
+                  r = filas.get(v)
+                  if not r: continue
+                  p = num(r.get("Close"))
+                  campos = [c for c in ("Open", "High", "Low", "Volume", "Date", "Time") if num(r.get(c)) or (c in ("Date", "Time") and r.get(c) not in (None, "N/D"))]
+                  if p: res[t] = (p, campos, r.get("Name"), v)
+          resumir("Stooq", res, f"(HTTP {info[0]}, CORS {info[1]}, {info[2]} s por lote) primera linea: {info[3]!r}")
+
+          # ======================= MarketWatch / Dow Jones =======================
+          MW = {"SA": "BR", "DE": "XE", "PA": "FR", "T": "JP", "TW": "TW", "KS": "KR", "IL": "UK"}
+          def var_mw(t):
+              if not extranjero(t):
+                  tipo = "ExchangeTradedFund" if grupo.get(t) in ("ETF", "Indices", "Sectores") else "Stock"
+                  return [f"{tipo}-US-{t.replace('-', '.')}", f"Stock-US-{t.replace('-', '.')}", f"ExchangeTradedFund-US-{t}"]
+              return [f"Stock-{MW[suf(t)]}-{base(t)}", f"Stock-{PAIS[suf(t)]}-{base(t)}"]
+          res, info = {}, None
+          for k in range(3):
+              lote = [(t, var_mw(t)[k]) for t in todos if t not in res and len(var_mw(t)) > k]
+              for i in range(0, len(lote), 25):
+                  trozo = lote[i:i+25]
+                  u = ("https://api.wsj.net/api/dylan/quotes/v2/comp/quoteByDialect?dialect=official&needed=CompositeTrading|BluegrassChannels"
+                       "&MaxInstrumentMatches=1&accept=application/json&EntitlementToken=cecc4267a0194af89ca343805a3e57af&ckey=cecc4267a0"
+                       "&dialects=Charting&id=" + ",".join(v for _, v in trozo))
+                  st, cab, cu, dt = pedir(u)
+                  if info is None: info = (st, cors(cab), round(dt, 2), cu[:150])
+                  try:
+                      inst = json.loads(cu)["InstrumentResponses"]
+                  except Exception:
+                      continue
+                  for (t, v), r in zip(trozo, inst):
+                      try:
+                          m = r["Matches"][0]; ct = m["CompositeTrading"]
+                          p = num(ct["Last"]["Price"]["Value"])
+                          campos = [c for c in ("Open", "High", "Low", "Volume") if ct.get(c) not in (None, "")]
+                          if p: res[t] = (p, campos, f"{m['Instrument'].get('CommonName')} {ct['Last']['Price'].get('Iso')}", v)
+                      except Exception:
+                          pass
+          resumir("MarketWatch", res, f"(HTTP {info[0]}, CORS {info[1]}, {info[2]} s por lote) {info[3]!r}")
+
+          # ======================= Nasdaq (una muestra, solo CORS) =======================
+          st, cab, cu, dt = pedir("https://api.nasdaq.com/api/quote/SPY/info?assetclass=etf")
+          print(f"\n##### Nasdaq: HTTP {st}, CORS {cors(cab)}, {cu[:120]!r}")
+
+          # ======================= frescura: dos lecturas a un minuto =======================
+          vig = ["SPY", "QQQ", "XLK", "GLD", "EWZ", "IWM"]
+          a = {k: num(v.get("last")) for k, v in cnbc(vig)[2].items()}
+          b0 = {}
+          for t in vig:
+              try: b0[t] = num(json.loads(pedir(f"https://cdn.cboe.com/api/global/delayed_quotes/quotes/{t}.json")[2])["data"]["current_price"])
+              except Exception: b0[t] = None
+          t0 = time.strftime("%H:%M:%S", time.gmtime()); time.sleep(60)
+          b = {k: num(v.get("last")) for k, v in cnbc(vig)[2].items()}
+          b1 = {}
+          for t in vig:
+              try: b1[t] = num(json.loads(pedir(f"https://cdn.cboe.com/api/global/delayed_quotes/quotes/{t}.json")[2])["data"]["current_price"])
+              except Exception: b1[t] = None
+          print(f"\nfrescura {t0} -> {time.strftime('%H:%M:%S', time.gmtime())} UTC")
+          for t in vig:
+              print(f"  {t:5s} CNBC {a.get(t)} -> {b.get(t)}   Cboe {b0.get(t)} -> {b1.get(t)}")
+
+          print("\nRESUMEN (cierran: ETF-EE.UU. / otras bolsas / muestra de respaldo)")
+          for k, v in informe.items():
+              print(f"  {k:12s} {v[0]:3d}/{len(faltan_us)}  {v[1]:3d}/{len(faltan_ex)}  {v[2]}/{len(muestra)}")
+          PY
