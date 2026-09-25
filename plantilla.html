@@ -1134,6 +1134,12 @@ body.cajon #velo{display:block}
       principio y al final, sin ser una V ni una tendencia. Medido sobre dos años
       de los papeles reales: encuentra la figura, pero <b>no quedó probado</b> que
       anticipe un movimiento más grande que el normal.</p>
+    <p class="nota"><b style="color:var(--ambar)">Directriz bajista</b>: la
+      recta que une máximos cada vez más bajos, de 6 a 16 ruedas, con el precio
+      pegado debajo. Sólo la de arriba: el piso no se exige. La ruptura cuenta
+      con <b style="color:var(--tenue)">cierre por encima</b> y se sigue
+      mostrando cinco ruedas mientras el precio no vuelva abajo. Medida sobre dos
+      años: la ruptura <b>no rindió más</b> que un día cualquiera.</p>
     <p class="nota">El rVWAP corta por <b style="color:var(--tenue)">días
       calendario</b>, no por cantidad de ruedas. No es lo mismo: en una acción,
       365 ruedas abarcan unos 17 meses, así que el «365d» de antes venía medio
@@ -1260,6 +1266,14 @@ body.cajon #velo{display:block}
       <option value="Rompió ↑">Rompió ↑ · salió por la resistencia</option>
       <option value="Rompió ↓">Rompió ↓ · salió por el piso</option>
       <option value="todo">Cualquiera, con rupturas</option></select>
+    <label title="La recta que une máximos cada vez más bajos, de 6 a 16 ruedas, con el precio pegado debajo. La ruptura cuenta con CIERRE por encima.">Directriz bajista</label>
+    <select id="fDir"><option value="">—</option>
+      <option value="Debajo">Debajo de la recta, todavía sin romper</option>
+      <option value="Rompió ↑">La rompió con cierre arriba (≤ 5 ruedas)</option>
+      <option value="hoy">La rompió hoy</option>
+      <option value="any">Cualquiera de las dos</option></select>
+    <label>Debajo, a ≤ X% de la recta <b id="lDirDist">off</b></label>
+    <input type="range" id="fDirDist" min="0" max="10" step="0.25" value="0">
 
     <div class="subt">ASH</div>
     <label>ASH diario positivo</label>
@@ -1853,6 +1867,107 @@ function calcAsh(b,cfg){
   return {bulls:sb,bears:sr,hist:h};
 }
 
+/* ---------- directriz bajista: la recta de maximos que bajan ----------
+   Lo pidio el usuario con dos capturas (25/9/2026): una recta que une maximos
+   cada vez mas bajos, el precio apretado debajo durante dos o tres semanas, y
+   la ruptura con CIERRE por encima ("cierre por encima", no alcanza la mecha).
+   Abajo no hace falta ninguna recta: eso lo mide la compresion, y exigir el
+   piso dejaba afuera justo esta figura.
+
+   LA RECTA: sale de un maximo que ninguna vela posterior supero (y que es el
+   mas alto de las 5 anteriores: un pico de verdad), y baja con la pendiente
+   que la deja apoyada en los maximos siguientes sin que ninguno quede arriba.
+   Es la que se traza a mano desde el techo. Entre las candidatas gana la que
+   mas toques junta; a igualdad, la mas larga. Todo sobre velas DIARIAS: el
+   screener es diario, y 6 a 16 velas son las "dos o tres semanas" del pedido.
+
+   LO QUE NO ES, visto dibujado sobre los 480 papeles reales:
+     - una caida: la recta sale del maximo de ANTES de un derrumbe y baja
+       empinada atravesandolo (ETSY, PATH, BKR, SNOW). La sacan el tope de
+       pendiente (0,25 ADR por rueda) y un apriete minimo: el derrumbe infla el
+       ancho del arranque y da un "apriete" de 5-23% que no es compresion.
+     - un precio que vive lejos de la recta (AMGN, WMT): en la figura el cierre
+       esta PEGADO debajo, a menos de 2,5 ADRs en promedio.
+     - un canal bajista: si los minimos caen a mas de la mitad del ritmo de la
+       recta, no se esta apretando nada. Es la regla que mas trabaja: sin ella
+       se marcaria cuatro veces mas (3.094 dias-papel contra 715).
+   Se probo tambien una pendiente MINIMA y estaba muerta: dio exactamente lo
+   mismo con y sin ella, porque la recta ya tiene que bajar por construccion
+   (m < 0). Se saco (invariante 26).
+
+   Y LO QUE DIJO EL BARRIDO (250 dias x 480 papeles), que hay que saber: la
+   ruptura no rindio mas que un dia cualquiera (-0,1% contra +0,9% a 10
+   ruedas, +1,0% contra +2,0% a 20) y el movimiento siguiente fue MENOR que el
+   normal. El detector encuentra la figura; no quedo probado que anticipe. */
+const DIR={minL:6,maxL:16,
+  pico:5,         // el ancla es el maximo de las 5 velas anteriores
+  pendMax:0.25,   // a lo sumo 0,25 ADR por rueda: mas empinado es una caida
+  tol:0.2,        // un toque = a menos de 0,2 ADR de la recta
+  toques:3,       // el pico y al menos dos maximos mas
+  canal:0.5,      // los minimos caen a menos de la mitad del ritmo de la recta
+  aprMin:0.3, aprMax:0.7,  // se angosta contra el piso, sin ser un derrumbe
+  lejos:2.5,      // el cierre vive a menos de 2,5 ADRs de la recta
+  hace:5};        // una ruptura se sigue mostrando hasta 5 ruedas despues
+
+/* La recta cuya ultima vela es hasta-1, o null. valor(j) = h0 + m*(j-a). */
+function mejorDirectriz(b,hasta){
+  const z=hasta-1;
+  if(z<DIR.minL)return null;
+  let mejor=null,top=-Infinity;
+  for(let a=z;a>=Math.max(0,hasta-DIR.maxL);a--){
+    if(!(b.h[a]>top))continue;
+    top=b.h[a];
+    const L=hasta-a;
+    if(L<DIR.minL)continue;
+    let pico=true;
+    for(let j=Math.max(0,a-DIR.pico);j<a;j++)if(b.h[j]>b.h[a]){pico=false;break;}
+    if(!pico)continue;
+    let m=-Infinity;
+    for(let j=a+1;j<=z;j++){const s=(b.h[j]-b.h[a])/(j-a);if(s>m)m=s;}
+    if(!(m<0))continue;
+    const h0=b.h[a], recta=j=>h0+m*(j-a);
+    let suma=0;for(let j=a;j<=z;j++)suma+=b.h[j]/b.l[j];
+    const adr=suma/L-1, esc=adr*b.c[z];
+    if(!(adr>0)||!(esc>0))continue;
+    const pend=-m/esc;
+    if(pend>DIR.pendMax)continue;
+    const tol=DIR.tol*esc;let toques=0;
+    for(let j=a;j<=z;j++)if(recta(j)-b.h[j]<=tol)toques++;
+    if(toques<DIR.toques)continue;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for(let j=a;j<=z;j++){sx+=j;sy+=b.l[j];sxx+=j*j;sxy+=j*b.l[j];}
+    const mMin=(L*sxy-sx*sy)/(L*sxx-sx*sx);
+    if(mMin<m*DIR.canal)continue;
+    let piso=Infinity;for(let j=a;j<=z;j++)if(b.l[j]<piso)piso=b.l[j];
+    const apriete=(recta(z)-piso)/(h0-piso);
+    if(apriete>DIR.aprMax||apriete<DIR.aprMin)continue;
+    let lej=0;for(let j=a;j<=z;j++)lej+=(recta(j)-b.c[j])/esc;lej/=L;
+    if(lej>DIR.lejos)continue;
+    if(!mejor||toques>mejor.toques||(toques===mejor.toques&&L>mejor.L))
+      mejor={a,L,m,h0,toques,pend,apriete,lejos:lej};}
+  return mejor;}
+
+/* Debajo de la recta, o la rompio con cierre por encima en las ultimas cinco
+   ruedas y sigue arriba. En la ruptura se reporta la recta de la que SALIO. */
+function directriz(b){
+  const vacio={estado:'',hace:NaN,barras:NaN,toques:NaN,dist:NaN,a:NaN,m:NaN,h0:NaN};
+  const n=b.c.length, px=b.c[n-1];
+  if(n<DIR.minL+3||!(px>0))return vacio;
+  const salida=(f,estado,hace)=>({estado,hace,barras:f.L,toques:f.toques,
+    // > 0 = la recta esta por ENCIMA del cierre de hoy (cuanto le falta)
+    dist:(f.h0+f.m*(n-1-f.a))/px-1,a:f.a,m:f.m,h0:f.h0});
+  for(let t=n-1;t>=n-1-DIR.hace&&t>DIR.minL+1;t--){
+    const f=mejorDirectriz(b,t);
+    if(!f)continue;
+    const v=j=>f.h0+f.m*(j-f.a);
+    if(b.c[t]>v(t)*1.001&&b.c[t-1]<=v(t-1)*1.001){
+      let aguanta=true;
+      for(let j=t;j<n;j++)if(b.c[j]<v(j)){aguanta=false;break;}
+      if(aguanta)return salida(f,'Rompió ↑',n-1-t);}}
+  const f=mejorDirectriz(b,n);
+  if(f&&px<=f.h0+f.m*(n-1-f.a))return salida(f,'Debajo',NaN);
+  return vacio;}
+
 // (bulls-bears)/(bulls+bears): acotado a [-1,1] y comparable entre tickers
 function ashNorm(bu,be){const t=bu+be;return isFinite(t)&&t!==0?(bu-be)/t:NaN;}
 
@@ -2195,6 +2310,10 @@ function calcularBase(s,cfg){
   const Q=compresion(b);
   f.compr=Q.estado; f.compr_ruedas=Q.barras; f.compr_apriete=Q.apriete;
   f.compr_ancho=Q.ancho; f.compr_dist=Q.distRes;
+  // --- directriz bajista: la recta de maximos que bajan ---
+  const Z=directriz(b);
+  f.dir=Z.estado; f.dir_hace=Z.hace; f.dir_ruedas=Z.barras; f.dir_toques=Z.toques;
+  f.dir_dist=Z.dist;
   // Los que no llegan al warmup no se descartan en silencio
   f.sin_historial=(NB.c1.sesgo===null||NB.c2.sesgo===null);
   return f;
@@ -2282,6 +2401,12 @@ function pasaFiltros(f,F){
        :F.compr==='todo'?!!f.compr
        :F.compr==='cuña'?(f.compr||'').indexOf('Cuña')===0
        :f.compr===F.compr))&&
+    // --- directriz bajista ---
+    (F.dir===null||(F.dir==='any'?!!f.dir
+       :F.dir==='hoy'?(f.dir==='Rompió ↑'&&f.dir_hace===0)
+       :f.dir===F.dir))&&
+    // "a menos de X%": solo tiene sentido debajo, todavia sin romper
+    (F.dirDist===null||(f.dir==='Debajo'&&isFinite(f.dir_dist)&&f.dir_dist<=F.dirDist/100))&&
     bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
     pasaCruce(f,F)&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
@@ -2301,7 +2426,7 @@ function pasaFiltros(f,F){
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
   emaPine,rvwapDias,senalesNube,comboSeries,consolidacion,mejorCaja,
-  compresion,mejorCompresion,tipoCompresion,CMP,
+  compresion,mejorCompresion,tipoCompresion,CMP,directriz,mejorDirectriz,DIR,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -2335,7 +2460,7 @@ let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
  fRegimen:'',fFondo:'',fPosW:'',fPosD:'',fCruceW:'',fCruceWN:'0',fAnchoW:'0',fDistW:'0',
- fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',fCompr:'',
+ fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',fCompr:'',fDir:'',fDirDist:'0',
  fRvwap:'-50',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
  fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
@@ -2351,6 +2476,7 @@ const NOMBRE_FILTRO={
   distW:'Distancia a la nube 21/34', rvwapMin:'vs rVWAP 365d',
   consol:'Estado de la caja', cajaAlto:'Alto de la caja',
   cajaRuedas:'Ruedas en la caja', cajaPos:'Dónde en la caja', compr:'Compresión',
+  dir:'Directriz bajista', dirDist:'Distancia a la directriz',
   rvLlena:'Ventana del rVWAP llena', conHistorial:'Con historial suficiente',
   ashD:'ASH diario', ashW:'ASH semanal', ashCrece:'ASH creciendo',
   cruceMax:'Cruce del ASH', adxMin:'ADX mínimo', precio:'Precio mínimo',
@@ -2568,6 +2694,15 @@ const COLS=[
   {k:'compr_ruedas', t:'Ruedas compr.', fmt:v=>isFinite(v)?v:''},
   {k:'compr_apriete',t:'Apriete', fmt:v=>isFinite(v)?`<span title="ancho de hoy contra el del arranque">${Math.round(v*100)}%</span>`:''},
   {k:'compr_dist',   t:'A la resist.', fmt:pct},
+  // --- directriz bajista: se ordena por lo que le falta para romper
+  {k:'dir', t:'Directriz', izq:1, def:1, ord:'dir_dist',
+   fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
+     const tt=`${f.dir_ruedas} ruedas · ${f.dir_toques} toques`;
+     if(v==='Rompió ↑')return `<span class="caja-ru" title="${tt} · la cerró por encima">`+
+       (f.dir_hace===0?'Rompió ↑ hoy':`Rompió ↑ hace ${f.dir_hace}`)+'</span>';
+     return `<span class="caja-ap" title="${tt} · le falta ${pct(f.dir_dist)} para cerrar arriba">Debajo · ${pct(f.dir_dist)}</span>`;}},
+  {k:'dir_ruedas', t:'Ruedas dir.', fmt:v=>isFinite(v)?v:''},
+  {k:'dir_toques', t:'Toques dir.', fmt:v=>isFinite(v)?v:''},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -2605,7 +2740,7 @@ let colsOn=new Set(COLS_DEF);
    las que son del set por defecto y no existian entonces se agregan; las que el
    usuario apago a proposito quedan apagadas, porque esas si las conocia. */
 const COLS_AGREGADAS=['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
-  'tl_sop_pend','tl_toques','atraso','ultima','nombre','compr'];
+  'tl_sop_pend','tl_toques','atraso','ultima','nombre','compr','dir'];
 /* Que columnas se agregaron solas en esta apertura. Se muestra en el
    desplegable: que aparezcan columnas nuevas sin explicacion se lee como "se
    me borro la configuracion", que es justo lo contrario de lo que paso. */
@@ -2660,6 +2795,7 @@ function filtros(){return{
   consol:$('#fConsol').value||null, cajaAlto:val('#fCajaAlto')||null,
   cajaRuedas:val('#fCajaRuedas')||null, cajaPos:$('#fCajaPos').value||null,
   compr:$('#fCompr').value||null,
+  dir:$('#fDir').value||null, dirDist:val('#fDirDist')||null,
   ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
   cruceMax:val('#fCruceMax')||null,
   // La direccion sola no es un filtro: sin N no filtra nada, y si viajara
@@ -2929,7 +3065,7 @@ const GRUPOS_COL=[
           'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
   ['Consolidación',['consol','consol_rango','consol_barras','consol_pos','consol_aprieta',
-    'compr','compr_ruedas','compr_apriete','compr_dist']],
+    'compr','compr_ruedas','compr_apriete','compr_dist','dir','dir_ruedas','dir_toques']],
   ['Combos EMA',['regimen','c3_sesgo','c1_pos','c1_dist','c1_dist_atr','c1_ancho',
     'c1_cruce','c2_pos','c2_dist','c2_dist_atr','c2_ancho','c2_cruce',
     'c3_pos','c3_dist','c3_cruce',
@@ -3294,7 +3430,23 @@ function dibujar(cursor){
         ahi caia encima del de la caja, que suele marcar el mismo tramo. */
      g.fillStyle=`rgba(${cc},.95)`;g.font='10px ui-monospace,monospace';g.textAlign='left';
      g.fillText(`${Q.estado}  ·  ${Q.barras} ruedas  ·  hoy mide el ${Math.round(Q.apriete*100)}% del arranque`,
-       x0+6,48);}}
+       x0+6,48);}
+  /* LA DIRECTRIZ BAJISTA: una sola recta, desde el pico hasta hoy. BLANCA,
+     como la negra de las capturas del usuario: en verde se perdia contra la
+     nube 21/34, que es del mismo color (se vio en la foto de UNG). El estado
+     va en el color del rotulo. */
+   const Z=directriz(visB);
+   if(Z.estado&&Z.a>=0&&Z.a<N){
+     const cc=Z.estado==='Rompió ↑'?'79,178,134':'224,164,88';
+     const xi=i=>x0+paso*(i+.5), z=N-1, v=i=>Z.h0+Z.m*(i-Z.a);
+     g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
+     g.strokeStyle='rgba(240,240,240,.95)';g.lineWidth=2;
+     g.beginPath();g.moveTo(xi(Z.a),escY(v(Z.a),mn,mx,8,h1));
+     g.lineTo(xi(z),escY(v(z),mn,mx,8,h1));g.stroke();
+     g.restore();
+     g.fillStyle=`rgba(${cc},.95)`;g.font='10px ui-monospace,monospace';g.textAlign='left';
+     g.fillText(`Directriz · ${Z.estado==='Rompió ↑'?(Z.hace?`la rompió hace ${Z.hace}`:'la rompió hoy'):`debajo, a ${pct(Z.dist)}`}  ·  ${Z.barras} ruedas · ${Z.toques} toques`,
+       x0+6,Q.estado?62:48);}}
 
   /* El rVWAP de 365 dias, la linea naranja suelta del Pine.
      Se calcula sobre TODAS las barras y se recorta despues: la ventana son
@@ -5217,6 +5369,7 @@ function etiquetas(){
   p('#fAnchoW','#lAnchoW',v=>'≥ '+v.toFixed(1)+'%');
   p('#fCajaAlto','#lCajaAlto',v=>'≤ '+v.toFixed(1)+'%');
   p('#fCajaRuedas','#lCajaRuedas',v=>'≥ '+v);
+  p('#fDirDist','#lDirDist',v=>'≤ '+v.toFixed(2)+'%');
   p('#fDistW','#lDistW',v=>'≤ '+v.toFixed(1)+'%');
   const rv=+$('#fRvwap').value;$('#lRvwap').textContent=rv>-50?rv+'%':'off';
   $('#lRvwap').classList.toggle('apagado',!(rv>-50));

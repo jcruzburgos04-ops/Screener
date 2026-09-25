@@ -536,6 +536,98 @@ la primera versión llamaba triángulo, y TGT y KO del 25/09), porque sin
 internet no se pueden volver a bajar. Cada control tiene un caso que sólo él
 decide: los trece sabotajes quedan en rojo.
 
+## 4e. Directriz bajista: la recta de máximos que bajan
+
+**Es la figura que el usuario quería de verdad**, y la compresión (§4d) la
+cubría sólo a medias. Mandó dos capturas (25/9/2026): una recta que une máximos
+cada vez más bajos, el precio apretado **debajo**, y la ruptura. Aclaró tres
+cosas que definen todo: **son velas diarias** («el screener es todo diario, no
+lo olvides»), la figura dura **dos o tres semanas**, y la ruptura cuenta con
+**cierre por encima** — la mecha no alcanza.
+
+> **El error que se cometió primero, para no repetirlo:** se leyó la captura
+> como una compresión entre **dos** rectas y se le exigió un piso. La figura
+> es la recta de arriba **sola**; exigir la de abajo dejaba afuera justo los
+> casos que el usuario busca. Y cuando dijo «2/3 días hábiles» se le preguntó
+> si las velas eran de una hora: eran diarias. **Antes de proponer meter velas
+> intradiarias, preguntá la temporalidad**: el screener es diario.
+
+Vive sólo en el JS (`mejorDirectriz()` / `directriz()` / `DIR`), igual que la
+compresión, y se calibró con Node sobre el `datos.json` publicado.
+
+### La recta
+
+Sale de un máximo que **ninguna vela posterior superó** y que es el más alto de
+las 5 anteriores (un pico de verdad, no un rebote cualquiera), y baja con la
+pendiente que la deja **apoyada** en los máximos siguientes sin que ninguno
+quede arriba: la que se traza a mano desde el techo. Entre las candidatas gana
+la que junta más toques; a igualdad, la más larga. De **6 a 16 velas**.
+
+### Lo que no es (se miró dibujado sobre los 480 papeles reales)
+
+| Control | Qué saca | Casos reales | Sin él, días-papel marcados |
+|---|---|---|---|
+| `canal` — los mínimos caen a menos de la mitad del ritmo de la recta | un canal bajista: no se aprieta nada | — | **3.094** (con todas: 715) |
+| `pico` — el ancla es el máximo de las 5 velas anteriores | una recta que arranca en un rebote menor | — | 2.261 |
+| `aprMax` 0,7 — se angosta contra el piso | una recta casi plana que no se acerca a nada | — | 1.230 |
+| `toques` ≥ 3 | una «recta» por dos puntos | — | 1.171 |
+| `pendMax` 0,25 ADR por rueda | una caída: la recta sale de antes de un derrumbe y lo atraviesa | ETSY, PATH, BKR, SNOW | 894 |
+| `aprMin` 0,3 | el «apriete» falso de un derrumbe, que infla el ancho del arranque (5-23%) | PATH, BKR | 742 |
+| `lejos` 2,5 ADRs | el precio viviendo lejos de la recta | AMGN, WMT | 719 |
+
+> **Una regla que se probó y estaba muerta:** una pendiente **mínima**. Dio
+> 715 con y sin ella, porque la recta ya tiene que bajar por construcción
+> (`m < 0`). Se sacó, por el invariante 26.
+
+`lejos` casi no trabaja sobre la historia (4 días-papel de 719) porque la
+pendiente y el apriete mínimo ya sacan casi todo lo que ella sacaba; se queda
+porque tiene su caso propio. Hoy marca **13 papeles** (2,7%): 8 debajo de la
+recta y 5 que ya la rompieron.
+
+### La ruptura
+
+**Cierre por encima** de la recta con un margen de 0,1%, y el cierre anterior
+todavía abajo. Se sigue mostrando `Rompió ↑ hace N` **hasta 5 ruedas**, y sólo
+mientras todos los cierres siguientes sigan arriba: si vuelve abajo, deja de
+ser ruptura. Se reporta la recta de la que **salió**.
+
+### Lo que dijo el barrido (250 días × 480 papeles)
+
+| | a 10 ruedas | a 20 ruedas |
+|---|---|---|
+| todos los días | +0,90% | +2,00% |
+| debajo de la recta | +0,57% | +1,28% |
+| rompió hace 0-1 | **−0,11%** | +0,95% |
+| rompió hace 2-5 | +0,97% | +1,30% |
+
+Y el rango de las ruedas siguientes fue **menor** que el normal. **La ruptura
+no rindió más que un día cualquiera en estos dos años.** El detector encuentra
+la figura que el usuario mira; no se probó que anticipe nada, y así se le dijo.
+
+### En la pantalla
+
+- Columna **Directriz** (por defecto): `Debajo · 1,9%` (lo que le falta para
+  cerrar arriba) o `Rompió ↑ hoy` / `hace N`. Se ordena por esa distancia.
+  **Ruedas dir.** y **Toques dir.** para prender.
+- Filtros, al lado de los de la compresión: debajo sin romper, la rompió
+  (≤ 5 ruedas), la rompió **hoy**, cualquiera; y **«Debajo, a ≤ X% de la
+  recta»**, para los que están por romper.
+- En el gráfico, la recta en **blanco** desde el pico hasta hoy, y el rótulo en
+  la leyenda. **Primero fue verde y se perdía contra la nube 21/34**, que es
+  del mismo color: se vio en la foto de UNG, no en las pruebas.
+
+`pruebas/directriz.js` tiene un caso armado a mano para cada control, que se
+**buscó** apagando la regla y viendo que el caso entra — así se supo que cada
+uno lo decide sólo ella. Y velas reales en `pruebas/directriz_real.json`: UNG,
+NOW y BAYN.DE son la figura; PATH, ETSY y BKR son las caídas que la primera
+versión leía como directriz; WMT, el precio lejos. Los diecisiete sabotajes
+quedan en rojo (la guarda de cierre en cero es redundante: con cierre 0 el ADR
+da 0 y la recta ya se descarta).
+
+> **Trampa de la prueba, que ya mordió:** con cero resultados la tabla muestra
+> una fila de aviso. Contar `tbody tr` da 1 cuando no hay nada; hay que contar
+> las filas con ticker (`tbody tr .tk`).
+
 ## 5. CEDEARs: la regla que no se negocia
 
 **Nunca se descarga el precio del CEDEAR.** El precio en pesos mezcla el
@@ -2255,6 +2347,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
 | `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
+| `directriz.js` | la recta de máximos que bajan: un caso por control, la ruptura con cierre (la mecha no alcanza, se vence a las 5 ruedas, deja de valer si vuelve abajo), velas reales, columna, filtros y dibujo |
 | `compresion.js` | las rectas que se juntan: cada tipo, lo que no es (caja plana, V, caída, triángulo empinado), la ruptura, velas reales de PG/TGT/KO, y la columna, el filtro y el dibujo |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
 | `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
