@@ -1127,6 +1127,13 @@ body.cajon #velo{display:block}
       <b style="color:var(--bajista)">Rompió ↓</b>: la caja de ayer era buena y
       hoy el cierre quedó afuera — se muestra la caja <i>de la que salió</i>, y
       la posición pasa de 100%.</p>
+    <p class="nota"><b style="color:var(--ambar)">Compresión</b>: la caja
+      busca un rango plano; esto busca uno que <b style="color:var(--tenue)">se
+      angosta</b>. Dos rectas que apoyan en los máximos y en los mínimos, de 10 a
+      60 ruedas, y el largo también se busca solo. Tienen que tocar precio al
+      principio y al final, sin ser una V ni una tendencia. Medido sobre dos años
+      de los papeles reales: encuentra la figura, pero <b>no quedó probado</b> que
+      anticipe un movimiento más grande que el normal.</p>
     <p class="nota">El rVWAP corta por <b style="color:var(--tenue)">días
       calendario</b>, no por cantidad de ruedas. No es lo mismo: en una acción,
       365 ruedas abarcan unos 17 meses, así que el «365d» de antes venía medio
@@ -1243,6 +1250,16 @@ body.cajon #velo{display:block}
       <option value="alto">Contra el techo (≥ 70%)</option>
       <option value="medio">En el medio (30-70%)</option>
       <option value="bajo">Contra el piso (≤ 30%)</option></select>
+    <label title="Dos rectas que se juntan: una resistencia que baja o un piso que sube, y el precio apretándose en la punta">Compresión · rectas que se juntan</label>
+    <select id="fCompr"><option value="">—</option>
+      <option value="any">Cualquier figura (sin rupturas)</option>
+      <option value="Triángulo">Triángulo · techo baja, piso sube</option>
+      <option value="Triáng. desc.">Triáng. desc. · techo baja, piso plano</option>
+      <option value="Triáng. asc.">Triáng. asc. · techo plano, piso sube</option>
+      <option value="cuña">Cuña · las dos para el mismo lado</option>
+      <option value="Rompió ↑">Rompió ↑ · salió por la resistencia</option>
+      <option value="Rompió ↓">Rompió ↓ · salió por el piso</option>
+      <option value="todo">Cualquiera, con rupturas</option></select>
 
     <div class="subt">ASH</div>
     <label>ASH diario positivo</label>
@@ -1626,6 +1643,144 @@ function mejorCaja(b,hasta,maxL,minL){
     const est=((techo-piso)/px)/(adr*Math.sqrt(L));
     if(!mejor||est<mejor.est)mejor={L,techo,piso,est};}
   return mejor;}
+
+/* ---------- compresion: dos rectas que se juntan ----------
+   Lo pidio el usuario con una captura: una resistencia que baja por maximos
+   cada vez mas bajos contra un piso que aguanta, el precio apretandose en la
+   punta, y la salida por arriba. "Compresiones antes de expansiones, tal como
+   las cajas." La caja mide un rango PLANO; esto mide uno que se ANGOSTA.
+
+   COMO SE ARMAN LAS RECTAS. No es una regresion (pasa por el medio del precio)
+   ni las lineas de tendencia de 120 ruedas (miran otra escala): son las dos
+   rectas que un trader traza a mano, las que APOYAN en los extremos sin que
+   ningun maximo quede por encima de la de arriba ni ningun minimo por debajo
+   de la de abajo. Eso es el casco convexo de los maximos y el de los minimos,
+   y de cada casco se toma el lado que pasa sobre el medio de la ventana.
+
+   EL LARGO SE BUSCA, igual que en la caja: se prueban de 10 a 60 ruedas y gana
+   el que mas se angosta (menor ancho de hoy contra ancho del arranque).
+
+   LO QUE NO ES UNA COMPRESION, y la primera version lo marcaba (se miro dibujado
+   sobre los 480 papeles reales, 25/9/2026):
+     - una V: una recta empinada que sale de UN solo pico o UN solo piso (NVDA,
+       HON, PAGS, PG). Por eso cada recta tiene un tope de pendiente medido en
+       ADRs por rueda, y en el primer cuarto de la figura el precio tiene que
+       LLENAR al menos el 45% del ancho entre las rectas: en una V la recta del
+       fondo, estirada hacia atras, queda muy por debajo del precio, y las dos
+       rectas no abrazan nada.
+       (Se probo tambien exigir toques en las dos mitades y NO sirve: la recta
+       del casco que pasa sobre el medio apoya a los dos lados del medio por
+       construccion, asi que esa regla no rechazaba nunca nada. Medido.)
+     - una caida o una suba con las rectas casi paralelas (SPGI, GM, SLB): se
+       juntan un poco, pero es una tendencia. Por eso la linea media no puede
+       correrse mas de 0,6 veces el ancho inicial.
+   Con esos tres controles lo que queda son los triangulos que se ven a ojo
+   (TGT, KO, AVY, MSI, TEAM, WEGE3).
+
+   CALIBRADO sobre los ultimos 250 dias de los 480 papeles publicados: marca
+   compresion en el 5,1% de los dias-papel y ruptura en el 1,9%, que es una
+   lista que se puede mirar (con los cortes flojos del prototipo era el 19%).
+
+   Y LO QUE ESE MISMO BARRIDO DIJO, que hay que saber antes de operarlo: en
+   estos dos anios, despues de una compresion el rango de las 10 y de las 20
+   ruedas siguientes fue MENOR que el promedio (1,21 contra 1,29 ADR*raiz(10)).
+   La ruptura alcista a 20 ruedas dio +4,8% contra +2,0%, pero con ~220 casos
+   que se pisan eso queda dentro del ruido. El detector encuentra la figura;
+   que la figura anticipe el movimiento no quedo probado. Es la seccion 13 de
+   CLAUDE.md: filtrar y predecir no son lo mismo. */
+const CMP={maxL:60,minL:10,
+  apriete:0.55,   // el ancho de hoy, a lo sumo el 55% del ancho del arranque
+  finAdr:1.8,     // y a lo sumo 1,8 rangos diarios: apretado de verdad
+  pend:0.15,      // cada recta, a lo sumo 0,15 ADR por rueda: sin V
+  deriva:0.6,     // la linea media no se corre mas de 0,6 anchos: sin tendencia
+  abraza:0.45,    // en el primer cuarto el precio llena el 45% del ancho: sin V
+  tol:0.2,        // un toque = a menos de 0,2 ADR de la recta
+  toques:3,       // cada recta, al menos tres toques
+  tope:0.30,      // una figura de mas de 30% de alto no es una compresion
+  plana:0.0007};  // menos de ~1,5% por mes = recta plana, para el nombre
+
+/* La recta del casco que pasa sobre xm. El casco se mantiene en un arreglo de
+   indices; agregar puntos siempre del mismo lado (hacia atras) lo deja
+   ordenado y no hace falta rearmarlo en cada largo. */
+function rectaCasco(H,y,xm){
+  for(let k=H.length-1;k>0;k--){const a=H[k],z=H[k-1];   // a a la izquierda
+    if(a<=xm&&xm<=z){const m=(y[z]-y[a])/(z-a);return {m,b:y[a]-m*a};}}
+  if(H.length===1)return {m:0,b:y[H[0]]};
+  return null;}
+function empujarCasco(H,y,i,arriba){
+  // saca el ultimo mientras quede de su lado de la recta entre i y el anterior
+  while(H.length>=2){const t=H[H.length-1],s=H[H.length-2];
+    const yl=y[i]+(y[s]-y[i])*(t-i)/(s-i);
+    if(arriba?y[t]<=yl:y[t]>=yl)H.pop();else break;}
+  H.push(i);}
+
+/* La figura que termina en la barra hasta-1. null si no hay ninguna que pase
+   los controles. Las rectas van en indice ABSOLUTO: valor(i) = m*i + b. */
+function mejorCompresion(b,hasta){
+  const tope=Math.min(CMP.maxL,hasta);
+  if(tope<CMP.minL)return null;
+  const px=b.c[hasta-1];
+  if(!(px>0))return null;
+  const Hu=[],Hd=[];let suma=0,mejor=null;
+  for(let L=1;L<=tope;L++){
+    const i=hasta-L;
+    if(!(b.l[i]>0)||!isFinite(b.h[i]))return mejor;   // un hueco corta la busqueda
+    empujarCasco(Hu,b.h,i,true);empujarCasco(Hd,b.l,i,false);
+    suma+=b.h[i]/b.l[i];
+    if(L<CMP.minL)continue;
+    const adr=suma/L-1;
+    if(!(adr>0))continue;
+    const xm=i+(L-1)/2, R=rectaCasco(Hu,b.h,xm), S=rectaCasco(Hd,b.l,xm);
+    if(!R||!S)continue;
+    const z=hasta-1, ancho0=(R.m*i+R.b)-(S.m*i+S.b), ancho1=(R.m*z+R.b)-(S.m*z+S.b);
+    if(!(ancho0>0&&ancho1>0))continue;
+    const apr=ancho1/ancho0, fin=ancho1/(px*adr), escala=adr*px;
+    if(apr>CMP.apriete||fin>CMP.finAdr||ancho0/px>CMP.tope)continue;
+    if(Math.abs(R.m)/escala>CMP.pend||Math.abs(S.m)/escala>CMP.pend)continue;
+    const medio=x=>((R.m+S.m)*x+R.b+S.b)/2;
+    if(Math.abs(medio(z)-medio(i))/ancho0>CMP.deriva)continue;
+    if(mejor&&apr>=mejor.apriete)continue;   // gana el que mas se angosta
+    // que el precio llene el arranque: en una V las rectas no abrazan nada
+    const k0=Math.max(3,Math.floor(L*0.25));let hm=-Infinity,lm=Infinity;
+    for(let j=i;j<i+k0;j++){if(b.h[j]>hm)hm=b.h[j];if(b.l[j]<lm)lm=b.l[j];}
+    if((hm-lm)/ancho0<CMP.abraza)continue;
+    const tol=CMP.tol*escala;
+    let tr=0,ts=0;
+    for(let j=i;j<=z;j++){
+      if((R.m*j+R.b)-b.h[j]<=tol)tr++;
+      if(b.l[j]-(S.m*j+S.b)<=tol)ts++;}
+    if(tr<CMP.toques||ts<CMP.toques)continue;
+    mejor={L,i0:i,res:R,sop:S,apriete:apr,finAdr:fin,tocRes:tr,tocSop:ts,
+           pendRes:R.m/px,pendSop:S.m/px};}
+  return mejor;}
+
+function tipoCompresion(f){
+  const P=CMP.plana, ar=f.pendRes>P, br=f.pendRes<-P, as=f.pendSop>P, bs=f.pendSop<-P;
+  if(br&&as)return 'Triángulo';
+  if(br&&!as&&!bs)return 'Triáng. desc.';
+  if(!ar&&!br&&as)return 'Triáng. asc.';
+  if(br&&bs)return 'Cuña bajista';
+  if(ar&&as)return 'Cuña alcista';
+  return 'Compresión';}
+
+/* Como la caja: la ruptura es la figura de AYER contra el cierre de hoy, y en
+   la ruptura se reporta la figura de la que SALIO, no la de hoy. */
+function compresion(b){
+  const vacio={estado:'',barras:NaN,apriete:NaN,ancho:NaN,distRes:NaN,distSop:NaN,
+               i0:NaN,res:null,sop:null};
+  const n=b.c.length;
+  if(n<CMP.minL+2)return vacio;
+  const px=b.c[n-1];
+  // un cierre roto no es una ruptura: sin precio no se afirma nada
+  if(!(px>0))return vacio;
+  let f=mejorCompresion(b,n-1), estado='';
+  if(f){const r=f.res.m*(n-1)+f.res.b, s=f.sop.m*(n-1)+f.sop.b;
+    if(px>r*1.001)estado='Rompió ↑';else if(px<s*0.999)estado='Rompió ↓';}
+  if(!estado){f=mejorCompresion(b,n);if(!f)return vacio;estado=tipoCompresion(f);}
+  const r=f.res.m*(n-1)+f.res.b, s=f.sop.m*(n-1)+f.sop.b;
+  return {estado,barras:f.L,apriete:f.apriete,ancho:f.finAdr,
+          // > 0 = la resistencia esta por ENCIMA del precio (cuanto le falta)
+          distRes:r/px-1, distSop:px/s-1, i0:f.i0,res:f.res,sop:f.sop};}
 
 /* Las columnas derivadas de una nube. Si todavia no imprimio -- simbolo joven,
    o la EMA 600 sobre un papel de menos de 600 ruedas -- devuelve todo vacio:
@@ -2036,6 +2191,10 @@ function calcularBase(s,cfg){
   const K=consolidacion(b,cfg);
   f.consol=K.estado; f.consol_rango=K.rango; f.consol_barras=K.barras;
   f.consol_pos=K.pos; f.consol_aprieta=K.aprieta; f.consol_estrechez=K.estrechez;
+  // --- compresion: las dos rectas que se juntan ---
+  const Q=compresion(b);
+  f.compr=Q.estado; f.compr_ruedas=Q.barras; f.compr_apriete=Q.apriete;
+  f.compr_ancho=Q.ancho; f.compr_dist=Q.distRes;
   // Los que no llegan al warmup no se descartan en silencio
   f.sin_historial=(NB.c1.sesgo===null||NB.c2.sesgo===null);
   return f;
@@ -2118,6 +2277,11 @@ function pasaFiltros(f,F){
        F.cajaPos==='alto'?f.consol_pos>=0.7
        :F.cajaPos==='bajo'?f.consol_pos<=0.3
        :(f.consol_pos>0.3&&f.consol_pos<0.7))))&&
+    // --- compresion ---
+    (F.compr===null||(F.compr==='any'?(!!f.compr&&f.compr.indexOf('Rompió')<0)
+       :F.compr==='todo'?!!f.compr
+       :F.compr==='cuña'?(f.compr||'').indexOf('Cuña')===0
+       :f.compr===F.compr))&&
     bo(f.ash_d_pos,F.ashD)&&bo(f.ash_w_pos,F.ashW)&&bo(f.ash_d_crece,F.ashCrece)&&
     pasaCruce(f,F)&&
     ge(f.precio,F.precio)&&le(f.float_musd,F.floatMax)&&ge(f.rs_rank,F.rsMin)&&
@@ -2137,6 +2301,7 @@ function pasaFiltros(f,F){
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
   emaPine,rvwapDias,senalesNube,comboSeries,consolidacion,mejorCaja,
+  compresion,mejorCompresion,tipoCompresion,CMP,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros};
 </script>
@@ -2170,7 +2335,7 @@ let gruposOn=new Set(), orden={col:'ash_d_norm',asc:false},
    estaba duplicada en el boton y se olvidaba de los controles nuevos. */
 const NEUTRO={fVol:'0',fDVol:'0',fRelVol:'0',fAdr:'0',fRsiMin:'0',fRsiMax:'100',
  fRegimen:'',fFondo:'',fPosW:'',fPosD:'',fCruceW:'',fCruceWN:'0',fAnchoW:'0',fDistW:'0',
- fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',
+ fConsol:'',fCajaAlto:'0',fCajaRuedas:'0',fCajaPos:'',fCompr:'',
  fRvwap:'-50',fAshD:'',fAshW:'',fAshCrece:'',fCruceMax:'0',fCruceDir:'1',
  fAdx:'0',fPrecio:'0',fFloat:'0',fRs:'1',
  fPatron:'',fResDist:'0',fToques:'0',fAvwap:'',fAvDist:'0'};
@@ -2185,7 +2350,7 @@ const NOMBRE_FILTRO={
   cruceW:'Cruce de la nube 21/34', anchoW:'Ancho de la nube 21/34',
   distW:'Distancia a la nube 21/34', rvwapMin:'vs rVWAP 365d',
   consol:'Estado de la caja', cajaAlto:'Alto de la caja',
-  cajaRuedas:'Ruedas en la caja', cajaPos:'Dónde en la caja',
+  cajaRuedas:'Ruedas en la caja', cajaPos:'Dónde en la caja', compr:'Compresión',
   rvLlena:'Ventana del rVWAP llena', conHistorial:'Con historial suficiente',
   ashD:'ASH diario', ashW:'ASH semanal', ashCrece:'ASH creciendo',
   cruceMax:'Cruce del ASH', adxMin:'ADX mínimo', precio:'Precio mínimo',
@@ -2392,6 +2557,17 @@ const COLS=[
      const c=p>=70?'up':(p<=30?'dn':'');
      return `<span class="${c}" title="0% = piso de la caja, 100% = techo">${p}%</span>`;}},
   {k:'consol_aprieta',t:'Se aprieta', fmt:v=>isFinite(v)?num(v,2):''},
+  // --- compresion: se ordena por cuanto se angosto, la mas apretada primero
+  {k:'compr', t:'Compresión', izq:1, def:1, ord:'compr_apriete',
+   fmt:(v,f)=>{if(!v)return '<span class="gris">·</span>';
+     const c=v==='Rompió ↑'?'caja-ru':v==='Rompió ↓'?'caja-rd':'caja-ap';
+     return `<span class="${c}" title="${f.compr_ruedas} ruedas`+
+       (isFinite(f.compr_apriete)?` · hoy mide el ${Math.round(f.compr_apriete*100)}% del ancho con que arrancó`:'')+
+       (isFinite(f.compr_ancho)?` · ${num(f.compr_ancho,1)} rangos diarios de ancho`:'')+
+       `">${esc(v)}</span>`;}},
+  {k:'compr_ruedas', t:'Ruedas compr.', fmt:v=>isFinite(v)?v:''},
+  {k:'compr_apriete',t:'Apriete', fmt:v=>isFinite(v)?`<span title="ancho de hoy contra el del arranque">${Math.round(v*100)}%</span>`:''},
+  {k:'compr_dist',   t:'A la resist.', fmt:pct},
   // --- industria ---
   {k:'rs_ind', t:'RS industria', def:1, fmt:v=>isFinite(v)?Math.round(v):''},
   {k:'breadth_ind',t:'Industria en verde', def:1, fmt:pct1},
@@ -2429,7 +2605,7 @@ let colsOn=new Set(COLS_DEF);
    las que son del set por defecto y no existian entonces se agregan; las que el
    usuario apago a proposito quedan apagadas, porque esas si las conocia. */
 const COLS_AGREGADAS=['patron','tl_res_dist','tl_sop_dist','tl_res_pend',
-  'tl_sop_pend','tl_toques','atraso','ultima','nombre'];
+  'tl_sop_pend','tl_toques','atraso','ultima','nombre','compr'];
 /* Que columnas se agregaron solas en esta apertura. Se muestra en el
    desplegable: que aparezcan columnas nuevas sin explicacion se lee como "se
    me borro la configuracion", que es justo lo contrario de lo que paso. */
@@ -2483,6 +2659,7 @@ function filtros(){return{
   conHistorial:$('#fConHistorial').checked?true:null,
   consol:$('#fConsol').value||null, cajaAlto:val('#fCajaAlto')||null,
   cajaRuedas:val('#fCajaRuedas')||null, cajaPos:$('#fCajaPos').value||null,
+  compr:$('#fCompr').value||null,
   ashD:tri('#fAshD'), ashW:tri('#fAshW'), ashCrece:tri('#fAshCrece'),
   cruceMax:val('#fCruceMax')||null,
   // La direccion sola no es un filtro: sin N no filtra nada, y si viajara
@@ -2751,7 +2928,8 @@ const GRUPOS_COL=[
   ['AVWAP del último máximo',['avwap_estado','avwap_dist','avwap','avwap_barras',
           'avwap_cruce']],
   ['Industria y sector',['rs_ind','breadth_ind','n_ind','rs_sector','breadth_sec']],
-  ['Consolidación',['consol','consol_rango','consol_barras','consol_pos','consol_aprieta']],
+  ['Consolidación',['consol','consol_rango','consol_barras','consol_pos','consol_aprieta',
+    'compr','compr_ruedas','compr_apriete','compr_dist']],
   ['Combos EMA',['regimen','c3_sesgo','c1_pos','c1_dist','c1_dist_atr','c1_ancho',
     'c1_cruce','c2_pos','c2_dist','c2_dist_atr','c2_ancho','c2_cruce',
     'c3_pos','c3_dist','c3_cruce',
@@ -3098,7 +3276,25 @@ function dibujar(cursor){
      g.textAlign='left';
      g.fillText(`${K.estado} · ${(K.rango*100).toFixed(1)}% · ${K.barras}r`,
                 xa+4,Math.max(18,ya-4));
-     g.restore();}}
+     g.restore();}
+  /* LA COMPRESION: las dos rectas, desde donde arranca la figura hasta hoy.
+     En una ruptura la figura termino ayer y las rectas se estiran una vela:
+     se ve por donde salio. */
+   const Q=compresion(visB);
+   if(Q.estado&&Q.res&&Q.sop&&Q.i0>=0&&Q.i0<N){
+     const cc=Q.estado==='Rompió ↑'?'79,178,134':Q.estado==='Rompió ↓'?'207,75,62':'224,164,88';
+     const xi=i=>x0+paso*(i+.5), z=N-1;
+     g.save();g.beginPath();g.rect(x0,8,x1-x0,h1);g.clip();
+     g.strokeStyle=`rgba(${cc},.95)`;g.lineWidth=2;
+     for(const r of [Q.res,Q.sop]){g.beginPath();
+       g.moveTo(xi(Q.i0),escY(r.m*Q.i0+r.b,mn,mx,8,h1));
+       g.lineTo(xi(z),escY(r.m*z+r.b,mn,mx,8,h1));g.stroke();}
+     g.restore();
+     /* El rotulo va en la leyenda, debajo del AVWAP, y no pegado a la figura:
+        ahi caia encima del de la caja, que suele marcar el mismo tramo. */
+     g.fillStyle=`rgba(${cc},.95)`;g.font='10px ui-monospace,monospace';g.textAlign='left';
+     g.fillText(`${Q.estado}  ·  ${Q.barras} ruedas  ·  hoy mide el ${Math.round(Q.apriete*100)}% del arranque`,
+       x0+6,48);}}
 
   /* El rVWAP de 365 dias, la linea naranja suelta del Pine.
      Se calcula sobre TODAS las barras y se recorta despues: la ventana son

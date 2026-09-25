@@ -433,6 +433,109 @@ punteados, color según el estado, y `estado · alto% · ruedas` en la esquina.
 > marca nunca — una función muerta que parece andar. Va `ultimo(adrPct(...))`.
 > Lo agarró `pruebas/paridad.py`.
 
+## 4d. Compresión: dos rectas que se juntan
+
+Lo pidió el usuario con una captura (25/9/2026): una resistencia que baja por
+máximos cada vez más bajos contra un piso que aguanta, el precio apretándose en
+la punta y la salida por arriba. *«Habría que buscar este tipo de figuras, tal
+como las cajas. Son compresiones antes de expansiones.»* La caja mide un rango
+**plano**; esto mide uno que **se angosta**.
+
+Vive **sólo en el JS** (`mejorCompresion()` / `compresion()` / `CMP` en el
+motor de `plantilla.html`). A diferencia de la caja no tiene gemela en Python:
+se calibró corriendo el mismo motor con Node sobre el `datos.json` publicado,
+así que no hay dos implementaciones que mantener en paridad.
+
+### Cómo se arman las rectas
+
+Las que traza un trader a mano: las que **apoyan** en los extremos sin que
+ningún máximo quede por encima de la de arriba ni ningún mínimo por debajo de
+la de abajo. Eso es el **casco convexo** de los máximos y el de los mínimos; de
+cada uno se toma el lado que pasa sobre el medio de la ventana. No es una
+regresión (pasa por el medio del precio) ni las líneas de tendencia de 120
+ruedas (otra escala).
+
+**El largo se busca, como en la caja**: de 10 a 60 ruedas, y gana el que más
+se angosta (ancho de hoy contra ancho del arranque). Como la ventana crece
+hacia atrás, el casco se mantiene incremental: los 480 papeles tardan ~50 ms.
+
+### Lo que NO es una compresión (se miró dibujado, no se supuso)
+
+Cada control salió de dibujar lo que la versión anterior marcaba sobre las
+velas reales de los 480 papeles y ver qué estaba mal:
+
+| Control | Qué saca | Casos reales |
+|---|---|---|
+| `pend` ≤ 0,15 ADR por rueda en cada recta | la V: una recta empinada que sale de un solo pico o un solo piso | NVDA, HON, PAGS |
+| `deriva` ≤ 0,6 anchos de la línea media | una caída o una suba con las rectas casi paralelas | SPGI, GM, SLB |
+| `abraza` ≥ 45% en el primer cuarto | la V suave: estirada hacia atrás, la recta del fondo queda lejos del precio | PG, PFE, TEM |
+| `apriete` ≤ 55% y `finAdr` ≤ 1,8 | que se angoste de verdad y termine apretada | — |
+| `toques` ≥ 3 en cada recta, a 0,2 ADR | que las rectas apoyen, no que pasen cerca | — |
+
+> **Una regla que se probó y estaba muerta:** «que cada recta toque en las dos
+> mitades». La recta del casco que pasa sobre el medio apoya a los dos lados
+> del medio **por construcción**, así que nunca rechazaba nada — el barrido dio
+> exactamente lo mismo con y sin ella. Se sacó. Si se te ocurre de nuevo, es
+> esto.
+
+Primera versión, sin esos controles: marcaba al **19%** del universo. Ahora:
+compresión en el **5,1%** de los días-papel y ruptura en el **1,9%**. Los
+nombres salen de las pendientes (plana = menos de ~1,5% por mes): `Triángulo`,
+`Triáng. desc.`, `Triáng. asc.`, `Cuña bajista`, `Cuña alcista`.
+
+**La ruptura es como en la caja**: la figura de **ayer** contra el cierre de
+hoy (`Rompió ↑` / `Rompió ↓`), y se reporta la figura de la que salió. Un
+cierre en cero o roto no es una ruptura: devuelve vacío.
+
+### Lo que el barrido dijo sobre «antes de expansiones», y hay que saberlo
+
+Se midió sobre los últimos 250 días de los 480 papeles (~24.000 días-papel):
+
+| a 10 ruedas | rango siguiente / (ADR·√10) | retorno medio |
+|---|---|---|
+| todos los días | 1,29 | +0,93% |
+| tras una compresión | **1,21** | +0,21% |
+| tras `Rompió ↑` | 1,30 | +1,52% |
+| tras `Rompió ↓` | 1,22 | +0,86% |
+
+| a 20 ruedas | rango siguiente / (ADR·√20) | retorno medio |
+|---|---|---|
+| todos los días | 1,34 | +2,00% |
+| tras una compresión | **1,27** | +1,37% |
+| tras `Rompió ↑` | 1,37 | **+4,80%** |
+| tras `Rompió ↓` | 1,33 | +2,06% |
+
+O sea: **en estos dos años, después de una compresión el movimiento fue
+*menor* que el normal, no mayor** — la calma siguió a la calma —, a 10 y a 20
+ruedas. La ruptura alcista a 20 ruedas da +4,8% contra +2,0%, y es lo único
+que se parece a una señal, **pero no está probado**: son 222 casos tomados
+cada 5 días con un horizonte de 20 (se pisan de a cuatro), en papeles que
+suben y bajan juntos con el mercado, así que el *n* efectivo es de unas pocas
+decenas y la diferencia queda dentro del ruido. Vale seguirla con más
+historia; no vale operarla por esto. **El detector encuentra la figura; que la figura
+anticipe el movimiento no quedó probado.** Es la sección 13: filtrar y
+predecir son dos problemas distintos, y así se le dijo al usuario. La nota del
+panel lo dice también.
+
+### En la pantalla
+
+- Columna **Compresión** (por defecto) con el `title` de ruedas, apriete y
+  ancho en rangos diarios; y **Ruedas compr.**, **Apriete**, **A la resist.**
+  para prender. Se ordena por el apriete.
+- Filtro **Compresión · rectas que se juntan**, al lado de los de la caja:
+  cualquier figura sin rupturas, cada tipo, las cuñas juntas, cada ruptura, o
+  todo.
+- En el gráfico, las dos rectas en ámbar (verde/rojo si rompió) desde donde
+  arranca la figura hasta hoy, y el rótulo **en la leyenda**, debajo del AVWAP:
+  pegado a la figura caía encima del de la caja, que suele marcar el mismo
+  tramo.
+
+`pruebas/compresion.js` lo fija con figuras armadas a mano **y con velas
+reales** guardadas en `pruebas/compresion_real.json` (la V de PG al 26/08, que
+la primera versión llamaba triángulo, y TGT y KO del 25/09), porque sin
+internet no se pueden volver a bajar. Cada control tiene un caso que sólo él
+decide: los trece sabotajes quedan en rojo.
+
 ## 5. CEDEARs: la regla que no se negocia
 
 **Nunca se descarga el precio del CEDEAR.** El precio en pesos mezcla el
@@ -2152,6 +2255,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
 | `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
+| `compresion.js` | las rectas que se juntan: cada tipo, lo que no es (caja plana, V, caída, triángulo empinado), la ruptura, velas reales de PG/TGT/KO, y la columna, el filtro y el dibujo |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
 | `columnas_globales.js` | que elegir un filtro NO te cambie las columnas |
 | `persistencia.js` | los nueve flujos del guardado de columnas, dos pestañas incluidas |
@@ -2300,6 +2404,9 @@ necesitan internet.
     Nunca crea una vela, nunca toca la apertura, nunca en otra moneda, nunca un
     papel de EE.UU. fuera de la rueda regular, y el volumen sólo sube y sólo
     desde CNBC (el de data912 no es el del día).
+26. **Una regla de detección de figuras se mide antes de quedarse.** Se dibuja
+    lo que marca sobre los papeles reales, y se corre el barrido con y sin
+    ella: si da lo mismo, está muerta y se va (pasó con los toques por mitades).
 
 ---
 

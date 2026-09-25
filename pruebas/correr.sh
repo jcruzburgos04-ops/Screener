@@ -48,6 +48,8 @@ echo; echo "== combos de EMAs: EMA de Pine y rVWAP por dias calendario =="
 python3 combos.py
 echo; echo "== consolidacion: la caja =="
 python3 consolidacion.py
+echo; echo "== compresion: dos rectas que se juntan =="
+node compresion.js
 echo; echo "== lineas de tendencia =="
 node tendencias.js
 echo; echo "== AVWAP anclado al ultimo maximo =="
