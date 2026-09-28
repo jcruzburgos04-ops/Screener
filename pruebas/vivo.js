@@ -197,6 +197,52 @@ const txt=x=>x.toLocaleString('en-US',{maximumFractionDigits:4});
     ok('y cuenta los de CNBC aparte',R.porFuente.cnbc>=5,JSON.stringify(R.porFuente));
   }
 
+  /* El lunes 28/9 GitHub no largo el cron de la intradia en toda la manana: la
+     vela de hoy no existia y el precio en vivo no tenia donde pegarse. CNBC
+     trae la vela entera del dia, asi que ahora la arma. Se simula sacandole la
+     vela de hoy a tres papeles, como si la intradia no hubiera corrido. */
+  console.log('\n== la vela de hoy, cuando la intradía no corrió ==');
+  {
+    const w=await abrir(null);
+    const S=t=>w.eval(`DATOS.simbolos.find(s=>s.t===${JSON.stringify(t)})`);
+    w.eval(`for(const t of ${JSON.stringify([A.t,B.t,D.t])}){const s=DATOS.simbolos.find(x=>x.t===t);
+      for(const k of ['d','o','h','l','c','v'])s[k].pop();}`);
+    const largo=S(A.t).d.length, cA=ultimo(S(A.t));
+    const o=+(cA*1.01).toFixed(4), p=+(cA*1.02).toFixed(4), h=+(cA*1.03).toFixed(4), l=+(cA*0.995).toFixed(4);
+    const cuando=HOY_ISO+'T11:28:00.000-0400';
+    const cn={
+      [A.t]:{open:txt(o),last:txt(p),high:txt(h),low:txt(l),volume:txt(123456),currencyCode:'USD',last_time:cuando},
+      [B.t]:{last:txt(ultimo(S(B.t))*1.01),currencyCode:'USD',last_time:cuando},          // sin apertura
+      // el ultimo precio sano y la APERTURA rota: lo unico que la saca es el control de la apertura
+      [D.t]:{open:txt(ultimo(S(D.t))*1.30),last:txt(ultimo(S(D.t))*1.01),currencyCode:'USD',last_time:cuando},
+      // una cotizacion MAS VIEJA que la ultima vela, con apertura: no se arma una vela para atras
+      [C.t]:{open:txt(ultimo(S(C.t))),last:txt(ultimo(S(C.t))*1.01),currencyCode:'USD',
+             last_time:fISO(S(C.t).d.at(-2))+'T11:28:00.000-0400'}};
+    const largoC=S(C.t).d.length;
+    // data912 tambien trae A y B: no puede crear la vela, y le tiene que dejar el lugar a CNBC
+    w.__cn=cn;w.__en=EN_RUEDA;
+    w.__lista=[{symbol:A.t,c:+(p*1.001).toFixed(4)},{symbol:B.t,c:ultimo(S(B.t))*1.01}];
+    const correr=()=>w.eval('aplicarVivo(__lista,leerCnbc({FormattedQuoteResult:{FormattedQuote:'+
+      'Object.entries(__cn).map(([k,v])=>({symbol:k,...v}))}}),__en)');
+    const R=correr(), a=S(A.t);
+    ok('CNBC arma la vela de hoy cuando no existe',a.d.length===largo+1&&a.d.at(-1)===HOY,
+       `${a.d.length} vs ${largo+1}, ${a.d.at(-1)}`);
+    ok('con apertura, máximo, mínimo, cierre y volumen de CNBC',
+       a.o.at(-1)===o&&a.h.at(-1)===h&&a.l.at(-1)===l&&a.c.at(-1)===p&&a.v.at(-1)===123456,
+       JSON.stringify([a.o.at(-1),a.h.at(-1),a.l.at(-1),a.c.at(-1),a.v.at(-1)]));
+    ok('y la cuenta como nueva',R.nuevas.includes(A.t)&&R.cambiados.includes(A.t),JSON.stringify(R.nuevas));
+    ok('sin apertura no se arma (y data912, que no la trae, tampoco)',S(B.t).d.at(-1)!==HOY,S(B.t).d.at(-1));
+    ok('y no se cuenta como dato roto: sólo le falta la apertura',!R.descartados.includes(B.t),
+       JSON.stringify(R.descartados));
+    ok('una apertura 30% lejos del cierre anterior se descarta',
+       S(D.t).d.at(-1)!==HOY&&R.descartados.includes(D.t),JSON.stringify(R.descartados));
+    ok('una cotización más vieja que la última vela no arma nada',S(C.t).d.length===largoC,
+       `${S(C.t).d.length} vs ${largoC}`);
+    const R2=correr();
+    ok('la vuelta siguiente no la duplica: la parchea',S(A.t).d.length===largo+1&&!R2.nuevas.includes(A.t),
+       `${S(A.t).d.length} ${JSON.stringify(R2.nuevas)}`);
+  }
+
   console.log('\n== el circuito entero: pedido, parche, tabla y pastilla ==');
   {
     const PA=+(ultimo(A)*1.04).toFixed(2), PS=+(ultimo(spy)*1.02).toFixed(2), PA2=+(ultimo(A)*1.05).toFixed(2);
@@ -217,6 +263,23 @@ const txt=x=>x.toLocaleString('en-US',{maximumFractionDigits:4});
     ok('a CNBC le pide el ETF y los de afuera',cn.includes(spy.t)&&cn.includes(BR1.t)&&
        cn.includes(DE1.t.replace('.DE','-DE')),cn.length);
     ok('y NO lo que data912 ya trajo',!cn.includes(A.t),A.t);
+    /* salvo que le falte la vela de hoy: data912 no la puede armar. Se le saca
+       a B la vela de hoy y data912 lo trae igual: a CNBC se le tiene que pedir */
+    w.__fuentes.d912.stocks.push({symbol:B.t,c:ultimo(B)*1.01});
+    w.__fuentes.cnbc[B.t]={open:txt(ultimo(B)),last:txt(ultimo(B)*1.01),currencyCode:'USD',
+      last_time:HOY_ISO+'T11:28:00.000-0400'};
+    // sin la vela de hoy, B figura atrasado una rueda: el ⚠ que ve el usuario
+    w.eval(`{const s=DATOS.simbolos.find(x=>x.t===${JSON.stringify(B.t)});for(const k of ['d','o','h','l','c','v'])s[k].pop();
+      recalcularAtrasos();}`);
+    const atrasoAntes=w.eval(`DATOS.simbolos.find(x=>x.t===${JSON.stringify(B.t)}).at`);
+    w.__pedidos.length=0;
+    await w.eval('pedirVivo()');
+    await esperar(50);
+    ok('a CNBC sí le pide lo que data912 trajo pero no tiene vela de hoy',simbolosCnbc(w.__pedidos).includes(B.t)&&
+       !simbolosCnbc(w.__pedidos).includes(A.t),simbolosCnbc(w.__pedidos).filter(x=>x===A.t||x===B.t).join(','));
+    const sB=w.eval(`DATOS.simbolos.find(x=>x.t===${JSON.stringify(B.t)})`);
+    ok('arma la vela de hoy y le saca el ⚠ de atraso',atrasoAntes>0&&sB.d.at(-1)===HOY&&sB.at===0,
+       `antes ${atrasoAntes}, ahora ${sB.at}, ${sB.d.at(-1)}`);
     ok('en lotes de hasta 200',w.__pedidos.filter(u=>u.indexOf('cnbc')>=0).every(u=>
       decodeURIComponent(u.split('symbols=')[1]).split('|').length<=200));
     const precioEnTabla=t=>{

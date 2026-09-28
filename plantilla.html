@@ -5659,8 +5659,9 @@ function fechaMayoritaria(){
         data912 no dice de cuando es su precio, asi que vale la rueda de NY en
         curso; CNBC trae la fecha de la operacion en la hora de su bolsa, que
         es la fecha que usa Yahoo para la vela. Si la vela de hoy todavia no
-        existe (los primeros minutos de la rueda, hasta que la arma la
-        intradia) no hay sobre que parchear: fabricar una vela seria inventarla.
+        existe (la intradia no corrio, o no llego), la arma CNBC con su
+        apertura, maximo, minimo y volumen. data912 no la puede armar: sin
+        apertura seria inventarla (ver parchear()).
      3. la moneda tiene que ser la del papel: euro contra dolar difiere menos
         de 15% y la regla 4 sola no lo ataja.
      4. un precio a mas de 15% de lo publicado hace minutos es un dato roto, no
@@ -5713,17 +5714,40 @@ function leerCnbc(json){
     // "2026-09-23T17:13:18.000+0200" o "2026-09-18": la fecha ya viene en la
     // hora de su bolsa, que es la que corresponde a la vela
     const lt=String(f.last_time||'');
-    m.set(String(f.symbol),{p,h:numCnbc(f.high),l:numCnbc(f.low),v:numCnbc(f.volume),
+    m.set(String(f.symbol),{p,o:numCnbc(f.open),h:numCnbc(f.high),l:numCnbc(f.low),v:numCnbc(f.volume),
       mon:String(f.currencyCode||''),fecha:/^\d{4}-\d\d-\d\d/.test(lt)?+lt.slice(0,10).replace(/-/g,''):NaN});
   }
   return m;
 }
 
 /* Un precio sobre la vela de hoy de UN papel. null = no le corresponde (no es
-   de la misma rueda); 'descartado' = dato roto, sin tocar nada. */
+   de la misma rueda); 'descartado' = dato roto, sin tocar nada; 'nueva' = armo
+   la vela de hoy.
+
+   LA VELA NUEVA, y por que ahora si. La primera version nunca creaba una vela:
+   data912 no trae apertura, y una vela sin apertura es inventada. Eso dejaba
+   todo colgado del cron de la intradia, que es el que crea la vela del dia: el
+   lunes 28/9 GitHub no lo largo en toda la manana, la vela de hoy no existia,
+   y el precio en vivo no tenia sobre que pegarse. El usuario vio el cierre del
+   viernes media hora despues de la apertura. CNBC trae la vela ENTERA del dia
+   -apertura, maximo, minimo, ultimo y volumen-, asi que con CNBC se arma: no es
+   inventar nada. Solo CNBC, solo si la cotizacion es de una rueda POSTERIOR a
+   la ultima vela, y con los mismos controles de moneda y de salto (contra el
+   cierre anterior). Cuando la intradia publique, su vela de Yahoo la reemplaza
+   al recargar. */
 function parchear(s,q){
   const n=s.c.length-1;
-  if(n<0||s.d[n]!==q.fecha)return null;
+  if(n<0||!isFinite(q.fecha))return null;
+  if(s.d[n]!==q.fecha){
+    if(!(q.fecha>s.d[n])||!(q.o>0))return null;
+    if(q.mon&&s.mon&&q.mon!==s.mon)return 'descartado';
+    const ant=s.c[n], ok=x=>x>0&&Math.abs(x/ant-1)<=VIVO_SALTO_MAX;
+    if(!(ant>0)||!ok(q.p)||!ok(q.o))return 'descartado';
+    const hi=Math.max(q.o,q.p,ok(q.h)?q.h:0), lo=Math.min(q.o,q.p,ok(q.l)?q.l:Infinity);
+    s.d.push(q.fecha);s.o.push(q.o);s.h.push(hi);s.l.push(lo);s.c.push(q.p);
+    s.v.push(q.v>0?q.v:0);
+    return 'nueva';
+  }
   if(q.mon&&s.mon&&q.mon!==s.mon)return 'descartado';
   const antes=s.c[n], sano=x=>x>0&&Math.abs(x/antes-1)<=VIVO_SALTO_MAX;
   if(!(antes>0)||!sano(q.p))return 'descartado';
@@ -5741,7 +5765,7 @@ function parchear(s,q){
    que el que llama invalide solo esos del cache. `ahora` viaja como parametro
    para poder probarlo con la hora que haga falta. */
 function aplicarVivo(d912,cnbc,ahora){
-  const res={cambiados:[],cubiertos:0,descartados:[],porFuente:{d912:0,cnbc:0},sinFuente:[]};
+  const res={cambiados:[],cubiertos:0,descartados:[],porFuente:{d912:0,cnbc:0},sinFuente:[],nuevas:[]};
   const rueda=enRuedaNY(ahora), hoy=relojNY(ahora).fecha, px=new Map();
   for(const f of d912||[]){const c=f&&+f.c;
     if(f&&f.symbol&&isFinite(c)&&c>0)px.set(String(f.symbol),c);}
@@ -5756,12 +5780,16 @@ function aplicarVivo(d912,cnbc,ahora){
     if(cnbc)for(const v of variantesCnbc(s.t)){const x=cnbc.get(v);
       if(x){candidatas.push(['cnbc',x]);break;}}
     if(!candidatas.length){res.sinFuente.push(s.t);continue;}
-    let r=null,fuente='';
-    for(const [f,q] of candidatas){r=parchear(s,q);fuente=f;if(r!=='descartado')break;}
-    if(r==='descartado'){res.descartados.push(s.t);continue;}
-    if(r===null)continue;
+    /* La primera que aplique. data912 da null cuando la vela de hoy todavia no
+       existe (no puede crearla), y ahi le toca a CNBC, que si puede. */
+    let r=null,fuente='',hubo=false;
+    for(const [f,q] of candidatas){const x=parchear(s,q);
+      if(x==='descartado'){hubo=true;continue;}
+      if(x!==null){r=x;fuente=f;break;}}
+    if(r===null){if(hubo)res.descartados.push(s.t);continue;}
     res.cubiertos++;res.porFuente[fuente]++;
-    if(r==='cambio')res.cambiados.push(s.t);
+    if(r==='cambio'||r==='nueva')res.cambiados.push(s.t);
+    if(r==='nueva')res.nuevas.push(s.t);
   }
   return res;
 }
@@ -5791,13 +5819,15 @@ async function pedirVivo(){
       try{d912=[].concat(...await Promise.all(URLS_D912.map(pedirJSON)));}
       catch(e){caidas.d912=String(e&&e.message||e);}
     }
-    // a CNBC se le pide lo que data912 no trajo, o todo si data912 se cayo
+    /* A CNBC se le pide lo que data912 no trajo, o todo si data912 se cayo. Y
+       tambien lo que data912 trajo pero todavia no tiene la vela de hoy: data912
+       no la puede crear (no trae apertura) y CNBC si. */
     const tiene=new Set((d912||[]).map(f=>f&&String(f.symbol)));
     const pedir=[];
     for(const s of DATOS.simbolos){
       const afuera=deOtraBolsa(s.t);
       if(!afuera&&!rueda)continue;
-      if(!afuera&&tiene.has(s.t.replace('-','.')))continue;
+      if(!afuera&&tiene.has(s.t.replace('-','.'))&&s.d[s.d.length-1]===ny.fecha)continue;
       pedir.push(...variantesCnbc(s.t));
     }
     let cnbc=null;
@@ -5821,6 +5851,8 @@ async function pedirVivo(){
     if(!VIVO.error)VIVO.ts=Date.now();
     if(R.cambiados.length){
       invalidarSimbolos(R.cambiados);
+      // una vela nueva cambia la ultima fecha: el ⚠ de atraso se recalcula
+      if(R.nuevas.length)recalcularAtrasos();
       recalcular();
       if(vistaPanorama)renderPanorama();
     }

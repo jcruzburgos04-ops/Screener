@@ -2267,9 +2267,22 @@ sabotaje en `pruebas/vivo.js`:
   si hace días que no opera, como Tokio con feriados), que es la misma fecha
   que usa Yahoo para la vela. Por eso las bolsas de afuera se actualizan también
   con Nueva York cerrado, y el fin de semana no se pide nada.
-- **Si la vela de hoy todavía no existe no se toca nada.** Hasta ~10 minutos
-  después de la apertura (lo que tarda la intradía) no hay sobre qué parchear, y
-  fabricar una vela sería inventarla.
+- **Si la vela de hoy todavía no existe, la arma CNBC** —y sólo CNBC—, con su
+  apertura, máximo, mínimo, último y volumen, que es la vela entera del día.
+  data912 no puede, porque no trae apertura: ahí sí sería inventarla. Sólo si la
+  cotización es de una rueda **posterior** a la última vela, con los mismos
+  controles de moneda y de salto (último **y apertura** contra el cierre
+  anterior). Una cotización sin apertura no arma nada y **no** se cuenta como
+  dato roto. Al armarla se recalcula el `⚠` de atraso. A CNBC se le pide
+  también lo que data912 trajo pero todavía no tiene la vela de hoy.
+
+  > **Esto se cambió por un caso real, y el error fue mío.** La primera
+  > versión nunca creaba velas, y eso dejaba el precio en vivo **colgado del
+  > mismo cron que falla**: el lunes 28/9 GitHub no largó `intradia.yml` en
+  > toda la mañana (la última corrida era del viernes 00:12 UTC), la vela de
+  > hoy no existía, y el usuario vio el cierre del viernes 27 minutos después
+  > de la apertura. Las dos redes dependían de lo mismo. Se disparó la
+  > intradía a mano (publicó 14:01 UTC) y se hizo que la página arme la vela.
 - **La moneda tiene que ser la del papel** (`mon` del payload contra
   `currencyCode`). Euro contra dólar difiere menos de 15% y la regla de abajo
   sola no lo ataja.
@@ -2493,10 +2506,13 @@ necesitan internet.
 24. **Un instrumento sin dato no se dibuja con un dato inventado.** Sin precio o
     sin rendimiento, no entra a la curva. Muy lejos del resto, sale del dibujo
     pero **no de la tabla**, y la tarjeta dice cuál y por qué.
-25. **El precio en vivo sólo toca la vela de la MISMA rueda que la cotización.**
-    Nunca crea una vela, nunca toca la apertura, nunca en otra moneda, nunca un
-    papel de EE.UU. fuera de la rueda regular, y el volumen sólo sube y sólo
-    desde CNBC (el de data912 no es el del día).
+25. **El precio en vivo sólo toca la vela de la MISMA rueda que la cotización,
+    o arma la de hoy si falta y la fuente trae la vela entera.** Sólo CNBC
+    crea velas (trae apertura; data912 no), sólo hacia adelante, nunca en otra
+    moneda, nunca un papel de EE.UU. fuera de la rueda regular. Sobre una vela
+    que ya existe nunca toca la apertura, y el volumen sólo sube y sólo desde
+    CNBC (el de data912 no es el del día). Si el precio en vivo depende del
+    mismo cron que la intradía, no es un respaldo.
 26. **Una regla de detección de figuras se mide antes de quedarse.** Se dibuja
     lo que marca sobre los papeles reales, y se corre el barrido con y sin
     ella: si da lo mismo, está muerta y se va (pasó con los toques por mitades).
