@@ -10,17 +10,13 @@ POR QUE EXISTE SI LA PAGINA YA LO CALCULA
 Por lo mismo que el ASH esta dos veces: el usuario compara estos numeros contra
 su backtest en Python, y la unica forma de saber que el JS de `plantilla.html`
 dice lo mismo es tener una segunda implementacion y compararlas
-(`pruebas/estrategia_paridad.js`). Ademas la usan:
-
-  - `rs_amplio.py`, que arma de noche el universo amplio del RS con el mismo
-    `puntaje_rs` que usa la pagina;
-  - la sonda de Actions, que corre todo contra el historial COMPLETO de Yahoo
-    (desde 1997) y lo compara con las 850 barras que se publican.
+(`pruebas/estrategia.js`). Ademas la usa `validar_estrategia.py`, que en cada
+publicacion compara el screener contra los archivos del backtest (backtest/).
 
 LAS REGLAS SON DEL USUARIO, NO NUESTRAS
 ---------------------------------------
-Cada numero de aca viene de su especificacion (prompt_screener_v31.md) y de sus
-respuestas. No se "simplifica" nada sin preguntarle. Lo que la especificacion
+Cada numero de aca viene de su especificacion (la del 16/10/2026, que reemplazo
+a la primera) y de sus respuestas. No se "simplifica" nada sin preguntarle. Lo que la especificacion
 no decia y hubo que elegir esta marcado con ELEGIDO, para que sepa donde mirar
 si un valor no le cierra contra el backtest.
 
@@ -157,9 +153,11 @@ def pct_rank(valores):
 
 def rs_de_puntaje(x, universo_ordenado):
     """
-    ELEGIDO: el percentil de `x` dentro del universo amplio (ya ordenado), como
-    rank(pct=True) de pandas, por 100 y acotado a 1-99. El filtro compara ESTE
-    numero (sin redondear) contra 70; en pantalla va redondeado.
+    RS = redondeo(percentil * 98 + 1), con el percentil de pandas
+    rank(pct=True) (empates promediados) contra TODOS los tickers del usuario
+    con dato ese dia, y el redondeo de numpy: al par (74,5 -> 74). Las dos
+    cosas salieron de comparar contra el CSV del backtest: con otro redondeo
+    nueve filas daban 75 donde el backtest dice 74.
     """
     u = universo_ordenado
     if not np.isfinite(x) or not len(u):
@@ -170,7 +168,15 @@ def rs_de_puntaje(x, universo_ordenado):
         pct = (menos + 1) / (len(u) + 1)
     else:
         pct = (menos + 1 + hasta) / 2.0 / len(u)
-    return min(99.0, max(1.0, pct * 100))
+    return float(redondeo_par(pct * 98 + 1))
+
+
+def redondeo_par(x):
+    """round() de numpy, con tolerancia: 74,4999999 de coma flotante es 74,5."""
+    f = np.floor(x)
+    if abs(x - f - 0.5) < 1e-9:
+        return f if f % 2 == 0 else f + 1
+    return np.round(x)
 
 
 # ==============================================================================
@@ -344,6 +350,45 @@ def automata_regimen(c, s50, s200):
     return on
 
 
+def alinear(s, cal):
+    """
+    La serie del papel sobre el calendario del SPY, como la arma el backtest
+    (lo dijo el usuario y lo confirma SMSN.IL, que cotiza en Londres):
+      - un dia que el papel opero y Nueva York no, se descarta;
+      - un hueco entre su primer y su ultimo dato: O = H = L = C = cierre
+        anterior y volumen 0, marcado como "sin vela propia";
+      - antes del primero y despues del ultimo, no hay dato (no califica);
+      - despues, H = max(H, O, C) y L = min(L, O, C): velas mal formadas.
+    Los indicadores se calculan sobre la serie rellenada, asi que un dia
+    rellenado SI puede calificar.
+    """
+    cal = np.asarray(cal, np.int64)
+    d = np.asarray(s["d"], np.int64)
+    pos = np.searchsorted(cal, d)
+    ok = (pos < len(cal)) & (cal[np.minimum(pos, len(cal) - 1)] == d)
+    if not ok.any():
+        return None
+    pos, idx = pos[ok], np.nonzero(ok)[0]
+    p0, p1 = int(pos[0]), int(pos[-1])
+    n = p1 - p0 + 1
+    out = {k: np.full(n, np.nan) for k in "ohlcv"}
+    propia = np.zeros(n, bool)
+    for k in "ohlc":
+        out[k][pos - p0] = np.asarray(s[k], float)[idx]
+    out["v"][pos - p0] = np.asarray(s.get("v") or [0] * len(d), float)[idx]
+    propia[pos - p0] = True
+    for j in range(n):
+        if not propia[j]:
+            pc = out["c"][j - 1]
+            out["o"][j] = out["h"][j] = out["l"][j] = out["c"][j] = pc
+            out["v"][j] = 0
+    out["h"] = np.fmax(out["h"], np.fmax(out["o"], out["c"]))
+    out["l"] = np.fmin(out["l"], np.fmin(out["o"], out["c"]))
+    r = {"t": s["t"], "d": cal[p0:p1 + 1].tolist(), "propia": propia}
+    r.update({k: out[k].tolist() for k in "ohlcv"})
+    return r
+
+
 def puntaje_rs(c, c_spy):
     """
     RS estilo IBD contra el SPY, con los retornos a 63/126/189/252 ruedas.
@@ -374,7 +419,8 @@ def evaluar(s, spy, hasta, universo_rs=None, calendario=None):
     o, h, l, c = (np.asarray(s[k][:n], float) for k in "ohlc")
     d = d[:n]
     i = n - 1
-    r = {"t": s["t"], "fecha": int(hasta), "cierre": c[i]}
+    r = {"t": s["t"], "fecha": int(hasta), "cierre": c[i],
+         "propia": bool(s["propia"][i]) if "propia" in s else True}
 
     # 1 · cruce WMA 21/26
     w1, w2 = wma(c, WMA_RAP), wma(c, WMA_LEN)
@@ -517,20 +563,34 @@ def es_etf(grupo):
     return str(grupo or "").startswith("ETF")
 
 
+def cargar_excluidos(path="estrategia_excluidos.csv"):
+    """ticker -> motivo. Entran en los percentiles; nunca son candidatos."""
+    from pathlib import Path
+    mapa = {}
+    p = Path(path)
+    if not p.exists():
+        return mapa
+    for ln in p.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#") or ln.lower().startswith("ticker,"):
+            continue
+        partes = [x.strip() for x in ln.split(",", 1)]
+        if partes[0]:
+            mapa[partes[0]] = partes[1] if len(partes) > 1 else ""
+    return mapa
+
+
 def universo_estrategia(simbolos, mapa_adr):
     """
     Los papeles del usuario que entran a la estrategia, en el orden del
-    payload: sin ETFs (decision del usuario: en el backtest eran 14 de 608
-    operaciones, con -3,3% de promedio), y cada cotizacion local reemplazada
-    por su ADR. Si el ADR ya estaba en la lista no se duplica. Devuelve
-    (tickers, reemplazos {local: adr}, afuera [locales sin ADR]).
+    payload, ETFs INCLUIDOS (en el backtest eran candidatos: 14 de 608
+    operaciones), con cada cotizacion local reemplazada por su ADR y sin
+    duplicar. Devuelve (tickers, reemplazos {local: adr}, afuera).
     """
     hay = {s["t"] for s in simbolos}
     vistos, salida, reemp, afuera = set(), [], {}, []
     for s in simbolos:
         t = s["t"]
-        if es_etf(s.get("g")):
-            continue
         if t in mapa_adr:
             adr = mapa_adr[t]
             if not adr:
@@ -581,11 +641,11 @@ def seguir_posicion(s, fe, pe, atr_pct, hasta):
         return p
     for j in range(int(np.searchsorted(d, fe, "right")), n):
         if o[j] <= p["sl"]:
-            return fin("SL", j, o[j])
+            return fin("SL con gap", j, o[j])
         if l[j] <= p["sl"]:
             return fin("SL", j, p["sl"])
         if o[j] >= p["tp"]:
-            return fin("TP", j, o[j])
+            return fin("TP con gap", j, o[j])
         if h[j] >= p["tp"]:
             return fin("TP", j, p["tp"])
         if activa and np.isfinite(s40[j]) and c[j] < s40[j]:
@@ -599,12 +659,12 @@ def seguir_posicion(s, fe, pe, atr_pct, hasta):
 
 def historia_senal(s, spy, hasta, fecha_cruce, u_de, pausa_de, calendario=None):
     """
-    El dia en que la estrategia HUBIERA entrado en esta racha: el primero,
-    desde el cruce y dentro de las 20 ruedas, en que pasan los filtros 1 a 8
-    con el SPY sin pausa. Es lo que hace el backtest (una entrada por cruce, al
-    cierre de la senal). u_de(dia) da los puntajes ordenados del RS de ese dia;
-    pausa_de(dia) si el SPY estaba en pausa. Los lugares libres de aquel dia no
-    se conocen y no se simulan.
+    El dia de la senal: el PRIMERO de la racha alcista actual de WMA 21/26 en
+    que el papel calificaba (filtros 1 a 8) y el SPY NO estaba en pausa. Si
+    califico, dejo de calificar y volvio, sigue siendo el primero. Desde ahi
+    se simula la operacion del backtest hasta `hasta` (seccion 7). `s` ya
+    alineado al calendario del SPY. u_de(dia) da los puntajes ordenados del RS
+    de ese dia; pausa_de(dia), si el SPY estaba en pausa.
     """
     if not fecha_cruce:
         return None
@@ -628,3 +688,113 @@ def historia_senal(s, spy, hasta, fecha_cruce, u_de, pausa_de, calendario=None):
                 "salida": g["salida"], "salida_fecha": g["fecha"] if g["salida"] else None,
                 "salida_precio": g.get("precio"), "activa": g["activa"]}
     return {"fecha": None, "en_pausa": en_pausa}
+
+
+def resultado_neto(entrada, precio):
+    """Lo que deja la operacion con la comision de 0,35 % por lado."""
+    return precio * (1 - COMISION) / (entrada * (1 + COMISION)) - 1
+
+
+# ==============================================================================
+# 6. TODO DE UNA VEZ: las series enteras de un papel (para validar dias)
+# ==============================================================================
+
+def serie_papel(a, cal, cs):
+    """
+    Las mismas columnas que evaluar(), pero para TODOS los dias del papel de
+    una vez. evaluar() recalcula la historia entera por cada dia, que para la
+    pagina esta bien (unas pocas filas) y para comparar 66 dias x 460 papeles
+    contra el backtest es lentisimo. Todas las medias son causales, asi que el
+    valor del dia j no depende de lo que vino despues. validar_estrategia.py
+    comprueba en cada corrida que esto y evaluar() digan lo mismo.
+
+    `a` alineado con alinear(); `cal` el calendario del SPY; `cs` sus cierres.
+    """
+    import pandas as pd
+    cal = np.asarray(cal, np.int64)
+    d = np.asarray(a["d"], np.int64)
+    n = len(d)
+    p0 = int(np.searchsorted(cal, d[0]))
+    P = p0 + np.arange(n)
+    o, h, l, c = (np.asarray(a[k], float) for k in "ohlc")
+    r = {"d": d, "cierre": c, "propia": np.asarray(a["propia"], bool)}
+    w1, w2 = wma(c, WMA_RAP), wma(c, WMA_LEN)
+    val = np.isfinite(w1) & np.isfinite(w2)
+    arriba = val & (w1 >= w2)
+    dias = np.full(n, np.nan)
+    fcr = np.zeros(n, np.int64)
+    k = None
+    for j in range(n):
+        if arriba[j]:
+            if k is None:
+                k = j
+            if k - 1 >= 0 and val[k - 1] and w1[k - 1] < w2[k - 1]:
+                dias[j], fcr[j] = j - k, d[k]
+        else:
+            k = None
+    r.update(wma21=w1, wma26=w2, dias_cruce=dias, fecha_cruce=fcr,
+             f1=np.isfinite(dias) & (dias <= CRUCE_MAX))
+    adr = (sma(h / l, ADR_N) - 1) * 100
+    r.update(adr=adr, f2=np.isfinite(adr) & (adr > ADR_MIN))
+    pun = np.full(n, np.nan)
+    for j in range(n):
+        if j >= 252 and P[j] >= 252:
+            s_ = 0.0
+            for m, w in ((63, .4), (126, .2), (189, .2), (252, .2)):
+                s_ += w * (c[j] / c[j - m]) / (cs[P[j]] / cs[P[j] - m])
+            pun[j] = s_
+    r["rs_puntaje"] = pun
+    lo = pd.Series(l).rolling(RUEDAS_52, min_periods=RUEDAS_52).min().to_numpy()
+    hi = pd.Series(h).rolling(RUEDAS_52, min_periods=RUEDAS_52).max().to_numpy()
+    r.update(sobre_min=c / lo - 1, bajo_max=c / hi - 1,
+             f4=np.isfinite(lo) & (c >= SOBRE_MIN * lo),
+             f5=np.isfinite(hi) & (c >= BAJO_MAX * hi))
+    s50, s200 = sma(c, SMA_REG_C), sma(c, SMA_REG_L)
+    reg = np.zeros(n, bool)
+    on = True
+    for j in range(n):
+        if not (np.isfinite(s50[j]) and np.isfinite(s200[j])):
+            on = True
+        else:
+            ln = max(s50[j], s200[j])
+            if on and c[j] < ln:
+                on = False
+            elif not on and c[j] > ln:
+                on = True
+        reg[j] = on
+    r.update(regimen=reg, f6=reg)
+    # velas de 3 dias: grupo de cada rueda y la ultima cerrada de cada dia
+    pa = int(np.searchsorted(cal, ANCLA_3D))
+    ini = pa + 1
+    g = np.floor_divide(P - ini, 3)
+    usar = ini + 3 * g >= 0
+    gs, cierres, fin = [], [], []
+    for j in range(n):
+        if not usar[j]:
+            continue
+        if gs and gs[-1] == g[j]:
+            cierres[-1] = c[j]
+        else:
+            gs.append(int(g[j]))
+            cierres.append(c[j])
+            fin.append(int(cal[ini + 3 * g[j] + 2]) if ini + 3 * g[j] + 2 < len(cal) else 0)
+    cierres = np.asarray(cierres)
+    mm = ema_p(cierres, MACD_R) - ema_p(cierres, MACD_L)
+    hs = mm - ema_p(mm, MACD_S)
+    gs = np.asarray(gs)
+    gc = np.floor_divide(P - ini - 2, 3)
+    k3 = np.searchsorted(gs, gc, "right") - 1
+    h3 = np.where(k3 >= 0, hs[np.maximum(k3, 0)], np.nan)
+    h3a = np.where(k3 >= 1, hs[np.maximum(k3 - 1, 0)], np.nan)
+    r.update(hist3=h3, hist3_ant=h3a,
+             v3_fin=np.where(k3 >= 0, np.asarray(fin)[np.maximum(k3, 0)], 0),
+             f7=np.isfinite(h3) & np.isfinite(h3a) & (h3 > h3a))
+    e3, e21 = ema_p(c, EWO_R), ema_p(c, EWO_L)
+    ewo1, ewo2 = e3 - e21, (e3 / e21 - 1) * 100
+    sew = ema_p(ewo2, EWO_S)
+    r.update(ewo1=ewo1, ewo2=ewo2, ewo_senal=sew,
+             f8=np.isfinite(ewo1) & np.isfinite(sew) & (ewo1 > 0) & (ewo2 > sew))
+    r["atr_pct"] = atr_p(h, l, c, ATR_N) / c
+    r["sma40"] = sma(c, SMA_SAL)
+    r["ema34"] = ema_p(c, EMA_REENT)
+    return r

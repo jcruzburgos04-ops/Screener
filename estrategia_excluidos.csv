@@ -1,0 +1,5 @@
+# Estrategia: papeles que NO pueden ser candidatos (nunca aparecen como
+# compra) pero SIGUEN en los percentiles del RS y de la prioridad, porque
+# asi estan en el backtest. Decision del usuario, 16/10/2026.
+ticker,motivo
+UPS,ya no esta en el panel de CEDEARs de BYMA desde el 3/9/2026

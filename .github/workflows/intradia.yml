@@ -164,8 +164,6 @@ jobs:
                && git -C sitio_previo checkout -q --force FETCH_HEAD -- datos.json
             then
               cp sitio_previo/datos.json estado/datos.json
-              # el RS amplio lo arma la corrida nocturna: aca solo se lo arrastra
-              git -C sitio_previo checkout -q --force FETCH_HEAD -- rs_universo.json 2>/dev/null || true
             else
               echo "      (no pude releer gh-pages, sigo con la copia anterior)"
             fi
@@ -204,7 +202,8 @@ jobs:
             # devuelve error si no salio ninguna.
             if python actualizar_rapido.py --previo estado/datos.json --salida sitio; then
               bonos
-              [ -f sitio_previo/rs_universo.json ] && cp sitio_previo/rs_universo.json sitio/
+              python validar_estrategia.py --datos sitio/datos.json --salida sitio > /dev/null \
+                || echo "      (estrategia: no coincide con el backtest, ver validacion.json)"
               publicar
               cp sitio/datos.json estado/datos.json
               exitos=$(( exitos + 1 ))

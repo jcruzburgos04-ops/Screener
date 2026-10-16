@@ -21,7 +21,9 @@ const ok=(n,c,x)=>{if(c)console.log('  ok     '+n);else{fallas++;
   console.log('  FALLA  '+n+(x!==undefined?'   -> '+x:''));}};
 const esperar=ms=>new Promise(r=>setTimeout(r,ms));
 const P=JSON.parse(fs.readFileSync(path.join(SITIO,'datos.json'),'utf8'));
-const S=new Map(P.simbolos.map(s=>[s.t,s])),spy=S.get('SPY');
+// todo sobre el calendario del SPY, como la pagina y como el backtest
+const S0=new Map(P.simbolos.map(s=>[s.t,s])),spy=M.alinearEstr(S0.get('SPY'),S0.get('SPY').d);
+const S=new Map([...S0].map(([t,s])=>[t,t==='SPY'?spy:M.alinearEstr(s,spy.d)]).filter(x=>x[1]));
 
 console.log('== 1. paridad con estrategia.py ==');
 {
@@ -32,7 +34,7 @@ console.log('== 1. paridad con estrategia.py ==');
   const ref=JSON.parse(fs.readFileSync(tmp,'utf8'));
   let peor=0,donde='',dec=0,ejemplo='',filas=0,pasan=0,ashPeor=0,ashDec=0;
   for(const R of fechas){
-    const u=M.universoEstr(P.simbolos,P.estr_adr).tickers;
+    const u=M.universoEstr(P.simbolos,P.estr_adr).tickers.filter(t=>S.has(t));
     ok(`mismo universo el ${R}`,JSON.stringify(u)===JSON.stringify(ref[R].universo),
       u.length+' vs '+ref[R].universo.length);
     const fil=u.map(t=>M.evaluarEstr(S.get(t),spy,R,null,spy.d)).filter(Boolean);
@@ -176,9 +178,9 @@ function serie(c,extra){const n=c.length,d=dias(20230101,20291231).slice(0,n);
   let g=M.seguirPosicion(s,op,s.d[79]);
   ok('TP y SL en la misma vela: cuenta el SL',g.salida==='SL'&&g.precio===93&&g.fecha===s.d[60],JSON.stringify(g));
   s=mk(s=>{s.o[61]=90;s.l[61]=89;});g=M.seguirPosicion(s,op,s.d[79]);
-  ok('abre debajo del SL: sale al open',g.salida==='SL'&&g.precio===90);
+  ok('abre debajo del SL: sale al open, como «SL con gap»',g.salida==='SL con gap'&&g.precio===90);
   s=mk(s=>{s.o[61]=320;s.h[61]=330;});g=M.seguirPosicion(s,op,s.d[79]);
-  ok('abre arriba del TP: sale al open',g.salida==='TP'&&g.precio===320);
+  ok('abre arriba del TP: sale al open, como «TP con gap»',g.salida==='TP con gap'&&g.precio===320);
   s=mk(s=>{for(let j=55;j<80;j++){s.c[j]=125;s.o[j]=s.h[j]=s.l[j]=125;} s.c[70]=100;s.l[70]=99;});
   g=M.seguirPosicion(s,op,s.d[79]);
   ok('cierre >= +20 % activa y la salida por SMA 40 es al cierre',g.salida==='SMA 40'&&g.fecha===s.d[70]&&g.desde===s.d[55],JSON.stringify(g));
@@ -199,10 +201,26 @@ function serie(c,extra){const n=c.length,d=dias(20230101,20291231).slice(0,n);
   ok('si desde la salida no volvió a la SMA 40, no hay re-entrada',!r2.ok&&!r2.bajo);
 }
 
+{
+  // la serie alineada al calendario del SPY, como la arma el backtest
+  const cal=[20261005,20261006,20261007,20261008,20261009,20261012];
+  const s={t:'X',d:[20261005,20261007,20261010,20261012],o:[10,11,12,13],h:[10.5,11.5,12.5,12.9],
+    l:[9.5,10.5,11.5,12.5],c:[10,11,12,13.2],v:[5,5,5,5]};
+  const a=M.alinearEstr(s,cal);
+  ok('un día que Nueva York no operó (sábado 10/10) se descarta',!a.d.includes(20261010)&&a.d.length===6);
+  ok('un hueco: O = H = L = C = cierre anterior, volumen 0, sin vela propia',
+    a.c[1]===10&&a.o[1]===10&&a.h[1]===10&&a.l[1]===10&&a.v[1]===0&&a.propia[1]===false&&a.propia[2]===true);
+  ok('después del último dato no hay vela (no se inventa)',a.d[a.d.length-1]===20261012);
+  ok('una vela mal formada se arregla: H = máx(H, O, C)',a.h[5]===13.2&&a.l[5]===12.5);
+  ok('antes del primer dato tampoco',M.alinearEstr({t:'Y',d:[20261008],o:[1],h:[1],l:[1],c:[1]},cal).d[0]===20261008);
+  ok('redondeo del RS al par, como numpy: 74,5 → 74 y 75,5 → 76',M.redondeoPar(74.5)===74&&M.redondeoPar(75.5)===76&&M.redondeoPar(70.4999999999)===70);
+  ok('RS = redondeo(percentil × 98 + 1)',M.rsDePuntaje(3,[1,2,3,4])===M.redondeoPar(3/4*98+1));
+}
+
 console.log('\n== 3. la pantalla ==');
 const {JSDOM}=require('jsdom');
 const html=fs.readFileSync(path.join(SITIO,'index.html'),'utf8');
-function abrir(almacen,conRsu){
+function abrir(almacen,valid){
   return new Promise(res=>{
     const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://local/',
       beforeParse(w){const noop=()=>{};
@@ -214,8 +232,7 @@ function abrir(almacen,conRsu){
         w.fetch=async u=>{const s=String(u);
           if(s.indexOf('api/')===0)throw new Error('sin servidor');
           if(s.indexOf('datos.json')>=0)return {ok:true,body:null,text:async()=>JSON.stringify(P)};
-          if(s.indexOf('rs_universo.json')>=0&&conRsu)return {ok:true,json:async()=>conRsu};
-          if(s.indexOf('rs_universo.json')>=0)return {ok:false,status:404};
+          if(s.indexOf('validacion.json')>=0)return valid?{ok:true,json:async()=>valid}:{ok:false,status:404};
           throw new TypeError('Failed to fetch');};}});
     const t=setInterval(()=>{if(dom.window.document.querySelectorAll('#tabla tbody tr').length){
       clearInterval(t);res(dom.window);}},20);});}
@@ -223,100 +240,142 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   getItem(k){return this._m[k]??null},setItem(k,v){this._m[k]=String(v)},removeItem(k){delete this._m[k]}};}
 (async()=>{
   const A=almacen();
-  let w=await abrir(A);const $=s=>w.document.querySelector(s),$$=s=>[...w.document.querySelectorAll(s)];
+  const VAL={generado:'2026-10-16 22:00 UTC',ok:false,senales:{coinciden:960,filas:961,dias:66,pausas:66},
+    operaciones:{iguales:94,total:94},etsy:{ok:true},diferencias:['20260701 IFF: algo']};
+  let w=await abrir(A,VAL);const $=s=>w.document.querySelector(s),$$=s=>[...w.document.querySelectorAll(s)];
   $('#chipEstr').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
-  await esperar(80);
+  await esperar(120);
   ok('entra a la vista',w.document.body.classList.contains('estrategia')&&$('#chipEstr').classList.contains('on'));
   const res=w.eval('calcularEstrategia()');
   const cartel=$('.es-cartel').textContent;
   ok('el cartel dice lo que dice el ASH del SPY',res.mercado.pausa?cartel.startsWith('PAUSA'):cartel==='SE PUEDE ENTRAR',cartel);
   ok('muestra SmthBulls y SmthBears de los dos',$$('.es-asd').length===2&&$$('.es-asd-v b').length===4);
-  ok('la tabla se atenúa en pausa y sólo en pausa',!!$('.es-tabla-wrap.atenuada')===res.mercado.pausa);
-  ok('sin rs_universo.json el RS sale contra los propios y EN ROJO',res.fuente==='propio'&&!!$('.es-info .es-mal'));
-  const senales=res.filas.filter(f=>f.pasa).length;
-  const filas=()=>$$('#estrCuerpo .es-tabla')[0].querySelectorAll('tbody tr[data-t]');
-  ok('una fila por señal',filas().length===senales,filas().length+' vs '+senales);
-  const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent.replace(' ⚠',''));
-  ok('las columnas en el orden pedido',th.slice(0,21).join('|')===['Ticker','Cierre','Días desde el cruce',
+  ok('la validación contra el backtest se ve, y avisa si no coincide',
+    !!$('.es-valid.mal')&&$('.es-valid').textContent.includes('960 de 961'),$('.es-valid')&&$('.es-valid').textContent);
+  ok('los ETFs son candidatos y llevan su etiqueta',res.filas.some(f=>f.t==='SPY'&&f.etf));
+  ok('UPS cuenta en los percentiles…',res.filas.some(f=>f.t==='UPS')||!P.simbolos.some(s=>s.t==='UPS'));
+  const filas=()=>[...$$('#estrCuerpo .es-tabla')[0].querySelectorAll('tbody tr[data-t]')];
+  /* En la fixtura el SPY esta en pausa todos los dias, asi que ninguna senal
+     es valida y no habria nada que ordenar ni que comprar: sin esto los
+     sabotajes de la pantalla pasaban en verde. Se apaga la pausa de los dias
+     anteriores (la de hoy se maneja aparte, mas abajo). */
+  w.eval("pausaDeEstr=()=>false;memoEstr.clave='';renderEstrategia()");
+  const res2=w.eval('calcularEstrategia()');Object.assign(res,res2);
+  ok('…pero nunca aparece como candidata',!filas().some(tr=>tr.dataset.t==='UPS'));
+  const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent);
+  ok('las columnas en el orden pedido',th.slice(0,24).join('|')===['Ticker','Cierre','Días desde el cruce',
     'WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s','Régimen SMA 50/200',
-    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ATR%(14)','Prioridad','Señal','Entry óptima','Backtest','Entry',
-    'SL (precio · %)','TP','Activación +20 %','SMA 40'].join('|'),th.join('|'));
-  const conHist=[...filas()].filter(tr=>/hoy|hace \d+ rueda|con el SPY en pausa/.test(tr.children[13].textContent));
-  ok('cada señal dice hace cuánto fue',filas().length===0||conHist.length===filas().length,
-    conHist.length+' de '+filas().length);
-  const hEj=res.filas.filter(f=>f.pasa).map(f=>w.eval(`historiaEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`)).find(h=>h&&h.fecha);
-  if(hEj){const tr=[...filas()].find(tr=>tr.dataset.t===res.filas.find(f=>f.pasa&&w.eval(`historiaEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`).fecha===hEj.fecha).t);
-    ok('la entrada óptima es el cierre del día de la señal',!!tr&&tr.children[14].textContent.startsWith(new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(hEj.entry)),tr&&tr.children[14].textContent);}
-  {const h={fecha:20261009,ruedas:4,entry:100,atr_pct:0.02,enPausa:20261008,salida:'SL',salida_fecha:20261014,salida_precio:93,activa:false};
-   const tb=w.document.createElement('tbody');
-   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h)},{cierre:110})`)+'</tr>';
-   const c=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
-   ok('la celda de la señal: hace cuánto y qué día',c[0].startsWith('hace 4 ruedas · 09/10/2026'),c[0]);
-   ok('la entrada óptima y cuánto subió desde ahí',c[1]==='100,00 · hoy +10,0 %',c[1]);
-   ok('si el backtest ya salió, lo dice con fecha y resultado',c[2]==='salió por SL el 14/10/2026 (-7,0 %)',c[2]);
-   ok('y avisa que antes pasó con el SPY en pausa',tb.querySelector('td').title.includes('08/10/2026'));
-   const h2=Object.assign({},h,{ruedas:0,salida:null,activa:true});
-   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100})`)+'</tr>';
-   const c2=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
-   ok('la de hoy dice hoy, y la abierta su resultado',c2[0].startsWith('hoy')&&c2[2]==='abierta 0,0 % · activada',c2.join(' | '));}
-  const pr=[...filas()].map(tr=>res.filas.find(f=>f.t===tr.dataset.t).prio);
-  ok('ordenadas por prioridad',pr.every((v,i)=>!i||v<=pr[i-1]));
-  if(!res.mercado.pausa)ok('marca las primeras según los lugares libres',
-    $$('.es-et.comprar').length===Math.min(10,senales));
-  else ok('en pausa no marca ninguna para comprar',$$('.es-et.comprar').length===0);
-  // casi-senales
+    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ATR%(14)','Prioridad',
+    'Señal','Nueva hoy','Entrada óptima','SL · TP · Activ. óptimos','Precio vs óptima','Estado de la señal',
+    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %','SMA 40'].join('|'),th.join('|'));
+  // grupos: primero las validas (califican + senal abierta), por prioridad y despues ticker
+  const cl=f=>w.eval(`clasificarEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`);
+  const validas=res.filas.filter(f=>f.pasa&&f.t!=='UPS'&&cl(f).valida);
+  const trs=filas(),primeras=trs.slice(0,validas.length).map(tr=>tr.dataset.t);
+  ok('arriba van las que califican con la señal abierta',
+    validas.every(f=>primeras.includes(f.t)),primeras.join(' ')+' / '+validas.map(f=>f.t).join(' '));
+  const pr=primeras.map(t=>res.filas.find(f=>f.t===t));
+  ok('ordenadas por prioridad, y a igualdad por ticker',
+    pr.every((f,i)=>!i||pr[i-1].prio>f.prio||(pr[i-1].prio===f.prio&&pr[i-1].t<f.t)));
+  ok('el resto va atenuado',trs.slice(validas.length).every(tr=>tr.classList.contains('es-at')));
+  ok('una señal que pasó sólo en pausa dice «sin señal válida»',
+    trs.every(tr=>tr.children[18].textContent.trim()!==''));
+  ok('la prueba tiene señales válidas con que trabajar',validas.length>=2,validas.length);
+  w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:true});renderEstrategia()');
+  ok('en pausa ninguna es COMPRA',$$('.es-et.comprar').length===0);
+  // un papel que no puede ser candidato (como UPS) desaparece aunque califique
+  const vt=validas[0].t;
+  w.eval(`DATOS.estr_excl=Object.assign({},DATOS.estr_excl,{${JSON.stringify(vt)}:'prueba'});memoEstr.clave='';renderEstrategia()`);
+  ok('un excluido no aparece como candidato aunque califique',!filas().some(tr=>tr.dataset.t===vt));
+  const r3=w.eval('calcularEstrategia()');
+  ok('pero sigue en los percentiles',r3.filas.some(f=>f.t===vt));
+  w.eval(`delete DATOS.estr_excl[${JSON.stringify(vt)}];memoEstr.clave='';renderEstrategia()`);
+  // sin pausa: COMPRA en las primeras N del grupo 1
+  w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:false});renderEstrategia()');
+  const nv=validas.length;
+  ok('sin pausa, COMPRA en las primeras según los lugares libres',
+    $$('.es-et.comprar').length===Math.min(10,nv)&&(nv===0||filas()[0].querySelector('.es-et.comprar')),
+    $$('.es-et.comprar').length+' vs '+Math.min(10,nv));
+  $('#esLugares').value='1';$('#esLugares').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
+  w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:false});renderEstrategia()');
+  ok('lugares libres editable: con 1, una sola COMPRA',$$('.es-et.comprar').length===Math.min(1,nv));
+  $('#esLugares').value='';$('#esLugares').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
+  // casi-senales y cerradas
+  const antes=filas().length;
   $('#esCasi').checked=true;$('#esCasi').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
-  const casi=res.filas.filter(f=>f.fallan.length===1).length;
-  ok('ver casi-señales agrega las que fallan UN filtro',filas().length===senales+casi,filas().length+' vs '+(senales+casi));
-  const roja=[...filas()].find(tr=>tr.querySelector('.es-falla'));
-  ok('y el filtro que falla va en rojo',casi===0||!!roja);
-  ok('el interruptor queda guardado',JSON.parse(A._m.screener_ash_estrategia).casi===true);
-  // el precio real de entrada recalcula el plan
+  const casi=res.filas.filter(f=>f.fallan.length===1&&f.t!=='UPS').length;
+  ok('ver casi-señales agrega las que fallan UN filtro, con ese filtro en rojo',
+    filas().length>=antes+Math.min(1,casi)&&(casi===0||filas().some(tr=>tr.querySelector('.es-falla'))));
+  // una senal que el backtest ya cerro: no es entrada valida, se esconde
+  const vc=validas[1].t;
+  w.eval(`(()=>{const E=calcularEstrategia(),h=Object.assign({},historiaEstr(E,E.filas.find(x=>x.t===${JSON.stringify(vc)})),
+    {salida:'SL',salida_fecha:E.R,salida_precio:1});E.historias.set(${JSON.stringify(vc)},h);renderEstrategia();})()`);
+  ok('una señal cerrada en el backtest desaparece de las entradas',!filas().some(tr=>tr.dataset.t===vc));
+  const nCerr=res.filas.filter(f=>f.pasa&&f.t!=='UPS'&&cl(f).estado==='cerrada').length;
+  const sinCerr=filas().length;
+  $('#esCerradas').checked=true;$('#esCerradas').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
+  ok('la prueba tiene señales cerradas',nCerr>0,nCerr);
+  w.eval(`(()=>{const E=calcularEstrategia(),h=Object.assign({},historiaEstr(E,E.filas.find(x=>x.t===${JSON.stringify(vc)})),
+    {salida:'SL',salida_fecha:E.R,salida_precio:1});E.historias.set(${JSON.stringify(vc)},h);renderEstrategia();})()`);
+  const trc=filas().find(tr=>tr.dataset.t===vc);
+  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[18].textContent.startsWith('cerrada por SL'));
+  ok('ver señales cerradas las agrega, atenuadas y con su salida',filas().length===sinCerr+nCerr,
+    `${filas().length} vs ${sinCerr}+${nCerr}`);
+  ok('los interruptores quedan guardados',JSON.parse(A._m.screener_ash_estrategia).casi===true&&
+    JSON.parse(A._m.screener_ash_estrategia).cerradas===true);
+  // celdas de la senal
+  {const h={fecha:20261009,ruedas:4,entry:100,atr_pct:0.02,enPausa:20261008,salida:'SL con gap',salida_fecha:20261014,salida_precio:93,activa:false};
+   const tb=w.document.createElement('tbody');
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h)},{cierre:110,pasa:true})`)+'</tr>';
+   const c=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
+   ok('Señal: fecha y hace cuánto',c[0]==='09/10/2026 · hace 4 ruedas',c[0]);
+   ok('Nueva hoy: no',c[1]==='no');
+   ok('Entrada óptima y SL/TP/activación con el ATR% de ese día',c[2]==='100,00'&&c[3]==='93,00 · 300,00 · 120,00',c[2]+' | '+c[3]);
+   ok('Precio vs óptima, sin colores',c[4]==='+10,0 %'&&!tb.children[0].children[4].className);
+   ok('Estado: cerrada por SL con gap, con fecha y resultado neto',c[5]==='cerrada por SL con gap el 14/10/2026 (-7,6 %)',c[5]);
+   const h2=Object.assign({},h,{ruedas:0,salida:null,activa:false});
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100,pasa:true})`)+'</tr>';
+   const c2=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
+   ok('la de hoy: nueva hoy = sí, abierta en el backtest con la comisión (−0,7 %)',
+     c2[0].endsWith('hoy')&&c2[1]==='sí'&&c2[5]==='abierta en el backtest (-0,7 %)',c2.join(' | '));
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal({fecha:null,enPausa:20261008},{cierre:100,pasa:true})`)+'</tr>';
+   ok('si sólo calificó en pausa: sin señal válida',tb.textContent.includes('sin señal válida (pausa del SPY en todos los días)'));}
+  // registro: Entre / posiciones / Sali
   const tr0=filas()[0];
   if(tr0){const inp=tr0.querySelector('.es-pe');inp.value='100';inp.dispatchEvent(new w.Event('input'));
-    ok('cargar el precio de entrada recalcula el TP',tr0.querySelector('.es-tp').textContent==='300,00',tr0.querySelector('.es-tp').textContent);
-    // Entré: pasa a la cartera y deja de ser señal
+    ok('cargar el precio de entrada recalcula el plan de hoy',tr0.querySelector('.es-tp').textContent==='300,00');
     const t=tr0.dataset.t;tr0.querySelector('.es-entre').click();await esperar(30);
     const reg=JSON.parse(A._m.screener_ash_estrategia);
-    ok('Entré anota la operación con su cruce y su precio',reg.ops.length===1&&reg.ops[0].t===t&&reg.ops[0].pe===100&&reg.ops[0].cruce);
-    ok('y deja de mostrarse como entrada nueva',![...filas()].some(tr=>tr.dataset.t===t));
-    ok('aparece en la cartera',$$('#estrCuerpo tr[data-id]').length===1);
+    ok('Entré anota ticker, cruce, fecha, precio y ATR% del día',reg.ops.length===1&&reg.ops[0].t===t&&reg.ops[0].pe===100&&reg.ops[0].cruce&&reg.ops[0].atr_pct>0);
+    ok('deja de ser entrada nueva',!filas().some(tr=>tr.dataset.t===t));
+    const pos=$$('#estrCuerpo tr[data-id]')[0];
+    ok('aparece en posiciones abiertas con días, activada y la acción del día',
+      !!pos&&/mantener|VENDER|salió por/.test(pos.children[9].textContent)&&/sí|no/.test(pos.children[7].textContent),
+      pos&&pos.textContent);
     ok('los lugares libres bajan a 9',$('#esLugares').placeholder==='9');
-    // cerrarla: sigue sin poder entrar en el mismo cruce (no hay re-entrada armada)
-    const fila=$$('#estrCuerpo tr[data-id]')[0];fila.querySelector('.es-ps').value='110';
-    fila.querySelector('.es-sali').click();await esperar(30);
+    pos.querySelector('.es-ps').value='110';pos.querySelector('.es-sali').click();await esperar(30);
     const reg2=JSON.parse(A._m.screener_ash_estrategia);
-    ok('Salí la cierra con fecha y precio',reg2.ops[0].fs>0&&reg2.ops[0].ps===110);
-    const c=w.eval(`clasificarEstr(calcularEstrategia().filas.find(f=>f.t===${JSON.stringify(t)}),calcularEstrategia().porT,calcularEstrategia().R)`);
+    ok('Salí la cierra con fecha, precio y motivo',reg2.ops[0].fs>0&&reg2.ops[0].ps===110&&!!reg2.ops[0].ms);
+    const c=cl({t});
     ok('cerrada en este cruce: sólo vuelve como re-entrada',c.tipo==='reentrada'||c.tipo==='operada',c.tipo);
-    // respaldo: la exportacion lleva el registro y la importacion fusiona
     let blob=null;w.URL.createObjectURL=b=>{blob=b;return 'blob:x';};w.URL.revokeObjectURL=()=>{};
     w.HTMLAnchorElement.prototype.click=()=>{};
-    w.eval('exportarConfig()');const txt=await blob.text();const resp=JSON.parse(txt);
-    ok('el respaldo .json lleva el registro',resp.estrategia&&resp.estrategia.ops.length===1);
+    w.eval('exportarConfig()');const txt=await blob.text();
+    ok('el respaldo .json lleva el registro',JSON.parse(txt).estrategia.ops.length===1);
     const B=almacen({screener_ash_estrategia:JSON.stringify({ops:[{id:'otra',t:'ZZZ',cruce:1,fe:1,pe:1,fs:null}]})});
     const w2=await abrir(B);w2.eval(`importarConfig(${JSON.stringify(txt)})`);
-    const regB=JSON.parse(B._m.screener_ash_estrategia);
-    ok('restaurar FUSIONA: queda la que había y entra la del respaldo',regB.ops.length===2,regB.ops.length);
+    ok('restaurar FUSIONA: queda la que había y entra la del respaldo',JSON.parse(B._m.screener_ash_estrategia).ops.length===2);
   }
-  // con el universo amplio publicado
-  const U=res.filas.map(f=>f.rs_puntaje).filter(isFinite);
-  const amplio={fecha:res.R-1,n:U.length*3,p:[...U,...U.map(x=>x*0.7),...U.map(x=>x*0.8)].sort((a,b)=>a-b)};
-  const w3=await abrir(almacen(),amplio);
-  w3.document.querySelector('#chipEstr').dispatchEvent(new w3.MouseEvent('click',{bubbles:true}));await esperar(80);
-  const r3=w3.eval('calcularEstrategia()');
-  ok('con rs_universo.json el RS sale contra el universo amplio, sin rojo',r3.fuente==='amplio'&&!w3.document.querySelector('.es-info .es-mal'));
-  ok('y si los cortes no son de la vela usada, lo dice con su fecha',
-    w3.document.querySelector('.es-info .es-ojo:last-child').textContent.indexOf('no son de la vela usada')>=0);
-  const t3=r3.filas.find(f=>isFinite(f.rs_puntaje));
-  ok('el RS amplio es el percentil contra la lista publicada',
-    Math.abs(t3.rs-M.rsDePuntaje(t3.rs_puntaje,amplio.p))<1e-12);
-  // la tabla del screener no muestra los ADRs de la estrategia
-  w3.eval("verVista('t')");await esperar(50);
-  const enTabla=[...w3.document.querySelectorAll('#tabla tbody tr .tk')].map(x=>x.textContent);
+  // la vela sin vela propia
+  const hueco=P.simbolos.find(s=>{const ds=new Set(s.d);return spy.d.some(d=>d>s.d[0]&&d<s.d[s.d.length-1]&&!ds.has(d));});
+  if(hueco){const r=w.eval('calcularEstrategia()');const a=r.AL.get(hueco.t);
+    ok('el papel con huecos se alinea al calendario del SPY',a&&a.propia.includes(false),hueco.t);}
+  else ok('la fixtura trae un papel con huecos',false);
+  // la tabla del screener no muestra los ADRs de Estrategia
+  w.eval("verVista('t')");await esperar(50);
+  const enTabla=[...w.document.querySelectorAll('#tabla tbody tr .tk')].map(x=>x.textContent);
   ok('la tabla del screener no muestra los ADRs de Estrategia',!enTabla.includes('BASFY')&&!enTabla.includes('HNHPF'));
-  ok('pero Estrategia sí los usa',r3.filas.some(f=>f.t==='BASFY')&&!r3.filas.some(f=>f.t==='BAS.DE'));
-  ok('y los ETFs quedan afuera de Estrategia',!r3.filas.some(f=>f.t==='SPY'||f.t==='QQQ'));
+  ok('y Estrategia sí, en lugar de la cotización local',res.filas.some(f=>f.t==='BASFY')&&!res.filas.some(f=>f.t==='BAS.DE'));
   console.log(fallas?`\nFALLAS: ${fallas}`:'\nestrategia: todo OK');
   process.exit(fallas?1:0);
 })();

@@ -108,17 +108,12 @@ jobs:
         run: |
           python bonos.py --salida sitio || echo "(bonos: no salio, sigo)"
 
-      # El universo amplio del RS de Estrategia (~5.500 acciones de NYSE/Nasdaq).
-      # NO frena la publicacion: si Yahoo corta o la lista no baja, se recupera
-      # el de la noche anterior y la pagina muestra de que fecha es.
-      - name: RS amplio de Estrategia
+      # Estrategia contra los archivos del backtest del usuario (backtest/).
+      # NO frena la publicacion: deja validacion.json y la pagina lo muestra.
+      - name: Validar Estrategia contra el backtest
         run: |
-          if ! timeout 25m python rs_amplio.py --datos sitio/datos.json --salida sitio; then
-            echo "(rs amplio: no salio; dejo el de la corrida anterior)"
-            if git fetch -q --depth=1 origin gh-pages && git cat-file -e FETCH_HEAD:rs_universo.json 2>/dev/null; then
-              git show FETCH_HEAD:rs_universo.json > sitio/rs_universo.json
-            fi
-          fi
+          python validar_estrategia.py --datos sitio/datos.json --salida sitio \
+            || echo "::warning::Estrategia no coincide con el backtest: ver validacion.json"
 
       - name: Revisar que el sitio tenga sentido
         run: |

@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from estrategia import cargar_adr
+from estrategia import cargar_adr, cargar_excluidos
 from screener import (BENCHMARK, MIN_BARRAS_NUEVO, PERIODO, atrasos, bajar_fundamentales,
                       bajar_precios, cargar_precios, guardar_precios,
                       leer_universo, repescar_atrasados)
@@ -123,7 +123,9 @@ def armar_payload(precios, meta, uni, barras):
             "benchmark": BENCHMARK, "barras": barras, "simbolos": simbolos,
             # Estrategia: cotizacion local -> ADR en USD ('' = afuera). Viaja
             # en el payload para que la pagina y Python lean la MISMA tabla.
-            "estr_adr": cargar_adr()}
+            "estr_adr": cargar_adr(),
+            # los que no pueden ser candidatos (UPS): siguen en los percentiles
+            "estr_excl": cargar_excluidos()}
 
 
 def main():

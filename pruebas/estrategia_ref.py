@@ -10,16 +10,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import estrategia as E  # noqa: E402
 
 P = json.load(open(sys.argv[1]))
-S = {s['t']: s for s in P['simbolos']}
-spy = S['SPY']
+S0 = {s['t']: s for s in P['simbolos']}
+spy = E.alinear(S0['SPY'], S0['SPY']['d'])
+S = {t: (spy if t == 'SPY' else E.alinear(s, spy['d'])) for t, s in S0.items()}
+S = {t: s for t, s in S.items() if s}
 out = {}
 for R in map(int, sys.argv[3].split(',')):
     u, _, _ = E.universo_estrategia(P['simbolos'], P.get('estr_adr') or E.cargar_adr())
+    u = [t for t in u if t in S]
     fil = [r for r in (E.evaluar(S[t], spy, R) for t in u) if r]
     U = np.sort([f['rs_puntaje'] for f in fil if np.isfinite(f['rs_puntaje'])])
     for f in fil:
         f['rs'] = E.rs_de_puntaje(f['rs_puntaje'], U)
         f['f3'] = bool(np.isfinite(f['rs']) and f['rs'] > E.RS_MIN)
+        f['propia'] = bool(f['propia'])
         f['pasa'] = all(f[f'f{k}'] for k in range(1, 9))
     E.prioridad(fil)
 

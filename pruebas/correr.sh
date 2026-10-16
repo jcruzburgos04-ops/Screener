@@ -58,6 +58,13 @@ echo; echo "== AVWAP anclado al ultimo maximo =="
 node avwap.js
 echo; echo "== estrategia (base v3.1): paridad con Python, reglas y pantalla =="
 node estrategia.js
+# Contra el backtest del usuario hace falta un datos.json REAL (la fixtura es
+# sintetica). En Actions corre en cada publicacion; aca, si se le pasa uno.
+if [ -n "${SCREENER_DATOS_REALES:-}" ]; then
+  python3 ../validar_estrategia.py --datos "$SCREENER_DATOS_REALES"
+else
+  echo "(validacion contra el backtest: sin SCREENER_DATOS_REALES, se saltea; corre en cada publicacion)"
+fi
 echo; echo "== interfaz (jsdom) =="
 node interfaz.js
 echo; echo "== grafico y escapado =="

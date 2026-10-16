@@ -111,13 +111,15 @@ datos incrustados.
 | `verificar_tickers.py` | Le pregunta a Yahoo si un símbolo existe: barras, última rueda, precio, **moneda** y nombre. Es el paso previo a cargar un CEDEAR nuevo. Corre por `tickers.yml`, porque acá no hay internet. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 | `estrategia.py` | **La referencia en Python del menú Estrategia** (base v3.1). Las mismas reglas que el JS de `plantilla.html`, comparadas en `pruebas/estrategia.js`. Ver la sección 4f. |
-| `rs_amplio.py` | Arma de noche `rs_universo.json`: el puntaje RS de ~5.400 acciones de NYSE/Nasdaq (sin ETFs), contra el que se pasa a percentil el RS de Estrategia; el de hoy y el de las 20 ruedas anteriores. |
+| `validar_estrategia.py` | Compara Estrategia contra los archivos del backtest del usuario (`backtest/`) en cada publicación y deja `validacion.json`. Ver la sección 4f. |
 
 ### Datos y configuración
 
 | Archivo | Contenido |
 |---|---|
 | `universo.csv` | `ticker,grupo[,subyacente]` — 492 símbolos. |
+| `estrategia_excluidos.csv` | `ticker,motivo` — los que nunca son candidatos en Estrategia pero siguen en los percentiles (UPS). |
+| `backtest/` | Los tres CSV que generó el backtest del usuario: la vara contra la que se valida Estrategia. No se tocan a mano. |
 | `estrategia_adr.csv` | `local,adr` — la cotización local que en Estrategia se reemplaza por su ADR en USD (vacío = afuera). Lo decidió el usuario uno por uno. |
 | `cedears.csv` | `local,subyacente` — 416 mapeos, del panel oficial de BYMA del 12/6/2026 actualizado con el del 3/9/2026. |
 | `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
@@ -631,119 +633,126 @@ da 0 y la recta ya se descarta).
 > una fila de aviso. Contar `tbody tr` da 1 cuando no hay nada; hay que contar
 > las filas con ticker (`tbody tr .tk`).
 
-## 4f. Estrategia (base v3.1): el menú de las señales del usuario
+## 4f. Estrategia (base v3.1): reproducir el backtest del usuario
 
-Lo pidió el usuario el 16/10/2026 con una especificación cerrada
-(`prompt_screener_v31.md`): **«las reglas son exactas: respetá cada número,
-cada media y cada definición. No cambies nada "para simplificar" sin
-preguntarme.»** Vive en el menú **Estrategia** (tecla `E`). El motor está en el
-bloque `motor` de `plantilla.html` (`evaluarEstr`, `ashSpy`, `velas3d`,
-`seguirPosicion`, `reentrada`, constante `ESTR`) y **está dos veces**: la
-referencia en Python es `estrategia.py`. `pruebas/estrategia.js` las compara en
-cuatro fechas (desvío 1,4e-13, cero decisiones distintas). **Si tocás una, tocá
-la otra**, como con el ASH.
+Menú **Estrategia** (tecla `E`). La especificación vigente es la **segunda**
+que mandó el usuario (16/10/2026), que *reemplaza* a la primera: *«el objetivo
+es que el screener reproduzca mi backtest lo más exacto posible, para que en
+vivo obtenga resultados parecidos. No cambies ningún número ni definición
+"para simplificar" sin preguntarme.»*
 
-### Lo que decidió el usuario (no se cambia sin preguntarle)
+El motor está **dos veces**, como el ASH: en el bloque `motor` de
+`plantilla.html` (`alinearEstr`, `evaluarEstr`, `historiaSenal`,
+`seguirPosicion`, `ashSpy`, `velas3d`, constante `ESTR`) y en `estrategia.py`
+(`alinear`, `evaluar`, `historia_senal`, `seguir_posicion`, `ash_spy` y además
+`serie_papel`, la versión que calcula todos los días de un papel de una vez).
+`pruebas/estrategia.js` compara JS contra Python (1,4e-13, cero decisiones
+distintas). **Si tocás una, tocá la otra.**
 
-- **RS contra el universo amplio**: NASDAQ Trader (`nasdaqlisted` +
-  `otherlisted`, sin ETFs, emisiones de prueba, warrants, units, derechos,
-  preferidas ni notas) más sus tickers. Lo arma `rs_amplio.py` en la corrida
-  nocturna y se publica como `rs_universo.json` con **la lista ordenada de
-  puntajes** (no cortes cada 1%): el percentil sale exacto. Si una noche no
-  sale, queda el del día anterior y la pantalla dice de qué fecha son los
-  cortes. **Si no hay archivo** (servidor local, archivo suelto, o nunca salió),
-  el RS se mide contra sus papeles y **la columna va en rojo**: lo pidió así.
-  Medido el 16/10: 5.902 de las listas, 5.448 con puntaje al 2/10 (447 con
-  menos de un año, 20 sin la vela del día). Es la lista de HOY: para fechas
-  viejas hay un sesgo de supervivencia chico.
-- **ETFs afuera**, como candidatos y de los percentiles de la prioridad (en su
-  backtest eran 14 de 608 operaciones, −3,3% de promedio).
-- **Cotizaciones locales en otra moneda → su ADR en USD**, con el mapa de
-  `estrategia_adr.csv`. Sin duplicar si el ADR ya estaba. Los once ADRs que no
-  estaban (BBDO, BDORY, WEGZY, BASFY, DTEGY, ADDYY, BAYRY, EONGY, MBGYY, DANOY,
-  HNHPF) se agregaron a `universo.csv` con el grupo **`ADR estrategia`**, y **la
-  tabla del screener no los muestra** (ahí el papel ya está en su bolsa). Todos
-  verificados en Yahoo en USD; BBDO y HNHPF negocian poco (90 mil y 43 mil
-  papeles diarios) y WEGZY a veces llega con un día de atraso.
-- **Registro de operaciones en el navegador** (`screener_ash_estrategia`, vía
-  `leerLS`/`escribirLS`) **y dentro del respaldo `.json`**; al restaurar se
-  fusiona por id. «Entré» anota ticker, cruce, fecha, precio y ATR% del día de
-  la señal; «Salí» la cierra. Lugares libres = 10 − abiertas, editable.
-- **La vela de hoy recién desde las 16:30 de Nueva York** (no 16:00): antes de
-  eso Yahoo no tiene el cierre final, y se usa la de ayer (`velaEstrategia`).
-- **Semana del SPY**: W-FRI, sólo semanas cerradas; la semana cierra con su
-  última rueda (si el viernes es feriado, el jueves). Los feriados de NYSE van
-  **por regla** (`feriadosNYSE`), no por lista.
-- **Medias de Pine sólo acá**: `emaP`/`rmaP` sembradas con la SMA de los
-  primeros n valores VÁLIDOS y `atrP` con el true range de Pine. **No
-  reemplazan** a `ema`/`rma` del screener, que sostienen la paridad del ASH.
+### Validado contra el backtest, y queda validándose solo
 
-### Hace cuánto fue la señal, y la entrada del backtest
+Los tres archivos que generó su backtest están en `backtest/` (señales de
+jul–oct 2026, la pausa del SPY día por día, y sus 94 operaciones de
+2025-2026). `validar_estrategia.py` rehace todo desde el `datos.json`
+publicado y compara. Corre **en cada publicación** (`actualizar.yml` y cada
+vuelta de `intradia.yml`), **no frena nada** y deja `validacion.json`, que la
+página muestra arriba de la tabla en verde o en ámbar con las diferencias.
 
-Lo pidió el usuario después de verla andar: *«que se muestre hace cuánto fue la
-señal y cuál era la entrada óptima, ya que capaz es muy vieja la señal y no van
-a coincidir con lo que daba el backtest»*. Una fila que hoy cumple todo puede
-venir cumpliendo desde hace dos semanas: el backtest entró al cierre de AQUEL
-día, y comprar hoy es otra operación.
+Resultado del 16/10/2026: **961 de 961** papeles-día que califican, **66 de
+66** días de pausa, **94 de 94** salidas (fecha y motivo), y el caso de ETSY
+del 9 al 16/10 que mandó el usuario. Llegar ahí enseñó cuatro cosas, todas
+deducidas de sus archivos y después confirmadas por él:
 
-`historiaSenal()` (JS) / `historia_senal()` (Python) buscan **el día que el
-backtest hubiera usado**: el primero desde el cruce, dentro de las 20 ruedas,
-con los filtros 1 a 8 cumplidos **y el SPY sin pausa**. Tres columnas entre
-Prioridad y Entry:
+1. **Las series se alinean al calendario del SPY** (`alinear`/`alinearEstr`):
+   un día que Nueva York no operó se descarta; un hueco interno es una vela
+   plana con el cierre anterior (O = H = L = C, volumen 0) marcada **«sin vela
+   propia»**; antes del primer dato y después del último no hay nada; y
+   después H = máx(H, O, C), L = mín(L, O, C). Los indicadores van sobre la
+   serie rellenada, así que un día rellenado **puede** calificar. Lo destapó
+   SMSN.IL (Londres): sin alinear, el cruce daba 25 días; alineada, el 0 del
+   backtest y sus WMA exactas.
+2. **RS = redondeo(percentil · 98 + 1)** contra **todos** sus tickers con dato
+   ese día (ETFs y ADRs incluidos), percentil de `rank(pct=True)` y redondeo
+   **al par**, como numpy: nueve filas con 74,5 exacto el backtest las da 74.
+   **Nada de universo amplio**: `rs_amplio.py` y `rs_universo.json` se fueron.
+3. **ETFs candidatos**, con la etiqueta «ETF», y en los dos percentiles.
+4. **UNH, UPS y UAL**: el CSV coincide exacto sólo si esos tres NO están en el
+   universo de jul–oct (con ellos: 830 de 961 RS exactos; sin ellos: 960). El
+   usuario dice que están en su lista. Se le avisó: su backtest
+   aparentemente no les bajó datos en ese tramo. Por eso la validación tiene
+   **dos modos**: «backtest» (sin esos tres; tiene que coincidir exacto) y
+   «vivo» (las reglas de la página; se informa cuánto se aparta, hoy 12
+   diferencias, todas RS en el borde del 70 y UAL). `SIN_DATOS_EN_EL_CSV` en
+   el validador; si el usuario regenera el CSV, sacarlos de ahí.
 
-- **Señal** — `hoy` o `hace N ruedas · fecha`. Si antes pasó con el SPY en
-  pausa, lo dice el `title`; si sólo pasó en pausa, la celda lo dice.
-- **Entry óptima** — el cierre de ese día (ajustado por dividendos, como el
-  backtest) y cuánto está el precio de hoy contra él.
-- **Backtest** — esa misma operación seguida con `seguirPosicion` hasta hoy:
-  `abierta +x %` (y si se activó) o `salió por SL/TP/SMA 40 el …`.
+**UPS no es candidata** (ya no está en el panel de CEDEARs de BYMA desde el
+3/9) pero **sigue en los percentiles**, porque así está en el backtest:
+`estrategia_excluidos.csv`, viaja en el payload como `estr_excl`. No sale de
+ninguna otra tabla del screener.
 
-El RS de los días anteriores sale contra el universo amplio **de ese día**:
-`rs_amplio.py` publica en `rs_universo.json` un `hist` con los puntajes de las
-últimas 21 ruedas (~1 MB sin comprimir). Si falta un día, se mide contra los
-papeles del usuario de ese día y la celda lleva un `*` rojo. **Los lugares
-libres de aquel día no se conocen y no se simulan**, así que «el backtest
-hubiera entrado» supone que había lugar. La columna **Entry** del plan sigue
-siendo el cierre de hoy (lo que se pagaría hoy), editable como antes.
+**La tolerancia** es la que pidió (0,1 % en los valores, ±1 en el RS) con dos
+precisiones: un papel con el precio reajustado distinto por dividendos (HMY
+viene entero 2,7 % corrido; FMX, FCX, DAL, GE, ABBV menos) se mide en su
+propia escala con el factor k = nuestro cierre / el suyo; y en las columnas
+que ya son porcentaje (% sobre el mínimo, % bajo el máximo) el 0,1 % es sobre
+los precios, o sea 0,1 punto. En los osciladores que pasan por cero (MACD,
+EWO) se suma un piso de 0,1 % de la escala de la columna, como con el ASH.
 
-Las dos implementaciones se comparan en `pruebas/estrategia.js` (mismo día,
-misma entrada, misma salida) y la prueba verifica además que sea el PRIMER día
-sin pausa. Tres sabotajes (ignorar la pausa, arrancar un día tarde, entrar al
-cierre de hoy) quedan en rojo. Con los 355 papeles reales, la pantalla pinta
-en ~150 ms en Chromium: la historia se calcula sólo para las filas que se
-muestran.
+### Qué muestra
 
-### Lo que se verificó contra Yahoo de verdad (sonda de Actions, 16/10/2026)
+- **Estado del mercado**: ASH del SPY diario (STOCHASTIC 9/1, ALMA) y semanal
+  de semanas cerradas (RSI 21/4; la semana cierra con su última rueda, con los
+  feriados de NYSE por regla), y el cartel «SE PUEDE ENTRAR» / «PAUSA».
+- **Una fila por papel que califica hoy** (filtros 1 a 8), más «ver
+  casi-señales» (falla uno, en rojo) y «ver señales cerradas».
+- **El día de la señal** (`historiaSenal`): el PRIMER día de la racha de WMA
+  21/26 en que calificó con el SPY sin pausa. Columnas Señal (fecha y «hace
+  N ruedas»), Nueva hoy, Entrada óptima (el cierre de ese día), SL/TP/Activ.
+  óptimos (con el ATR% de ese día), Precio vs óptima (**sin colores**: el
+  usuario midió que el sobreprecio no predice el resultado) y **Estado de la
+  señal**: la operación del backtest simulada hasta hoy, «abierta en el
+  backtest (+X %)» o «cerrada por SL / SL con gap / TP / TP con gap / SMA 40».
+  Los % llevan la comisión de 0,35 % por lado (por eso el día de la señal da
+  −0,7 %). Una señal cerrada **no es entrada válida**: se esconde.
+- **Orden**: arriba las que califican con la señal abierta y que no se
+  operaron en este cruce, por prioridad (percentil ADR + percentil ATR%,
+  sobre todos los papeles con dato) y a igualdad por ticker; el resto abajo,
+  atenuado. **«COMPRA #k»** en las primeras N de ese grupo, N = lugares
+  libres (10 − abiertas, editable), con el monto capital/10 y la regla de la
+  mitad del efectivo. **En pausa, ninguna.**
+- **Plan si entro hoy**: entrada = cierre de hoy (editable con el precio
+  real), SL/TP/activación con el ATR% de hoy. Es el que vale si se entra
+  tarde, que el backtest hace entre el 36 y el 45 % de las veces.
+- **Posiciones abiertas** (del registro): entrada, días, precio, resultado,
+  SL, TP, activada y desde cuándo, SMA 40 y la acción del día: «VENDER (C <
+  SMA 40)», «salió por SL/TP …» o «mantener».
+- **Re-entrada** (filtros 2 a 8, sin pausa, en la misma racha, después de una
+  salida: cerró ≤ SMA 40 y el Low tocó la EMA 34 desde la salida, hoy > SMA
+  40). Es rara: 1 % de las operaciones.
+- Una ayuda «Cómo ejecutar para parecerse al backtest» y la referencia (CAGR
+  ≈ 48 %, MaxDD ≈ −30 %, ~40 operaciones por año), no como promesa.
 
-- **El ancla de las velas de 3 días**: contando las ruedas del SPY desde el
-  2/1/1997, el 2/10/2026 es la #7485, múltiplo de 3: cierra vela. Las
-  siguientes son 5-6-7, 8-9-12 y 13-14-15 de octubre, como dijo el usuario.
-  Entre 1997 y hoy hubo diez cierres extraordinarios (11-S, Reagan, Ford,
-  Sandy, Bush, Carter): por eso el calendario son **las fechas del SPY** y no
-  una cuenta de días hábiles. El ancla tiene que estar dentro de las 850
-  barras publicadas (lo está hasta ~2030); si sale, `velas3d` devuelve null y
-  el filtro 7 no pasa — no inventa velas.
-- **850 barras alcanzan**: con el historial completo desde 1997 y con las
-  últimas 850 dan lo mismo en los 355 papeles (desvío ≤ 4,5e-14, cero filtros
-  que cambian). El calendario publicado del SPY coincide rueda por rueda con
-  el historial.
+**El registro de operaciones** vive en el navegador (`screener_ash_estrategia`,
+vía `leerLS`/`escribirLS`) y dentro del respaldo `.json` (se fusiona por id):
+ticker, cruce, fecha, precio y ATR% de la entrada, y fecha, precio y motivo
+de la salida.
 
-### Lo que se ELIGIÓ porque la especificación no lo decía (avisarle si no cierra)
+**La vela de hoy recién desde las 16:30 de Nueva York** (`velaEstrategia`).
 
-- **Percentil del RS** = `rank(pct=True)` de pandas × 100, acotado a 1-99; el
-  filtro compara ese número sin redondear contra 70.
-- Sin 252 velas: no pasan los filtros 4 y 5. Sin 253: no hay RS.
-- **ALMA con `m = 0,85·(n−1)` sin `floor`**, la misma del ASH del screener. El
-  manual de Pine v4 escribe `floor`; con L=21 da igual (17 exacto) pero con 9
-  y 4 no. Medido el 2/10: diario 3,697/8,382 sin floor contra 4,542/8,688 con
-  floor; la decisión fue la misma.
-- Un papel sin la vela del día de referencia queda afuera (se cuenta en
-  pantalla), no se lo evalúa con la vela de otro día.
-- Re-entrada: «desde el día de la salida» incluye ese día.
+### Lo verificado contra Yahoo de verdad (sonda de Actions, 16/10/2026)
 
-> **Ojo con la clave de la semana en Python**: `clave_semana` era
-> `(ordinal+2)//7` y metía el viernes en la semana siguiente. La sonda del
-> 16/10 corrió con eso y su ASH semanal está mal; el bueno es `(ordinal−1)//7`.
+- **Ancla de las velas de 3 días**: contando las ruedas del SPY desde el
+  2/1/1997, el 2/10/2026 es la #7485, múltiplo de 3. Entre 1997 y hoy hubo
+  diez cierres extraordinarios (11-S, Sandy, Carter…): por eso el calendario
+  son **las fechas del SPY** y no una cuenta de días hábiles. El ancla tiene
+  que estar dentro de las 850 barras publicadas (lo está hasta ~2030); si
+  sale, `velas3d` devuelve null y el filtro 7 no pasa.
+- **850 barras alcanzan**: contra el historial completo desde 1997, desvío ≤
+  4,5e-14 y ningún filtro que cambie.
+
+> **ALMA sin `floor`** (`m = 0,85·(n−1)`), la misma del ASH del screener. El
+> manual de Pine v4 escribe `floor`; con 9 y 4 cambia. La pausa del SPY
+> coincide los 66 días con la del backtest, así que es la buena.
 
 ## 5. CEDEARs: la regla que no se negocia
 
@@ -2477,7 +2486,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
 | `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
-| `estrategia.js` + `estrategia_ref.py` | Estrategia: paridad con `estrategia.py` en cuatro fechas, cada regla con su borde (día 20 del cruce sí y 21 no, empate del régimen, velas de 3 días, Viernes Santo, 16:29 contra 16:30, SL y TP en la misma vela, activación por cierre y no por máximo, re-entrada) y la pantalla (cartel, casi-señales en rojo, RS en rojo sin universo amplio, Entré/Salí, respaldo). Once sabotajes probados, todos detectados. |
+| `estrategia.js` + `estrategia_ref.py` | Estrategia: paridad con `estrategia.py` en cuatro fechas, cada regla con su borde (día 20 del cruce sí y 21 no, empate del régimen, velas de 3 días, Viernes Santo, 16:29 contra 16:30, SL y TP en la misma vela, activación por cierre y no por máximo, re-entrada) la alineación al calendario del SPY (hueco, sábado, vela mal formada), el redondeo al par, y la pantalla (cartel, grupos y orden, COMPRA sólo sin pausa, UPS fuera de candidatos, señales cerradas, casi-señales en rojo, Entré/Salí, posiciones, respaldo, la marca de la validación). Veinte sabotajes probados, todos detectados. |
 | `directriz.js` | la recta de máximos que bajan: un caso por control, la ruptura con cierre (la mecha no alcanza, se vence a las 5 ruedas, deja de valer si vuelve abajo), velas reales, columna, filtros y dibujo |
 | `compresion.js` | las rectas que se juntan: cada tipo, lo que no es (caja plana, V, caída, triángulo empinado), la ruptura, velas reales de PG/TGT/KO, y la columna, el filtro y el dibujo |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
@@ -2636,8 +2645,10 @@ necesitan internet.
     ella: si da lo mismo, está muerta y se va (pasó con los toques por mitades).
 27. **Estrategia: las reglas son del usuario y están en dos lados.** No se
     cambia un número ni una media sin preguntarle; si se toca `evaluarEstr`,
-    se toca `estrategia.py` y se corre `pruebas/estrategia.js`. El RS que no
-    sale del universo amplio va en rojo, nunca como si lo fuera.
+    se toca `estrategia.py` y se corre `pruebas/estrategia.js`. Y
+    `validar_estrategia.py` tiene que seguir diciendo OK contra `backtest/`:
+    si un cambio lo pone en ámbar, la diferencia se explica antes de
+    publicarla, no se afloja la tolerancia.
 
 ---
 
