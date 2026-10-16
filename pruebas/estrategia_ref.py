@@ -31,6 +31,33 @@ for R in map(int, sys.argv[3].split(',')):
         if isinstance(v, np.integer):
             return int(v)
         return v
+    # cuando salto la senal, con el RS de cada dia contra los propios de ese dia
+    propios, pausas = {}, {}
+
+    def u_de(x):
+        if x not in propios:
+            ns = int(np.searchsorted(spy['d'], x, 'right'))
+            cs = np.asarray(spy['c'][:ns], float)
+            v = []
+            for t in u:
+                s = S[t]
+                n = int(np.searchsorted(s['d'], x, 'right'))
+                if n and s['d'][n - 1] == x:
+                    v.append(E.puntaje_rs(np.asarray(s['c'][:n], float), cs))
+            propios[x] = np.sort([y for y in v if np.isfinite(y)])
+        return propios[x]
+
+    def pausa_de(x):
+        if x not in pausas:
+            pausas[x] = E.ash_spy(spy, x)['pausa']
+        return pausas[x]
+    hist = {}
+    if R == int(sys.argv[3].split(',')[0]):
+        for f in fil:
+            if f['fecha_cruce'] and sum(not f[f'f{k}'] for k in range(1, 9)) <= 1:
+                hist[f['t']] = E.historia_senal(S[f['t']], spy, R, f['fecha_cruce'], u_de, pausa_de)
     out[R] = {'ash': E.ash_spy(spy, R), 'universo': u,
+              'historia': {t: ({k: lim(v) for k, v in h.items()} if h else None)
+                           for t, h in hist.items()},
               'filas': {f['t']: {k: lim(v) for k, v in f.items()} for f in fil}}
 json.dump(out, open(sys.argv[2], 'w'))

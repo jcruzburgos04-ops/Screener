@@ -111,7 +111,7 @@ datos incrustados.
 | `verificar_tickers.py` | Le pregunta a Yahoo si un símbolo existe: barras, última rueda, precio, **moneda** y nombre. Es el paso previo a cargar un CEDEAR nuevo. Corre por `tickers.yml`, porque acá no hay internet. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
 | `estrategia.py` | **La referencia en Python del menú Estrategia** (base v3.1). Las mismas reglas que el JS de `plantilla.html`, comparadas en `pruebas/estrategia.js`. Ver la sección 4f. |
-| `rs_amplio.py` | Arma de noche `rs_universo.json`: el puntaje RS de ~5.400 acciones de NYSE/Nasdaq (sin ETFs), contra el que se pasa a percentil el RS de Estrategia. |
+| `rs_amplio.py` | Arma de noche `rs_universo.json`: el puntaje RS de ~5.400 acciones de NYSE/Nasdaq (sin ETFs), contra el que se pasa a percentil el RS de Estrategia; el de hoy y el de las 20 ruedas anteriores. |
 
 ### Datos y configuración
 
@@ -677,6 +677,41 @@ la otra**, como con el ASH.
 - **Medias de Pine sólo acá**: `emaP`/`rmaP` sembradas con la SMA de los
   primeros n valores VÁLIDOS y `atrP` con el true range de Pine. **No
   reemplazan** a `ema`/`rma` del screener, que sostienen la paridad del ASH.
+
+### Hace cuánto fue la señal, y la entrada del backtest
+
+Lo pidió el usuario después de verla andar: *«que se muestre hace cuánto fue la
+señal y cuál era la entrada óptima, ya que capaz es muy vieja la señal y no van
+a coincidir con lo que daba el backtest»*. Una fila que hoy cumple todo puede
+venir cumpliendo desde hace dos semanas: el backtest entró al cierre de AQUEL
+día, y comprar hoy es otra operación.
+
+`historiaSenal()` (JS) / `historia_senal()` (Python) buscan **el día que el
+backtest hubiera usado**: el primero desde el cruce, dentro de las 20 ruedas,
+con los filtros 1 a 8 cumplidos **y el SPY sin pausa**. Tres columnas entre
+Prioridad y Entry:
+
+- **Señal** — `hoy` o `hace N ruedas · fecha`. Si antes pasó con el SPY en
+  pausa, lo dice el `title`; si sólo pasó en pausa, la celda lo dice.
+- **Entry óptima** — el cierre de ese día (ajustado por dividendos, como el
+  backtest) y cuánto está el precio de hoy contra él.
+- **Backtest** — esa misma operación seguida con `seguirPosicion` hasta hoy:
+  `abierta +x %` (y si se activó) o `salió por SL/TP/SMA 40 el …`.
+
+El RS de los días anteriores sale contra el universo amplio **de ese día**:
+`rs_amplio.py` publica en `rs_universo.json` un `hist` con los puntajes de las
+últimas 21 ruedas (~1 MB sin comprimir). Si falta un día, se mide contra los
+papeles del usuario de ese día y la celda lleva un `*` rojo. **Los lugares
+libres de aquel día no se conocen y no se simulan**, así que «el backtest
+hubiera entrado» supone que había lugar. La columna **Entry** del plan sigue
+siendo el cierre de hoy (lo que se pagaría hoy), editable como antes.
+
+Las dos implementaciones se comparan en `pruebas/estrategia.js` (mismo día,
+misma entrada, misma salida) y la prueba verifica además que sea el PRIMER día
+sin pausa. Tres sabotajes (ignorar la pausa, arrancar un día tarde, entrar al
+cierre de hoy) quedan en rojo. Con los 355 papeles reales, la pantalla pinta
+en ~150 ms en Chromium: la historia se calcula sólo para las filas que se
+muestran.
 
 ### Lo que se verificó contra Yahoo de verdad (sonda de Actions, 16/10/2026)
 

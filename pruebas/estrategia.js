@@ -47,6 +47,36 @@ console.log('== 1. paridad con estrategia.py ==');
         if(typeof y==='number'){const e=isFinite(x)?Math.abs(x-y)/Math.max(1e-9,Math.abs(y)):Infinity;
           if(e>peor){peor=e;donde=`${R} ${f.t} ${k}`;}}
         else if(y===null&&x!=null&&isFinite(x)){dec++;ejemplo=`${R} ${f.t} ${k} (null en Python)`;}}}
+    if(R===fechas[0]){
+      // cuando salto la senal: mismo dia, misma entrada, mismo destino
+      const prop=new Map(),pau=new Map();
+      const uDe=d=>{if(!prop.has(d)){const ns=M.cuantos?0:0;const cs=spy.c.slice(0,spy.d.filter(x=>x<=d).length);
+        prop.set(d,u.map(t=>{const s=S.get(t),n=s.d.filter(x=>x<=d).length;
+          return n&&s.d[n-1]===d?M.puntajeRs(s.c.slice(0,n),cs):NaN;}).filter(isFinite).sort((a,b)=>a-b));}
+        return prop.get(d);};
+      const pDe=d=>{if(!pau.has(d))pau.set(d,M.ashSpy(spy,d).pausa);return pau.get(d);};
+      let hn=0,hpeor=0,hdec=0,hej='',viejas=0,salieron=0;
+      for(const [t,h] of Object.entries(ref[R].historia)){
+        const f=fil.find(x=>x.t===t),j=M.historiaSenal(S.get(t),spy,R,f.fecha_cruce,uDe,pDe,spy.d);hn++;
+        if(!h){if(j){hdec++;hej=t;}continue;}
+        for(const [k,y] of [['fecha',h.fecha],['ruedas',h.ruedas],['salida',h.salida],
+            ['salida_fecha',h.salida_fecha],['activa',h.activa],['enPausa',h.en_pausa]])
+          if((j[k]??null)!==(y??null)){hdec++;hej=`${t} ${k}: ${j[k]} vs ${y}`;}
+        for(const [k,y] of [['entry',h.entry],['atr_pct',h.atr_pct],['rs',h.rs],['salida_precio',h.salida_precio]]){
+          if(y==null)continue;hpeor=Math.max(hpeor,Math.abs(j[k]-y)/Math.abs(y));}
+        if(h.fecha){viejas+=h.ruedas>0;salieron+=!!h.salida;
+          // el dia de la senal: pasa todo y el SPY no esta en pausa; entra a ese cierre
+          const e=M.evaluarEstr(S.get(t),spy,h.fecha,uDe(h.fecha),spy.d);
+          if(!e.pasa||pDe(h.fecha)||e.cierre!==j.entry){hdec++;hej=t+' el dia de la senal no cierra';}
+          // y antes, ninguno sin pausa que pasara: es el PRIMERO
+          const s=S.get(t);for(let k=s.d.indexOf(f.fecha_cruce);s.d[k]<h.fecha;k++){
+            const e2=M.evaluarEstr(s,spy,s.d[k],uDe(s.d[k]),spy.d);
+            if(e2&&e2.pasa&&!pDe(s.d[k])){hdec++;hej=t+' habia una senal antes';}}}}
+      ok('cuándo saltó la señal: Python y JS dicen el mismo día, entrada y salida',
+        hdec===0&&hpeor<1e-10,hdec+' · '+hej+' · '+hpeor);
+      ok('es el PRIMER día sin pausa con todo cumplido, y entra a ese cierre',hdec===0);
+      ok('y la prueba compara algo: hay señales viejas',hn>5&&viejas>0,`${hn} historias, ${viejas} viejas, ${salieron} ya salieron`);
+    }
     const a=M.ashSpy(spy,R),b=ref[R].ash;
     for(const q of ['diario','semanal'])for(const z of ['bulls','bears'])
       ashPeor=Math.max(ashPeor,Math.abs(a[q][z]-b[q][z])/Math.abs(b[q][z]));
@@ -207,10 +237,28 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const filas=()=>$$('#estrCuerpo .es-tabla')[0].querySelectorAll('tbody tr[data-t]');
   ok('una fila por señal',filas().length===senales,filas().length+' vs '+senales);
   const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent.replace(' ⚠',''));
-  ok('las columnas en el orden pedido',th.slice(0,18).join('|')===['Ticker','Cierre','Días desde el cruce',
+  ok('las columnas en el orden pedido',th.slice(0,21).join('|')===['Ticker','Cierre','Días desde el cruce',
     'WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s','Régimen SMA 50/200',
-    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ATR%(14)','Prioridad','Entry',
+    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ATR%(14)','Prioridad','Señal','Entry óptima','Backtest','Entry',
     'SL (precio · %)','TP','Activación +20 %','SMA 40'].join('|'),th.join('|'));
+  const conHist=[...filas()].filter(tr=>/hoy|hace \d+ rueda|con el SPY en pausa/.test(tr.children[13].textContent));
+  ok('cada señal dice hace cuánto fue',filas().length===0||conHist.length===filas().length,
+    conHist.length+' de '+filas().length);
+  const hEj=res.filas.filter(f=>f.pasa).map(f=>w.eval(`historiaEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`)).find(h=>h&&h.fecha);
+  if(hEj){const tr=[...filas()].find(tr=>tr.dataset.t===res.filas.find(f=>f.pasa&&w.eval(`historiaEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`).fecha===hEj.fecha).t);
+    ok('la entrada óptima es el cierre del día de la señal',!!tr&&tr.children[14].textContent.startsWith(new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(hEj.entry)),tr&&tr.children[14].textContent);}
+  {const h={fecha:20261009,ruedas:4,entry:100,atr_pct:0.02,enPausa:20261008,salida:'SL',salida_fecha:20261014,salida_precio:93,activa:false};
+   const tb=w.document.createElement('tbody');
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h)},{cierre:110})`)+'</tr>';
+   const c=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
+   ok('la celda de la señal: hace cuánto y qué día',c[0].startsWith('hace 4 ruedas · 09/10/2026'),c[0]);
+   ok('la entrada óptima y cuánto subió desde ahí',c[1]==='100,00 · hoy +10,0 %',c[1]);
+   ok('si el backtest ya salió, lo dice con fecha y resultado',c[2]==='salió por SL el 14/10/2026 (-7,0 %)',c[2]);
+   ok('y avisa que antes pasó con el SPY en pausa',tb.querySelector('td').title.includes('08/10/2026'));
+   const h2=Object.assign({},h,{ruedas:0,salida:null,activa:true});
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100})`)+'</tr>';
+   const c2=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
+   ok('la de hoy dice hoy, y la abierta su resultado',c2[0].startsWith('hoy')&&c2[2]==='abierta 0,0 % · activada',c2.join(' | '));}
   const pr=[...filas()].map(tr=>res.filas.find(f=>f.t===tr.dataset.t).prio);
   ok('ordenadas por prioridad',pr.every((v,i)=>!i||v<=pr[i-1]));
   if(!res.mercado.pausa)ok('marca las primeras según los lugares libres',

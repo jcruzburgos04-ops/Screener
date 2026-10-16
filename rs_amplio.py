@@ -57,6 +57,7 @@ from screener import BENCHMARK, bajar_precios
 LISTAS = ["https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
           "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"]
 MINIMO = 3000
+HIST = 21          # ruedas hacia atras: el cruce vale hasta 20 ruedas (dia 0 a 20)
 # Lo que no es una accion comun, por el nombre de la emision.
 NO_ACCION = re.compile(r"\b(warrants?|units?|rights?|preferred|notes?|debentures?|"
                        r"% |subordinated|"
@@ -148,26 +149,38 @@ def main():
         sys.exit(f"[X] {fecha} no es una rueda del SPY")
     cs = spy["Close"].to_numpy(float)[:fspy.index(fecha) + 1]
 
-    puntajes, propios, sin_vela, cortos = [], 0, 0, 0
+    # Las ultimas HIST ruedas tambien, no solo la de hoy: la pantalla busca
+    # el dia en que salto la senal (hasta 20 ruedas despues del cruce) y el
+    # RS de ESE dia tiene que salir contra el universo de ese dia.
+    dias = fspy[:fspy.index(fecha) + 1][-HIST:]
+    cs_de = {x: spy["Close"].to_numpy(float)[:fspy.index(x) + 1] for x in dias}
+    hist = {x: [] for x in dias}
+    puntajes, propios, sin_vela, cortos = hist[fecha], 0, 0, 0
     usu = set(usuario)
     for t, d in precios.items():
         f = [int(x.strftime("%Y%m%d")) for x in d.index]
-        if fecha not in f:
-            sin_vela += 1               # atrasado o deslistado: no se inventa
-            continue
-        c = d["Close"].to_numpy(float)[:f.index(fecha) + 1]
-        p = E.puntaje_rs(c, cs)
-        if not np.isfinite(p):
-            cortos += 1                 # menos de un ano de historia
-            continue
-        puntajes.append(round(float(p), 6))
-        propios += t in usu
+        pos = {x: k for k, x in enumerate(f)}
+        cc = d["Close"].to_numpy(float)
+        for x in dias:
+            if x not in pos:
+                if x == fecha:
+                    sin_vela += 1       # atrasado o deslistado: no se inventa
+                continue
+            p = E.puntaje_rs(cc[:pos[x] + 1], cs_de[x])
+            if not np.isfinite(p):
+                if x == fecha:
+                    cortos += 1         # menos de un ano de historia
+                continue
+            hist[x].append(round(float(p), 6))
+            if x == fecha:
+                propios += t in usu
     print(f"  con puntaje: {len(puntajes)} · sin la vela del {fecha}: {sin_vela} · "
           f"con menos de 253 ruedas: {cortos} · del usuario: {propios}")
     if len(puntajes) < MINIMO:
         sys.exit(f"[X] solo {len(puntajes)} papeles con puntaje (< {MINIMO}): no escribo")
 
-    puntajes.sort()
+    for x in dias:
+        hist[x].sort()
     q = np.percentile(puntajes, [10, 30, 50, 70, 90])
     print("  percentiles 10/30/50/70/90 del puntaje: "
           + " / ".join(f"{x:.3f}" for x in q))
@@ -177,7 +190,10 @@ def main():
         "fecha": fecha,
         "generado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "n": len(puntajes), "n_listas": n_lista, "n_usuario": propios,
-        "p": puntajes}, separators=(",", ":")))
+        "p": puntajes,
+        # dia -> puntajes ordenados; los dias con muy pocos no se publican
+        "hist": {str(x): v for x, v in hist.items() if len(v) >= MINIMO}},
+        separators=(",", ":")))
     print(f"  escrito {salida / 'rs_universo.json'}")
 
 

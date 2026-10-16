@@ -2698,6 +2698,29 @@ function seguirPosicion(s,op,hasta){
   return Object.assign(p,{salida:null,activa,desde,cierre:c[n-1],sma40:s40[n-1],
     fecha:n?s.d[n-1]:null});}
 
+/* CUANDO SALTO LA SENAL. Lo pidio el usuario: una fila que hoy cumple todo
+   puede venir cumpliendo desde hace dos semanas, y entonces la entrada del
+   backtest fue otra y sus resultados no se van a repetir comprando hoy. El
+   dia que cuenta es el que el backtest hubiera usado: el primero, desde el
+   cruce y dentro de las 20 ruedas, con los filtros 1 a 8 cumplidos y el SPY
+   sin pausa (una entrada por cruce, al cierre de la senal). uDe(dia) da los
+   puntajes ordenados del RS de ese dia; pausaDe(dia), si el SPY estaba en
+   pausa. Los lugares libres de aquel dia no se conocen y no se simulan.
+   Igual que historia_senal() de estrategia.py. */
+function historiaSenal(s,spy,R,fechaCruce,uDe,pausaDe,cal){
+  if(!fechaCruce)return null;
+  const i0=cuantosMenores(s.d,fechaCruce,false),iR=cuantosMenores(s.d,R,true)-1;
+  let enPausa=null;
+  for(let j=i0;j<=iR&&j-i0<=ESTR.cruceMax;j++){const d=s.d[j];
+    const e=evaluarEstr(s,spy,d,uDe(d),cal);
+    if(!e||!e.pasa)continue;
+    if(pausaDe(d)){if(!enPausa)enPausa=d;continue;}
+    const g=seguirPosicion(s,{fe:d,pe:e.cierre,atr_pct:e.atr_pct},R);
+    return {fecha:d,ruedas:iR-j,entry:e.cierre,atr_pct:e.atr_pct,rs:e.rs,enPausa,
+      salida:g.salida,salida_fecha:g.salida?g.fecha:null,salida_precio:g.precio,activa:g.activa,
+      plan:g};}
+  return {fecha:null,enPausa};}
+
 /* El estado del mercado: ASH del SPY diario (STOCHASTIC 9/1, ALMA) y semanal
    de semanas CERRADAS (RSI 21/4, ALMA), con el calcAsh del screener. */
 function ashSpy(spy,hasta){const n=cuantosMenores(spy.d,hasta,true);
@@ -2734,7 +2757,7 @@ if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,
   compresion,mejorCompresion,tipoCompresion,CMP,directriz,mejorDirectriz,DIR,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
   pasaCruce,pasaFiltros,
-  ESTR,automataRegimen,emaP,rmaP,atrP,pctRank,rsDePuntaje,puntajeRs,feriadosNYSE,semanaCerrada,
+  ESTR,automataRegimen,historiaSenal,emaP,rmaP,atrP,pctRank,rsDePuntaje,puntajeRs,feriadosNYSE,semanaCerrada,
   semanalCerrado,velas3d,velaEstrategia,evaluarEstr,planEstr,reentrada,seguirPosicion,
   ashSpy,prioridadEstr,universoEstr,claveSemana};
 </script>
@@ -5625,7 +5648,11 @@ async function traerRsu(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     const d=await r.json();
     if(!Array.isArray(d.p)||d.p.length<1000)throw new Error('vacio');
-    RSU={p:d.p.slice().sort((a,b)=>a-b),fecha:+d.fecha,n:d.p.length,generado:d.generado||''};
+    /* hist: los puntajes de las ultimas 21 ruedas, para el RS del dia en que
+       salto cada senal. Un archivo viejo no lo trae y entonces esos dias se
+       miden contra los propios (y la celda lo dice). */
+    const hist=new Map(Object.entries(d.hist||{}).map(([k,v])=>[+k,v]));
+    RSU={p:d.p.slice().sort((a,b)=>a-b),fecha:+d.fecha,n:d.p.length,generado:d.generado||'',hist};
   }catch(e){RSU={p:null,error:String(e.message||e)};}
   finally{bajandoRsu=false;}
   memoEstr.clave='';if(vistaEstr)renderEstrategia();}
@@ -5650,10 +5677,33 @@ function calcularEstrategia(){
     f.fallan=[1,2,3,4,5,6,7,8].filter(k=>!f['f'+k]);f.pasa=!f.fallan.length;}
   prioridadEstr(filas);
   let mercado=null;try{mercado=ashSpy(spy,R);}catch(e){console.warn(e);}
-  const res={R,filas,sinVela,afuera:uni.afuera,fuente,mercado,porT,
+  const res={R,filas,sinVela,afuera:uni.afuera,fuente,mercado,porT,spy,U,
+    tickers:uni.tickers,uPropio:new Map(),pausas:new Map(),historias:new Map(),
     v3:filas.length?filas[0].v3_fin:null};
   memoEstr={clave,res};
   return res;}
+
+/* El RS de un dia anterior: contra el universo amplio de ESE dia si viene en
+   rs_universo.json, y si no contra los propios de ese dia (marcado). */
+function uDeEstr(E,d){
+  if(d===E.R)return E.U;
+  const h=RSU&&RSU.hist&&RSU.hist.get(d);
+  if(h&&E.fuente==='amplio')return h;
+  let u=E.uPropio.get(d);if(u)return u;
+  const ns=cuantosMenores(E.spy.d,d,true),cs=E.spy.c.slice(0,ns);
+  u=E.tickers.map(t=>{const s=E.porT.get(t),n=cuantosMenores(s.d,d,true);
+    return n&&s.d[n-1]===d?puntajeRs(s.c.slice(0,n),cs):NaN;})
+    .filter(isFinite).sort((a,b)=>a-b);
+  E.uPropio.set(d,u);return u;}
+function historiaEstr(E,f){
+  if(E.historias.has(f.t))return E.historias.get(f.t);
+  let h=null;
+  try{h=historiaSenal(E.porT.get(f.t),E.spy,E.R,f.fecha_cruce,d=>uDeEstr(E,d),
+    d=>{if(!E.pausas.has(d)){let p=true;try{p=ashSpy(E.spy,d).pausa;}catch(e){}E.pausas.set(d,p);}
+      return E.pausas.get(d);},E.spy.d);
+    if(h&&h.fecha)h.rsPropio=E.fuente==='propio'||(h.fecha!==E.R&&!(RSU&&RSU.hist&&RSU.hist.get(h.fecha)));}
+  catch(e){console.warn('historia',f.t,e);}
+  E.historias.set(f.t,h);return h;}
 
 /* Las reglas 9 y 10 contra el registro. Devuelve que es cada fila hoy:
    'entrada', 'reentrada', o por que no se muestra. */
@@ -5727,7 +5777,8 @@ function renderEstrategia(){
   const th=['Ticker','Cierre','Días desde el cruce','WMA 21 / WMA 26','ADR%(20)',
     `RS${rsRojo?' <span class="es-mal">⚠</span>':''}`,'% sobre mín. 52 s','% bajo máx. 52 s',
     'Régimen SMA 50/200','MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)',
-    'ATR%(14)','Prioridad','Entry','SL (precio · %)','TP','Activación +20 %','SMA 40',''];
+    'ATR%(14)','Prioridad','Señal','Entry óptima','Backtest',
+    'Entry','SL (precio · %)','TP','Activación +20 %','SMA 40',''];
   const celda=(x,k,html)=>{const falla=!x.senal&&x.c.fallan.includes(k);
     return `<td class="${falla?'es-falla':''}">${html}</td>`;};
   const filasHtml=lista.map(x=>{const f=x.f,c=x.c,re=c.tipo==='reentrada';
@@ -5750,6 +5801,7 @@ function renderEstrategia(){
       ${celda(x,8,fmtN(f.ewo1)+' · '+fmtN(f.ewo2)+' · '+fmtN(f.ewo_senal)+' '+ok(f.f8))}
       <td>${fmtN(f.atr_pct*100)} %</td>
       <td>${fmtN(f.prio,1)}</td>
+      ${celdasSenal(re?null:historiaEstr(E,f),f)}
       <td><input class="es-pe" type="number" step="any" placeholder="${isFinite(f.cierre)?f.cierre.toFixed(2):''}" value="${x.pe||''}" title="Tu precio real de entrada: recalcula SL, TP y activación"></td>
       <td class="es-sl">${fmtN(p.sl)} · −${fmtN(p.sl_pct*100)} %</td>
       <td class="es-tp">${fmtN(p.tp)}</td>
@@ -5798,6 +5850,25 @@ function renderEstrategia(){
     <p class="nota es-ref">Comisión de referencia: ${fmtN(ESTR.comision*100)} % por lado (el resultado neto de las cerradas ya la descuenta).
       Referencia del backtest 2019–2026: CAGR 46,7 %, MaxDD −31,4 %, ~40 operaciones por año. Es lo que dio el pasado, no una promesa.</p>`;
   engancharEstr(lista,R);}
+
+/* Las tres columnas de la senal. Una senal vieja no es la del backtest:
+   aquel entro al cierre de ESE dia, y desde ahi la operacion pudo haber
+   ganado, perdido o incluso salido. */
+function celdasSenal(h,f){
+  if(!h||!h.fecha){const t=h&&h.enPausa?`sólo con el SPY en pausa (desde el ${fechaCorta(h.enPausa)})`:'—';
+    return `<td class="es-ojo">${t}</td><td>—</td><td>—</td>`;}
+  const cuando=h.ruedas===0?'<b class="es-si">hoy</b>':
+    `<span class="es-ojo">hace ${h.ruedas} rueda${h.ruedas===1?'':'s'}</span>`;
+  const tit=[`primer día que pasaron los 8 filtros con el SPY sin pausa: ${fechaCorta(h.fecha)}`];
+  if(h.enPausa)tit.push(`ya había pasado el ${fechaCorta(h.enPausa)}, con el SPY en pausa`);
+  if(h.rsPropio)tit.push('el RS de ese día salió contra tus papeles, no contra el universo amplio');
+  const ent=`${fmtN(h.entry)} · hoy ${fmtP(f.cierre/h.entry-1)}`;
+  const bt=h.salida
+    ?`<span class="es-mal">salió por ${h.salida} el ${fechaCorta(h.salida_fecha)} (${fmtP(h.salida_precio/h.entry-1)})</span>`
+    :`abierta ${fmtP(f.cierre/h.entry-1)}${h.activa?' · activada':''}`;
+  return `<td title="${esc(tit.join(' · '))}">${cuando} · ${fechaCorta(h.fecha)}${h.rsPropio?' <span class="es-mal">*</span>':''}</td>
+    <td title="cierre del día de la señal (ajustado por dividendos, como el backtest)">${ent}</td>
+    <td title="la misma operación del backtest, desde ese cierre hasta hoy, con sus reglas">${bt}</td>`;}
 
 function engancharEstr(lista,R){
   const guardar=()=>{grabarEstr(ESTRD);memoEstr.clave='';renderEstrategia();};

@@ -548,3 +548,83 @@ def universo_estrategia(simbolos, mapa_adr):
             vistos.add(t)
             salida.append(t)
     return salida, reemp, afuera
+
+
+# ==============================================================================
+# 5. EL PLAN, EL SEGUIMIENTO Y CUANDO SALTO LA SENAL
+# ==============================================================================
+
+def plan(entry, atr_pct):
+    """SL, TP y activacion desde un precio de entrada y el ATR% de la senal."""
+    d = min(max(SL_K * atr_pct, SL_MIN), SL_MAX) if np.isfinite(atr_pct) else np.nan
+    return {"entry": entry, "sl_pct": d, "sl": entry * (1 - d),
+            "tp": entry * TP_K, "activacion": entry * ACT_K}
+
+
+def seguir_posicion(s, fe, pe, atr_pct, hasta):
+    """
+    La operacion entrada al cierre de `fe` a `pe`, vela por vela hasta `hasta`:
+    SL stop fijo (abre debajo: sale al open), TP limite (abre arriba: sale al
+    open), los dos en la misma vela cuenta el SL; un CIERRE >= activacion
+    activa la salida por SMA 40 desde el dia siguiente, al cierre.
+    """
+    d = np.asarray(s["d"], np.int64)
+    n = int(np.searchsorted(d, hasta, "right"))
+    o, h, l, c = (np.asarray(s[k][:n], float) for k in "ohlc")
+    s40 = sma(c, SMA_SAL)
+    p = plan(pe, atr_pct)
+    activa, desde = False, None
+
+    def fin(motivo, j, precio):
+        p.update(salida=motivo, fecha=int(d[j]), precio=float(precio),
+                 activa=activa, desde=desde)
+        return p
+    for j in range(int(np.searchsorted(d, fe, "right")), n):
+        if o[j] <= p["sl"]:
+            return fin("SL", j, o[j])
+        if l[j] <= p["sl"]:
+            return fin("SL", j, p["sl"])
+        if o[j] >= p["tp"]:
+            return fin("TP", j, o[j])
+        if h[j] >= p["tp"]:
+            return fin("TP", j, p["tp"])
+        if activa and np.isfinite(s40[j]) and c[j] < s40[j]:
+            return fin("SMA 40", j, c[j])
+        if not activa and c[j] >= p["activacion"]:
+            activa, desde = True, int(d[j])
+    p.update(salida=None, activa=activa, desde=desde,
+             cierre=float(c[n - 1]), sma40=float(s40[n - 1]), fecha=int(d[n - 1]))
+    return p
+
+
+def historia_senal(s, spy, hasta, fecha_cruce, u_de, pausa_de, calendario=None):
+    """
+    El dia en que la estrategia HUBIERA entrado en esta racha: el primero,
+    desde el cruce y dentro de las 20 ruedas, en que pasan los filtros 1 a 8
+    con el SPY sin pausa. Es lo que hace el backtest (una entrada por cruce, al
+    cierre de la senal). u_de(dia) da los puntajes ordenados del RS de ese dia;
+    pausa_de(dia) si el SPY estaba en pausa. Los lugares libres de aquel dia no
+    se conocen y no se simulan.
+    """
+    if not fecha_cruce:
+        return None
+    d = np.asarray(s["d"], np.int64)
+    i0 = int(np.searchsorted(d, fecha_cruce, "left"))
+    iR = int(np.searchsorted(d, hasta, "right")) - 1
+    en_pausa = None
+    for j in range(i0, iR + 1):
+        if j - i0 > CRUCE_MAX:
+            break
+        x = int(d[j])
+        e = evaluar(s, spy, x, u_de(x), calendario)
+        if e is None or not e["pasa"]:
+            continue
+        if pausa_de(x):
+            en_pausa = en_pausa or x
+            continue
+        g = seguir_posicion(s, x, e["cierre"], e["atr_pct"], hasta)
+        return {"fecha": x, "ruedas": iR - j, "entry": e["cierre"],
+                "atr_pct": e["atr_pct"], "rs": e["rs"], "en_pausa": en_pausa,
+                "salida": g["salida"], "salida_fecha": g["fecha"] if g["salida"] else None,
+                "salida_precio": g.get("precio"), "activa": g["activa"]}
+    return {"fecha": None, "en_pausa": en_pausa}
