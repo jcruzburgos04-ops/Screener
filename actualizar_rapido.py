@@ -38,6 +38,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from estrategia import cargar_adr
 from generar_html import serie
 from screener import atrasos_por_fecha, bajar_extendido, bajar_precios
 
@@ -144,6 +145,8 @@ def main():
     payload["fecha"] = _ahora.strftime("%Y-%m-%d %H:%M")
     payload["ts"] = int(_ahora.timestamp())
     payload["parcial"] = True     # se armo durante la rueda, no despues del cierre
+    # el mapa de ADRs de Estrategia sale siempre del csv, no del payload viejo
+    payload["estr_adr"] = cargar_adr()
 
     # Pre-market y after-hours. Es una pasada aparte porque necesita barras de
     # 5 minutos; cuando la rueda esta abierta no devuelve nada y se nota en el

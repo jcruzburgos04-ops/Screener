@@ -56,6 +56,8 @@ echo; echo "== lineas de tendencia =="
 node tendencias.js
 echo; echo "== AVWAP anclado al ultimo maximo =="
 node avwap.js
+echo; echo "== estrategia (base v3.1): paridad con Python, reglas y pantalla =="
+node estrategia.js
 echo; echo "== interfaz (jsdom) =="
 node interfaz.js
 echo; echo "== grafico y escapado =="

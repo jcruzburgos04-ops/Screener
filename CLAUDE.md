@@ -110,12 +110,15 @@ datos incrustados.
 | `armar_universo.py` | Compara `cedears.csv` contra el panel vivo de BYMA y reporta las diferencias. Sólo reporta, no escribe. |
 | `verificar_tickers.py` | Le pregunta a Yahoo si un símbolo existe: barras, última rueda, precio, **moneda** y nombre. Es el paso previo a cargar un CEDEAR nuevo. Corre por `tickers.yml`, porque acá no hay internet. |
 | `cloudflare-worker.js` | Proxy de una línea, opcional. Sólo hace falta si Yahoo deja de mandar CORS. |
+| `estrategia.py` | **La referencia en Python del menú Estrategia** (base v3.1). Las mismas reglas que el JS de `plantilla.html`, comparadas en `pruebas/estrategia.js`. Ver la sección 4f. |
+| `rs_amplio.py` | Arma de noche `rs_universo.json`: el puntaje RS de ~5.400 acciones de NYSE/Nasdaq (sin ETFs), contra el que se pasa a percentil el RS de Estrategia. |
 
 ### Datos y configuración
 
 | Archivo | Contenido |
 |---|---|
 | `universo.csv` | `ticker,grupo[,subyacente]` — 492 símbolos. |
+| `estrategia_adr.csv` | `local,adr` — la cotización local que en Estrategia se reemplaza por su ADR en USD (vacío = afuera). Lo decidió el usuario uno por uno. |
 | `cedears.csv` | `local,subyacente` — 416 mapeos, del panel oficial de BYMA del 12/6/2026 actualizado con el del 3/9/2026. |
 | `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
 | `plantilla.html` | **Todo el frontend**: motor de indicadores en JS, interfaz, gráfico, panorama, renta fija. |
@@ -627,6 +630,85 @@ da 0 y la recta ya se descarta).
 > **Trampa de la prueba, que ya mordió:** con cero resultados la tabla muestra
 > una fila de aviso. Contar `tbody tr` da 1 cuando no hay nada; hay que contar
 > las filas con ticker (`tbody tr .tk`).
+
+## 4f. Estrategia (base v3.1): el menú de las señales del usuario
+
+Lo pidió el usuario el 16/10/2026 con una especificación cerrada
+(`prompt_screener_v31.md`): **«las reglas son exactas: respetá cada número,
+cada media y cada definición. No cambies nada "para simplificar" sin
+preguntarme.»** Vive en el menú **Estrategia** (tecla `E`). El motor está en el
+bloque `motor` de `plantilla.html` (`evaluarEstr`, `ashSpy`, `velas3d`,
+`seguirPosicion`, `reentrada`, constante `ESTR`) y **está dos veces**: la
+referencia en Python es `estrategia.py`. `pruebas/estrategia.js` las compara en
+cuatro fechas (desvío 1,4e-13, cero decisiones distintas). **Si tocás una, tocá
+la otra**, como con el ASH.
+
+### Lo que decidió el usuario (no se cambia sin preguntarle)
+
+- **RS contra el universo amplio**: NASDAQ Trader (`nasdaqlisted` +
+  `otherlisted`, sin ETFs, emisiones de prueba, warrants, units, derechos,
+  preferidas ni notas) más sus tickers. Lo arma `rs_amplio.py` en la corrida
+  nocturna y se publica como `rs_universo.json` con **la lista ordenada de
+  puntajes** (no cortes cada 1%): el percentil sale exacto. Si una noche no
+  sale, queda el del día anterior y la pantalla dice de qué fecha son los
+  cortes. **Si no hay archivo** (servidor local, archivo suelto, o nunca salió),
+  el RS se mide contra sus papeles y **la columna va en rojo**: lo pidió así.
+  Medido el 16/10: 5.902 de las listas, 5.448 con puntaje al 2/10 (447 con
+  menos de un año, 20 sin la vela del día). Es la lista de HOY: para fechas
+  viejas hay un sesgo de supervivencia chico.
+- **ETFs afuera**, como candidatos y de los percentiles de la prioridad (en su
+  backtest eran 14 de 608 operaciones, −3,3% de promedio).
+- **Cotizaciones locales en otra moneda → su ADR en USD**, con el mapa de
+  `estrategia_adr.csv`. Sin duplicar si el ADR ya estaba. Los once ADRs que no
+  estaban (BBDO, BDORY, WEGZY, BASFY, DTEGY, ADDYY, BAYRY, EONGY, MBGYY, DANOY,
+  HNHPF) se agregaron a `universo.csv` con el grupo **`ADR estrategia`**, y **la
+  tabla del screener no los muestra** (ahí el papel ya está en su bolsa). Todos
+  verificados en Yahoo en USD; BBDO y HNHPF negocian poco (90 mil y 43 mil
+  papeles diarios) y WEGZY a veces llega con un día de atraso.
+- **Registro de operaciones en el navegador** (`screener_ash_estrategia`, vía
+  `leerLS`/`escribirLS`) **y dentro del respaldo `.json`**; al restaurar se
+  fusiona por id. «Entré» anota ticker, cruce, fecha, precio y ATR% del día de
+  la señal; «Salí» la cierra. Lugares libres = 10 − abiertas, editable.
+- **La vela de hoy recién desde las 16:30 de Nueva York** (no 16:00): antes de
+  eso Yahoo no tiene el cierre final, y se usa la de ayer (`velaEstrategia`).
+- **Semana del SPY**: W-FRI, sólo semanas cerradas; la semana cierra con su
+  última rueda (si el viernes es feriado, el jueves). Los feriados de NYSE van
+  **por regla** (`feriadosNYSE`), no por lista.
+- **Medias de Pine sólo acá**: `emaP`/`rmaP` sembradas con la SMA de los
+  primeros n valores VÁLIDOS y `atrP` con el true range de Pine. **No
+  reemplazan** a `ema`/`rma` del screener, que sostienen la paridad del ASH.
+
+### Lo que se verificó contra Yahoo de verdad (sonda de Actions, 16/10/2026)
+
+- **El ancla de las velas de 3 días**: contando las ruedas del SPY desde el
+  2/1/1997, el 2/10/2026 es la #7485, múltiplo de 3: cierra vela. Las
+  siguientes son 5-6-7, 8-9-12 y 13-14-15 de octubre, como dijo el usuario.
+  Entre 1997 y hoy hubo diez cierres extraordinarios (11-S, Reagan, Ford,
+  Sandy, Bush, Carter): por eso el calendario son **las fechas del SPY** y no
+  una cuenta de días hábiles. El ancla tiene que estar dentro de las 850
+  barras publicadas (lo está hasta ~2030); si sale, `velas3d` devuelve null y
+  el filtro 7 no pasa — no inventa velas.
+- **850 barras alcanzan**: con el historial completo desde 1997 y con las
+  últimas 850 dan lo mismo en los 355 papeles (desvío ≤ 4,5e-14, cero filtros
+  que cambian). El calendario publicado del SPY coincide rueda por rueda con
+  el historial.
+
+### Lo que se ELIGIÓ porque la especificación no lo decía (avisarle si no cierra)
+
+- **Percentil del RS** = `rank(pct=True)` de pandas × 100, acotado a 1-99; el
+  filtro compara ese número sin redondear contra 70.
+- Sin 252 velas: no pasan los filtros 4 y 5. Sin 253: no hay RS.
+- **ALMA con `m = 0,85·(n−1)` sin `floor`**, la misma del ASH del screener. El
+  manual de Pine v4 escribe `floor`; con L=21 da igual (17 exacto) pero con 9
+  y 4 no. Medido el 2/10: diario 3,697/8,382 sin floor contra 4,542/8,688 con
+  floor; la decisión fue la misma.
+- Un papel sin la vela del día de referencia queda afuera (se cuenta en
+  pantalla), no se lo evalúa con la vela de otro día.
+- Re-entrada: «desde el día de la salida» incluye ese día.
+
+> **Ojo con la clave de la semana en Python**: `clave_semana` era
+> `(ordinal+2)//7` y metía el viernes en la semana siguiente. La sonda del
+> 16/10 corrió con eso y su ASH semanal está mal; el bueno es `(ordinal−1)//7`.
 
 ## 5. CEDEARs: la regla que no se negocia
 
@@ -2360,6 +2442,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
 | `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
+| `estrategia.js` + `estrategia_ref.py` | Estrategia: paridad con `estrategia.py` en cuatro fechas, cada regla con su borde (día 20 del cruce sí y 21 no, empate del régimen, velas de 3 días, Viernes Santo, 16:29 contra 16:30, SL y TP en la misma vela, activación por cierre y no por máximo, re-entrada) y la pantalla (cartel, casi-señales en rojo, RS en rojo sin universo amplio, Entré/Salí, respaldo). Once sabotajes probados, todos detectados. |
 | `directriz.js` | la recta de máximos que bajan: un caso por control, la ruptura con cierre (la mecha no alcanza, se vence a las 5 ruedas, deja de valer si vuelve abajo), velas reales, columna, filtros y dibujo |
 | `compresion.js` | las rectas que se juntan: cada tipo, lo que no es (caja plana, V, caída, triángulo empinado), la ruptura, velas reales de PG/TGT/KO, y la columna, el filtro y el dibujo |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
@@ -2516,6 +2599,10 @@ necesitan internet.
 26. **Una regla de detección de figuras se mide antes de quedarse.** Se dibuja
     lo que marca sobre los papeles reales, y se corre el barrido con y sin
     ella: si da lo mismo, está muerta y se va (pasó con los toques por mitades).
+27. **Estrategia: las reglas son del usuario y están en dos lados.** No se
+    cambia un número ni una media sin preguntarle; si se toca `evaluarEstr`,
+    se toca `estrategia.py` y se corre `pruebas/estrategia.js`. El RS que no
+    sale del universo amplio va en rojo, nunca como si lo fuera.
 
 ---
 

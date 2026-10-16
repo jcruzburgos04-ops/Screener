@@ -498,3 +498,17 @@ FXY,ETF divisas
 DBA,ETF commodities
 DBC,ETF commodities
 UNG,ETF commodities
+# ADRs que usa SOLO el menu Estrategia, en reemplazo de la cotizacion local
+# (estrategia_adr.csv). La tabla del screener no los muestra: ahi el papel ya
+# esta en su bolsa de origen y quedaria duplicado.
+BBDO,ADR estrategia
+BDORY,ADR estrategia
+WEGZY,ADR estrategia
+BASFY,ADR estrategia
+DTEGY,ADR estrategia
+ADDYY,ADR estrategia
+BAYRY,ADR estrategia
+EONGY,ADR estrategia
+MBGYY,ADR estrategia
+DANOY,ADR estrategia
+HNHPF,ADR estrategia

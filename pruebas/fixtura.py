@@ -92,7 +92,10 @@ def armar(destino=None, barras=850, atrasar=True):
     # asi que su ultima rueda es la misma que la de todos y no se cuela un
     # atraso falso. Con esto la bateria pasa por el caso que antes no existia:
     # una fila viva a la que le faltan las columnas de ventana larga.
-    nuevito = tickers[-1]
+    # (los ADRs de Estrategia van al final del universo y la tabla no los
+    # muestra: el nuevito tiene que ser un papel de la tabla)
+    grupo = dict(zip(uni['ticker'], uni['grupo']))
+    nuevito = [t for t in tickers if grupo.get(t) != 'ADR estrategia'][-1]
     precios[nuevito] = precios[nuevito].iloc[-BARRAS_NUEVITO:]
 
     payload = armar_payload(precios, meta, uni, barras)

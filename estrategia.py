@@ -255,8 +255,9 @@ def semana_cerrada(fecha):
 
 def clave_semana(f):
     """Numero de semana W-FRI (la semana termina el viernes)."""
-    d = a_date(f)
-    return (d.toordinal() + 2) // 7
+    # toordinal() da 1 al lunes 1/1/0001: (o-1)//7 cambia de numero cada
+    # lunes, asi que lunes..domingo es una semana, que para ruedas es W-FRI.
+    return (a_date(f).toordinal() - 1) // 7
 
 
 def semanal_cerrado(d, c):
@@ -323,6 +324,25 @@ def velas_3d(d, o, h, l, c, calendario, hasta):
 # ==============================================================================
 # 3. LOS INDICADORES DE UN PAPEL, A LA FECHA `hasta`
 # ==============================================================================
+
+def automata_regimen(c, s50, s200):
+    """
+    Encendido se apaga con C < linea; apagado se prende con C > linea; igual a
+    la linea, queda como estaba. Linea = max(SMA 50, SMA 200). Sin datos para
+    las SMA: encendido (y vuelve a encendido si falta un dato en el medio).
+    """
+    on = True
+    for j in range(len(c)):
+        if not (np.isfinite(s50[j]) and np.isfinite(s200[j])):
+            on = True
+            continue
+        linea = max(s50[j], s200[j])
+        if on and c[j] < linea:
+            on = False
+        elif not on and c[j] > linea:
+            on = True
+    return on
+
 
 def puntaje_rs(c, c_spy):
     """
@@ -396,16 +416,7 @@ def evaluar(s, spy, hasta, universo_rs=None, calendario=None):
 
     # 6 · regimen SMA 50/200, autómata con histeresis sobre TODA la serie
     s50, s200 = sma(c, SMA_REG_C), sma(c, SMA_REG_L)
-    on = True
-    for j in range(n):
-        if not (np.isfinite(s50[j]) and np.isfinite(s200[j])):
-            on = True                    # sin datos para las SMA: encendido
-            continue
-        linea = max(s50[j], s200[j])
-        if on and c[j] < linea:
-            on = False
-        elif not on and c[j] > linea:
-            on = True
+    on = automata_regimen(c, s50, s200)
     r["sma50"], r["sma200"] = s50[i], s200[i]
     r["regimen"] = on
     r["f6"] = on

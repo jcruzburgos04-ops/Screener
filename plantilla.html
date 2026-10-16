@@ -741,6 +741,49 @@ body.bonos .tabla-wrap,body.bonos .barra,body.bonos .kpis{display:none}
 .bo-leyenda i.pt-a{background:var(--ambar)} .bo-leyenda i.pt-b{background:#5FA8D3}
 .bo-leyenda i.pt-c{background:#7FB77E}      .bo-leyenda i.pt-d{background:#C08BC0}
 
+/* ------------------------------ estrategia --------------------------------
+   Misma logica de vista que bonos: una clase en el body. */
+#estrategia{display:none;flex:1;overflow:auto;padding:0 0 2rem}
+body.estrategia #estrategia{display:block}
+body.estrategia .tabla-wrap,body.estrategia .barra,body.estrategia .kpis,
+body.estrategia .detalle{display:none}
+#estrCuerpo{padding:0 1.1rem}
+.es-cartel{margin:.6rem 0 .7rem;padding:.9rem 1.1rem;border-radius:var(--r2);
+  font-family:var(--mono);font-size:1.25rem;font-weight:600;letter-spacing:.06em;text-align:center}
+.es-cartel small{font-size:var(--t2);font-weight:400;letter-spacing:0}
+.es-cartel.bien{background:var(--alcista-t);color:var(--alcista);border:1px solid var(--alcista)}
+.es-cartel.mal{background:var(--bajista-t);color:var(--bajista);border:1px solid var(--bajista)}
+.es-asds{display:flex;flex-wrap:wrap;gap:.7rem;margin-bottom:.7rem}
+.es-asd{flex:1 1 280px;background:var(--panel);border:1px solid var(--borde);border-left-width:4px;
+  border-radius:var(--r);padding:.6rem .8rem;font-family:var(--mono);font-size:var(--t2)}
+.es-asd.bien{border-left-color:var(--alcista)} .es-asd.mal{border-left-color:var(--bajista)}
+.es-asd-t{color:var(--tenue);font-size:var(--t1);margin-bottom:.3rem}
+.es-asd-v{display:flex;gap:1.2rem;flex-wrap:wrap} .es-asd-v b{color:var(--hueso)}
+.es-asd-e{color:var(--tenue);font-size:var(--t1);margin-top:.25rem}
+.es-asd.mal .es-asd-e:first-of-type{color:var(--bajista)}
+.es-info{font-size:var(--t2);color:var(--tenue);line-height:1.7;margin:.2rem 0 .6rem}
+.es-info b{color:var(--hueso)}
+.es-mal{color:var(--bajista)!important;font-weight:600}
+.es-ojo{color:var(--ambar)}
+.es-ctrl{display:flex;flex-wrap:wrap;gap:.5rem 1.1rem;align-items:center;margin:.4rem 0 .7rem;
+  font-size:var(--t2)}
+.es-ctrl label{display:flex;align-items:center;gap:.4rem;margin:0;white-space:nowrap}
+.es-ctrl input[type=checkbox]{width:auto;margin:0}
+.es-ctrl input[type=number]{width:7.5em}
+.es-tabla-wrap{overflow:auto;border:1px solid var(--borde);border-radius:var(--r);margin-bottom:.8rem}
+.es-tabla-wrap.atenuada{opacity:.45}
+.es-tabla th{white-space:nowrap;font-size:var(--t0);text-transform:uppercase;letter-spacing:.06em}
+.es-tabla td{font-size:var(--t2)}
+.es-tabla td.es-falla{background:var(--bajista-t)!important;color:var(--bajista)}
+.es-tabla input{width:6.5em;padding:.15rem .3rem}
+.es-si{color:var(--alcista)} .es-no{color:var(--bajista)}
+.es-et{font-family:var(--mono);font-size:var(--t0);border:1px solid var(--ambar);color:var(--ambar);
+  border-radius:999px;padding:.05rem .4rem;white-space:nowrap}
+.es-et.comprar{border-color:var(--alcista);color:var(--alcista)}
+.es-sub{font-size:var(--t4);margin:1rem 0 .4rem}
+.es-hist summary{cursor:pointer;margin:.4rem 0}
+.es-ref{margin-top:1rem}
+
 /* ------------------------------- panorama ---------------------------------
    La vista de tarjetas: un vistazo al mercado sin leer una tabla. Cada tarjeta
    es un simbolo con su mini-grafico, la variacion, lo que marca el ASH y donde
@@ -930,6 +973,8 @@ body.cajon #velo{display:block}
       <i class="nav-ico">◫</i>Panorama</span>
     <span class="nav-item" id="chipBonos" title="Bonos soberanos y obligaciones negociables · tecla B">
       <i class="nav-ico">🇦🇷</i>Argentina</span>
+    <span class="nav-item" id="chipEstr" title="Las señales de tu estrategia (base v3.1) · tecla E">
+      <i class="nav-ico">◎</i>Estrategia</span>
     <span class="nav-esp"></span>
     <span class="nav-item" id="chipAjustes" title="Cómo se ve, de dónde salen los datos, respaldo">
       <i class="nav-ico">⚙</i>Configuración</span>
@@ -1393,6 +1438,7 @@ body.cajon #velo{display:block}
         <dt><kbd>G</kbd></dt><dd>mostrar u ocultar el gráfico</dd>
         <dt><kbd>P</kbd></dt><dd>alternar Tabla y Panorama</dd>
         <dt><kbd>B</kbd></dt><dd>ver los bonos</dd>
+        <dt><kbd>E</kbd></dt><dd>ver la estrategia</dd>
         <dt><kbd>R</kbd></dt><dd>traer los precios de nuevo</dd>
         <dt><kbd>[</kbd></dt><dd>mostrar u ocultar el panel</dd>
         <dt><kbd>?</kbd></dt><dd>esta ayuda</dd>
@@ -1425,6 +1471,14 @@ body.cajon #velo{display:block}
         sale por cada uno y qué se paga por la ley.</p>
     </div>
     <div id="bonosCuerpo"></div>
+  </div>
+  <div id="estrategia">
+    <div class="pan-hero">
+      <h2 class="pan-tit">Estrategia</h2>
+      <p class="pan-sub">Base v3.1 · las acciones que hoy cumplen todas tus reglas, con su plan.
+        Diario, al cierre del último día cerrado.</p>
+    </div>
+    <div id="estrCuerpo"></div>
   </div>
   <div id="panorama">
     <div class="pan-hero">
@@ -2423,12 +2477,266 @@ function pasaFiltros(f,F){
     // el precio VOLVIENDO a la linea, y puede llegar desde arriba o desde abajo
     (F.avDist===null||(isFinite(f.avwap_dist)&&Math.abs(f.avwap_dist)<=F.avDist/100));
 }
+/* ======================= ESTRATEGIA (base v3.1) =======================
+   Las reglas son del usuario (prompt_screener_v31.md y sus respuestas del
+   16/10/2026) y estan escritas tal cual: no se simplifica nada sin
+   preguntarle. Lo que la especificacion no decia y hubo que elegir esta
+   marcado ELEGIDO. La referencia en Python es estrategia.py y las dos se
+   comparan en pruebas/estrategia_paridad.js: si tocas una, toca la otra.
+
+   LAS MEDIAS SON LAS DE PINE. El screener siembra rma() y ema() con el primer
+   valor, y eso sostiene la paridad del ASH: no se toca. Aca van ta.ema y
+   ta.rma sembradas con la SMA de los primeros n valores VALIDOS (la senal del
+   MACD arranca 13 velas despues de que el MACD tiene valor), y ta.atr con el
+   true range de Pine. Son funciones aparte a proposito. */
+const ESTR={wmaRap:21,wmaLen:26,cruceMax:20,adrN:20,adrMin:2,rsMin:70,ruedas52:252,
+  sobreMin:1.30,bajoMax:0.75,regC:50,regL:200,macdR:5,macdL:13,macdS:13,
+  ewoR:3,ewoL:21,ewoS:5,atrN:14,slK:3.5,slMin:0.005,slMax:0.95,tpK:3.00,actK:1.20,
+  smaSal:40,emaReent:34,lugares:10,comision:0.0035,
+  // una vela de 3 dias CERRO el viernes 2/10/2026 (dato del usuario,
+  // confirmado contando las ruedas del SPY desde el 2/1/1997)
+  ancla3d:20261002,
+  // la vela de hoy se usa recien cuando Yahoo tiene el cierre final
+  cierreMin:16*60+30,
+  grupoAdr:'ADR estrategia'};
+
+function recursivaP(x,n,a){const o=new Array(x.length).fill(NaN),s=sma(x,n);let p=NaN;
+  for(let i=0;i<x.length;i++){
+    if(!isFinite(p))p=s[i];
+    else if(isFinite(x[i]))p=a*x[i]+(1-a)*p;
+    else p=NaN;
+    o[i]=p;}
+  return o;}
+function emaP(x,n){return recursivaP(x,n,2/(n+1));}
+function rmaP(x,n){return recursivaP(x,n,1/n);}
+function atrP(h,l,c,n){const tr=new Array(c.length);
+  for(let i=0;i<c.length;i++){const pc=i?c[i-1]:NaN;
+    tr[i]=isFinite(pc)?Math.max(h[i]-l[i],Math.abs(h[i]-pc),Math.abs(l[i]-pc)):h[i]-l[i];}
+  return rmaP(tr,n);}
+
+// cuantos de un arreglo ORDENADO son < x (izq) o <= x (der)
+function cuantosMenores(u,x,incl){let a=0,b=u.length;
+  while(a<b){const m=(a+b)>>1;if(incl?u[m]<=x:u[m]<x)a=m+1;else b=m;}return a;}
+/* Percentil 0-1 con empates promediados: pandas rank(pct=True). */
+function pctRank(v){const ok=v.filter(x=>isFinite(x)).sort((a,b)=>a-b),o=v.map(()=>NaN);
+  if(!ok.length)return o;
+  return v.map(x=>isFinite(x)?(cuantosMenores(ok,x,false)+1+cuantosMenores(ok,x,true))/2/ok.length:NaN);}
+/* ELEGIDO: RS = percentil (rank pct de pandas) x 100, acotado a 1-99. El
+   filtro compara este numero sin redondear contra 70. */
+function rsDePuntaje(x,u){if(!isFinite(x)||!u||!u.length)return NaN;
+  const a=cuantosMenores(u,x,false),b=cuantosMenores(u,x,true);
+  const pct=b===a?(a+1)/(u.length+1):(a+1+b)/2/u.length;
+  return Math.min(99,Math.max(1,pct*100));}
+function puntajeRs(c,cs){
+  if(c.length<253||cs.length<253)return NaN;let s=0;
+  for(const [n,w] of [[63,.4],[126,.2],[189,.2],[252,.2]]){
+    const a=c[c.length-1]/c[c.length-1-n],b=cs[cs.length-1]/cs[cs.length-1-n];
+    if(!isFinite(a)||!isFinite(b)||b<=0)return NaN;s+=w*a/b;}
+  return s;}
+
+/* ---------- calendario de NYSE ----------
+   Los feriados van por REGLA y no por lista, para que no venzan. Solo hacen
+   falta para saber si la semana del SPY ya cerro ("si el viernes es feriado,
+   la semana cierra el jueves"). Los cierres extraordinarios (duelos
+   nacionales) no se pueden prever y no estan. */
+function diaUTC(y,m,d){return Date.UTC(y,m-1,d)/86400000;}
+function deDia(n){const t=new Date(n*86400000);
+  return t.getUTCFullYear()*10000+(t.getUTCMonth()+1)*100+t.getUTCDate();}
+function aDia(f){return diaUTC(Math.floor(f/10000),Math.floor(f/100)%100,f%100);}
+function semanaDe(n){return (new Date(n*86400000).getUTCDay()+6)%7;}   // 0=lunes
+function nesimo(y,m,wd,k){
+  if(k>0){const d=diaUTC(y,m,1);return d+((wd-semanaDe(d))+7)%7+7*(k-1);}
+  const d=diaUTC(y,m+1,1)-1;return d-((semanaDe(d)-wd)+7)%7;}
+function observado(d){const w=semanaDe(d);return w===5?d-1:w===6?d+1:d;}
+function pascua(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+  f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
+  i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  return diaUTC(y,Math.floor((h+l-7*m+114)/31),(h+l-7*m+114)%31+1);}
+function feriadosNYSE(y){
+  const f=new Set([nesimo(y,1,0,3),nesimo(y,2,0,3),pascua(y)-2,nesimo(y,5,0,-1),
+    observado(diaUTC(y,7,4)),nesimo(y,9,0,1),nesimo(y,11,3,4),observado(diaUTC(y,12,25))]);
+  const an=diaUTC(y,1,1);
+  if(semanaDe(an)!==5)f.add(observado(an));   // NYSE no lo corre al 31/12
+  if(y>=2022)f.add(observado(diaUTC(y,6,19)));
+  return f;}
+function semanaCerrada(f){let k=aDia(f)+1;const fer=feriadosNYSE(Math.floor(f/10000));
+  while(semanaDe(k)<=4){if(!fer.has(k))return false;k++;}return true;}
+/* Cierres semanales W-FRI de semanas CERRADAS. claveSemana() (la del
+   screener) cambia de numero cada lunes. */
+function semanalCerrado(d,c){const fd=[],fc=[];let k=null;
+  for(let i=0;i<c.length;i++){const kk=claveSemana(d[i]);
+    if(kk!==k){fd.push(d[i]);fc.push(c[i]);k=kk;}else{fd[fd.length-1]=d[i];fc[fc.length-1]=c[i];}}
+  if(fd.length&&!semanaCerrada(fd[fd.length-1])){fd.pop();fc.pop();}
+  return {d:fd,c:fc};}
+
+/* Velas de 3 ruedas del calendario de NYSE (las fechas del SPY), contadas
+   para que una termine en ESTR.ancla3d. Solo las CERRADAS a `hasta`. Una
+   fecha del papel que no es rueda de NYSE cae en la vela de la rueda
+   anterior. La primera vela del calendario, si viene cortada, se tira. */
+function velas3d(b,n,cal,hasta){
+  const pa=cuantosMenores(cal,ESTR.ancla3d,false);
+  if(cal[pa]!==ESTR.ancla3d)return null;
+  const ph=cuantosMenores(cal,hasta,true)-1,ini=pa+1,gc=Math.floor((ph-ini-2)/3);
+  const v=new Map();
+  for(let i=0;i<n;i++){const p=cuantosMenores(cal,b.d[i],true)-1;if(p<0)continue;
+    const g=Math.floor((p-ini)/3);if(g>gc||ini+3*g<0)continue;
+    const x=v.get(g);
+    if(!x)v.set(g,{o:b.o[i],h:b.h[i],l:b.l[i],c:b.c[i]});
+    else{x.h=Math.max(x.h,b.h[i]);x.l=Math.min(x.l,b.l[i]);x.c=b.c[i];}}
+  const gs=[...v.keys()].sort((a,b)=>a-b);
+  return {fin:gs.map(g=>cal[ini+3*g+2]),c:gs.map(g=>v.get(g).c),
+    o:gs.map(g=>v.get(g).o),h:gs.map(g=>v.get(g).h),l:gs.map(g=>v.get(g).l)};}
+
+/* La vela que se usa: la ultima del SPY, salvo que sea la de HOY y en Nueva
+   York todavia no sean las 16:30 (antes de eso Yahoo no tiene el cierre
+   final). `reloj` es relojNY(ahora) -- {fecha, min} --; sin reloj, la ultima. */
+function velaEstrategia(spy,reloj){const n=spy.d.length;if(!n)return null;
+  let f=spy.d[n-1];
+  if(reloj&&f>=reloj.fecha&&reloj.min<ESTR.cierreMin)f=n>1?spy.d[n-2]:null;
+  return f;}
+
+/* Todas las columnas de un papel al cierre de `hasta`. null si el papel no
+   tiene la vela de ese dia: calcular con la vela de otro dia seria un dato
+   equivocado. U = puntajes ordenados del universo del RS (o null). */
+function evaluarEstr(s,spy,hasta,U,cal){
+  const n=cuantosMenores(s.d,hasta,true);
+  if(!n||s.d[n-1]!==hasta)return null;
+  const c=s.c.slice(0,n),h=s.h.slice(0,n),l=s.l.slice(0,n),i=n-1,E=ESTR;
+  const r={t:s.t,fecha:hasta,cierre:c[i]};
+  // 1 · cruce WMA 21/26
+  const w1=wma(c,E.wmaRap),w2=wma(c,E.wmaLen);r.wma21=w1[i];r.wma26=w2[i];
+  const val=j=>isFinite(w1[j])&&isFinite(w2[j]);
+  const arriba=val(i)&&w1[i]>=w2[i];let ini=i;
+  if(arriba)while(ini-1>=0&&val(ini-1)&&w1[ini-1]>=w2[ini-1])ini--;
+  const conCruce=arriba&&ini-1>=0&&val(ini-1)&&w1[ini-1]<w2[ini-1];
+  r.dias_cruce=conCruce?i-ini:null;r.fecha_cruce=conCruce?s.d[ini]:null;
+  r.f1=conCruce&&i-ini<=E.cruceMax;
+  // 2 · ADR%(20)
+  const hl=h.map((x,k)=>x/l[k]);r.adr=(sma(hl,E.adrN)[i]-1)*100;
+  r.f2=isFinite(r.adr)&&r.adr>E.adrMin;
+  // 3 · RS
+  const cs=spy.c.slice(0,cuantosMenores(spy.d,hasta,true));
+  r.rs_puntaje=puntajeRs(c,cs);r.rs=U?rsDePuntaje(r.rs_puntaje,U):NaN;
+  r.f3=isFinite(r.rs)&&r.rs>E.rsMin;
+  // 4 y 5 · 252 velas con hoy incluida; ELEGIDO: sin 252 velas no pasa
+  let lo=NaN,hi=NaN;
+  if(n>=E.ruedas52){lo=Infinity;hi=-Infinity;
+    for(let k=n-E.ruedas52;k<n;k++){if(l[k]<lo)lo=l[k];if(h[k]>hi)hi=h[k];}}
+  r.min52=lo;r.max52=hi;r.sobre_min=c[i]/lo-1;r.bajo_max=c[i]/hi-1;
+  r.f4=isFinite(lo)&&c[i]>=E.sobreMin*lo;r.f5=isFinite(hi)&&c[i]>=E.bajoMax*hi;
+  // 6 · regimen: autómata con histeresis sobre toda la serie
+  const s50=sma(c,E.regC),s200=sma(c,E.regL),on=automataRegimen(c,s50,s200);
+  r.sma50=s50[i];r.sma200=s200[i];r.regimen=on;r.f6=on;
+  // 7 · MACD 5/13/13 en velas de 3 dias cerradas
+  const v3=velas3d(s,n,cal||spy.d,hasta);
+  if(v3){const e13=emaP(v3.c,E.macdL),e5=emaP(v3.c,E.macdR),mm=e5.map((x,k)=>x-e13[k]),
+          sg=emaP(mm,E.macdS),hs=mm.map((x,k)=>x-sg[k]),z=hs.length;
+    r.v3_fin=z?v3.fin[z-1]:null;r.v3_ant=z>1?v3.fin[z-2]:null;
+    r.macd3=z?mm[z-1]:NaN;r.macd3_senal=z?sg[z-1]:NaN;
+    r.hist3=z?hs[z-1]:NaN;r.hist3_ant=z>1?hs[z-2]:NaN;}
+  else{r.v3_fin=r.v3_ant=null;r.macd3=r.macd3_senal=r.hist3=r.hist3_ant=NaN;}
+  r.f7=isFinite(r.hist3)&&isFinite(r.hist3_ant)&&r.hist3>r.hist3_ant;
+  // 8 · EWO diario
+  const e3=emaP(c,E.ewoR),e21=emaP(c,E.ewoL),ew2=e3.map((x,k)=>(x/e21[k]-1)*100),
+        sew=emaP(ew2,E.ewoS);
+  r.ewo1=e3[i]-e21[i];r.ewo2=ew2[i];r.ewo_senal=sew[i];
+  r.f8=isFinite(r.ewo1)&&isFinite(r.ewo_senal)&&r.ewo1>0&&r.ewo2>r.ewo_senal;
+  // orden y plan
+  r.atr=atrP(h,l,c,E.atrN)[i];r.atr_pct=r.atr/c[i];
+  r.sma40=sma(c,E.smaSal)[i];r.ema34=emaP(c,E.emaReent)[i];
+  Object.assign(r,planEstr(c[i],r.atr_pct));
+  r.fallan=[1,2,3,4,5,6,7,8].filter(k=>!r['f'+k]);
+  r.pasa=!r.fallan.length;
+  return r;}
+
+/* Regimen del ticker: autómata con histeresis sobre la linea max(SMA 50,
+   SMA 200). Encendido se apaga con C < linea; apagado se prende con C >
+   linea; igual, queda como estaba. Sin datos para las SMA: encendido. */
+function automataRegimen(c,s50,s200){let on=true;
+  for(let j=0;j<c.length;j++){
+    if(!isFinite(s50[j])||!isFinite(s200[j])){on=true;continue;}
+    const ln=Math.max(s50[j],s200[j]);
+    if(on&&c[j]<ln)on=false;else if(!on&&c[j]>ln)on=true;}
+  return on;}
+
+/* El plan sale del precio de entrada y del ATR% del DIA DE LA SENAL: si el
+   usuario carga su precio real, se recalcula con ese precio y el mismo ATR%. */
+function planEstr(entry,atrPct){const E=ESTR;
+  const d=isFinite(atrPct)?Math.min(Math.max(E.slK*atrPct,E.slMin),E.slMax):NaN;
+  return {entry,sl_pct:d,sl:entry*(1-d),tp:entry*E.tpK,activacion:entry*E.actK};}
+
+/* Re-entrada (filtro 10). Dentro de la MISMA racha alcista de WMA 21/26,
+   despues de una salida: desde el dia de la salida (incluido) el cierre
+   estuvo <= SMA 40 algun dia y el Low toco la EMA 34 algun dia, y hoy cierra
+   > SMA 40. Los filtros 2 a 8 los mira quien llama. */
+function reentrada(s,hasta,salida){
+  const n=cuantosMenores(s.d,hasta,true);if(!n||s.d[n-1]!==hasta)return null;
+  const c=s.c.slice(0,n),s40=sma(c,ESTR.smaSal),e34=emaP(c,ESTR.emaReent);
+  let bajo=false,toco=false;
+  for(let j=cuantosMenores(s.d,salida,false);j<n;j++){
+    if(isFinite(s40[j])&&c[j]<=s40[j])bajo=true;
+    if(isFinite(e34[j])&&s.l[j]<=e34[j])toco=true;}
+  const hoy=isFinite(s40[n-1])&&c[n-1]>s40[n-1];
+  return {bajo,toco,hoy,ok:bajo&&toco&&hoy};}
+
+/* Como va una posicion abierta, vela por vela desde el dia siguiente a la
+   entrada, con las reglas del usuario: SL stop fijo (si abre debajo, sale al
+   open), TP limite (si abre arriba, sale al open), los dos en la misma vela
+   cuenta el SL; un CIERRE >= activacion activa la salida por media desde el
+   dia siguiente, y entonces sale al cierre con C < SMA 40. */
+function seguirPosicion(s,op,hasta){
+  const n=cuantosMenores(s.d,hasta,true),c=s.c.slice(0,n),s40=sma(c,ESTR.smaSal);
+  const p=planEstr(op.pe,op.atr_pct);let activa=false,desde=null;
+  const fin=(salida,j,precio)=>Object.assign(p,{salida,fecha:s.d[j],precio,activa,desde});
+  for(let j=cuantosMenores(s.d,op.fe,true);j<n;j++){
+    if(s.o[j]<=p.sl)return fin('SL',j,s.o[j]);
+    if(s.l[j]<=p.sl)return fin('SL',j,p.sl);       // TP y SL en la misma vela: SL
+    if(s.o[j]>=p.tp)return fin('TP',j,s.o[j]);
+    if(s.h[j]>=p.tp)return fin('TP',j,p.tp);
+    if(activa&&isFinite(s40[j])&&c[j]<s40[j])return fin('SMA 40',j,c[j]);
+    if(!activa&&c[j]>=p.activacion){activa=true;desde=s.d[j];}}
+  return Object.assign(p,{salida:null,activa,desde,cierre:c[n-1],sma40:s40[n-1],
+    fecha:n?s.d[n-1]:null});}
+
+/* El estado del mercado: ASH del SPY diario (STOCHASTIC 9/1, ALMA) y semanal
+   de semanas CERRADAS (RSI 21/4, ALMA), con el calcAsh del screener. */
+function ashSpy(spy,hasta){const n=cuantosMenores(spy.d,hasta,true);
+  const c=spy.c.slice(0,n),cfg=(m,L,S)=>({modo:m,ma_type:'ALMA',length:L,smooth:S,
+    alma_offset:0.85,alma_sigma:6});
+  const a=calcAsh({c,h:c,l:c},cfg('STOCHASTIC',9,1));
+  const w=semanalCerrado(spy.d.slice(0,n),c),b=calcAsh({c:w.c,h:w.c,l:w.c},cfg('RSI',21,4));
+  const dia={bulls:a.bulls[n-1],bears:a.bears[n-1]};dia.pausa=dia.bears>dia.bulls;
+  const z=w.c.length-1,sem={bulls:b.bulls[z],bears:b.bears[z],semana:w.d[z]};
+  sem.pausa=sem.bears>2*sem.bulls;
+  return {fecha:hasta,diario:dia,semanal:sem,pausa:dia.pausa||sem.pausa};}
+
+function prioridadEstr(filas){const pa=pctRank(filas.map(f=>f.adr)),
+  pt=pctRank(filas.map(f=>f.atr_pct));
+  filas.forEach((f,k)=>f.prio=isFinite(pa[k])&&isFinite(pt[k])?(pa[k]+pt[k])*100:NaN);
+  return filas;}
+
+/* Los tickers del usuario que entran: sin ETFs (decision del usuario), y
+   cada cotizacion local reemplazada por su ADR (estrategia_adr.csv, viaja en
+   el payload). Si el ADR ya estaba no se duplica. */
+function universoEstr(simbolos,mapa){
+  const hay=new Set(simbolos.map(s=>s.t)),vistos=new Set(),sal=[],afuera=[];
+  for(const s of simbolos){let t=s.t;
+    if(String(s.g||'').startsWith('ETF'))continue;
+    if(mapa&&Object.prototype.hasOwnProperty.call(mapa,t)){
+      const a=mapa[t];if(!a||!hay.has(a)){afuera.push(t);continue;}t=a;}
+    else if((s.mon||'USD')!=='USD'){afuera.push(t);continue;}
+    if(!vistos.has(t)){vistos.add(t);sal.push(t);}}
+  return {tickers:sal,afuera};}
+
 if(typeof module!=='undefined')module.exports={sma,ema,rma,wma,alma,hma,smma,ma,calcAsh,
   pivotes,regresion,envolvente,tendencias,avwapDesde,anclaMaximo,avwapAncladp,
   emaPine,rvwapDias,senalesNube,comboSeries,consolidacion,mejorCaja,
   compresion,mejorCompresion,tipoCompresion,CMP,directriz,mejorDirectriz,DIR,
   ashNorm,rsi,atr,adx,adrPct,semanal,calcularBase,calcularAsh,barrasDesdeCruce,
-  pasaCruce,pasaFiltros};
+  pasaCruce,pasaFiltros,
+  ESTR,automataRegimen,emaP,rmaP,atrP,pctRank,rsDePuntaje,puntajeRs,feriadosNYSE,semanaCerrada,
+  semanalCerrado,velas3d,velaEstrategia,evaluarEstr,planEstr,reentrada,seguirPosicion,
+  ashSpy,prioridadEstr,universoEstr,claveSemana};
 </script>
 
 <!-- Datos: los inyecta generar_html.py -->
@@ -2833,6 +3141,9 @@ function recalcular(){
 
   filas=[];
   for(const s of DATOS.simbolos){
+    /* Los ADRs que estan solo para Estrategia no van a la tabla: ahi el papel
+       ya aparece en su bolsa de origen y quedaria duplicado. */
+    if(s.g===ESTR.grupoAdr)continue;
     try{
       let base=cacheBase.get(s.t);
       if(!base){base=calcularBase(s,cfg);cacheBase.set(s.t,base);}
@@ -3221,6 +3532,7 @@ function ponerColumnas(lista){
 function render(){
   marcarAtajoColumnas();
   if(vistaPanorama){renderPanorama();return;}
+  if(vistaEstr){renderEstrategia();return;}
   const usar=columnas();
   /* Los encabezados se arrastran para reordenar. Los dos primeros no: son los
      que quedan fijos al desplazar a lo ancho y el CSS los ancla por posicion. */
@@ -3816,6 +4128,9 @@ function verVista(cual){
   vistaPanorama = cual === 'p';
   document.body.classList.toggle('panorama', cual === 'p');
   document.body.classList.toggle('bonos',    cual === 'b');
+  document.body.classList.toggle('estrategia', cual === 'e');
+  vistaEstr = cual === 'e';
+  $('#chipEstr').classList.toggle('on', cual === 'e');
   $('#chipTabla').classList.toggle('on', cual === 't');
   $('#chipVista').classList.toggle('on', cual === 'p');
   $('#chipBonos').classList.toggle('on', cual === 'b');
@@ -3840,6 +4155,7 @@ function verVista(cual){
   escribirLS('screener_ash_vista', cual);
   if(cual === 'p')      renderPanorama();
   else if(cual === 'b') verBonos();
+  else if(cual === 'e') renderEstrategia();
   else                  render();
 }
 function verPanorama(mostrar){verVista(mostrar?'p':'t');}
@@ -5254,7 +5570,8 @@ function copiarVista(boton){
 /* ---------- respaldo completo ---------- */
 function exportarConfig(){
   const todo={version:1,generado:new Date().toISOString(),
-    perfiles:leerPerfiles(),favoritos:[...favoritos],sesion:estadoActual()};
+    perfiles:leerPerfiles(),favoritos:[...favoritos],sesion:estadoActual(),
+    estrategia:ESTRD};
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(todo,null,1)],
     {type:'application/json'}));
@@ -5272,9 +5589,248 @@ function importarConfig(texto){
   if(Array.isArray(d.favoritos)){
     favoritos=new Set([...favoritos,...d.favoritos]);guardarFavoritos();
     $('#chipFav').textContent=`★ favoritos${favoritos.size?' ('+favoritos.size+')':''}`;}
+  if(d.estrategia)fusionarEstr(d.estrategia);
   if(d.sesion)aplicarEstado(d.sesion);
   else{montarColumnas();render();}
   $('#estado').textContent='respaldo restaurado';}
+
+
+/* ======================= ESTRATEGIA: la pantalla =======================
+   El motor (evaluarEstr, ashSpy, velas3d...) esta en el bloque "motor". Aca
+   va lo que depende de la pagina: que vela se usa, contra que universo sale
+   el RS, el registro de operaciones del usuario y la tabla.
+
+   EL REGISTRO DE OPERACIONES vive en el navegador (leerLS/escribirLS) y viaja
+   dentro del respaldo .json. Lo necesitan dos reglas: "una entrada por cruce
+   y una posicion por ticker" y la re-entrada. Cada operacion guarda el cruce
+   de WMA 21/26 en el que se entro (la fecha del primer dia de la racha): una
+   racha nueva tiene otra fecha, y ahi se puede volver a entrar. */
+const CLAVE_ESTR='screener_ash_estrategia';
+let vistaEstr=false, RSU=null, bajandoRsu=false, memoEstr={clave:'',res:null};
+function leerEstr(){let d=null;try{d=JSON.parse(leerLS(CLAVE_ESTR)||'null');}catch(e){}
+  d=d&&typeof d==='object'?d:{};
+  return {ops:Array.isArray(d.ops)?d.ops:[],lugares:d.lugares??'',capital:d.capital??'',
+    efectivo:d.efectivo??'',casi:!!d.casi};}
+function grabarEstr(d){escribirLS(CLAVE_ESTR,JSON.stringify(d));}
+let ESTRD=leerEstr();
+
+/* El universo amplio del RS lo arma rs_amplio.py de noche. Si no esta
+   (servidor local, archivo suelto, o la corrida no salio nunca), el RS se
+   mide contra los papeles del usuario y la columna lo marca en ROJO: es lo
+   que pidio el usuario, y un percentil contra 350 papeles elegidos no es el
+   del backtest. */
+async function traerRsu(){
+  if(RSU||bajandoRsu)return;bajandoRsu=true;
+  try{const r=await fetch('rs_universo.json?v='+Math.floor(Date.now()/600000),{cache:'no-cache'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(!Array.isArray(d.p)||d.p.length<1000)throw new Error('vacio');
+    RSU={p:d.p.slice().sort((a,b)=>a-b),fecha:+d.fecha,n:d.p.length,generado:d.generado||''};
+  }catch(e){RSU={p:null,error:String(e.message||e)};}
+  finally{bajandoRsu=false;}
+  memoEstr.clave='';if(vistaEstr)renderEstrategia();}
+
+function calcularEstrategia(){
+  const spy=DATOS.simbolos.find(s=>s.t===DATOS.benchmark);
+  if(!spy)return {error:'No vino el SPY: sin él no hay estado del mercado ni RS.'};
+  const R=velaEstrategia(spy,relojNY(new Date()));
+  const clave=[R,DATOS.ts,DATOS.simbolos.reduce((a,s)=>a+(s.c[s.c.length-1]||0)+s.c.length,0),
+    RSU&&RSU.n,RSU&&RSU.fecha].join('|');
+  if(memoEstr.clave===clave)return memoEstr.res;
+  const porT=new Map(DATOS.simbolos.map(s=>[s.t,s]));
+  const uni=universoEstr(DATOS.simbolos,DATOS.estr_adr||{});
+  const filas=[],sinVela=[];
+  for(const t of uni.tickers){
+    try{const r=evaluarEstr(porT.get(t),spy,R,null,spy.d);
+      if(r)filas.push(r);else sinVela.push(t);}
+    catch(e){console.warn('estrategia',t,e);sinVela.push(t);}}
+  let fuente='amplio',U=RSU&&RSU.p;
+  if(!U){fuente='propio';U=filas.map(f=>f.rs_puntaje).filter(isFinite).sort((a,b)=>a-b);}
+  for(const f of filas){f.rs=rsDePuntaje(f.rs_puntaje,U);f.f3=isFinite(f.rs)&&f.rs>ESTR.rsMin;
+    f.fallan=[1,2,3,4,5,6,7,8].filter(k=>!f['f'+k]);f.pasa=!f.fallan.length;}
+  prioridadEstr(filas);
+  let mercado=null;try{mercado=ashSpy(spy,R);}catch(e){console.warn(e);}
+  const res={R,filas,sinVela,afuera:uni.afuera,fuente,mercado,porT,
+    v3:filas.length?filas[0].v3_fin:null};
+  memoEstr={clave,res};
+  return res;}
+
+/* Las reglas 9 y 10 contra el registro. Devuelve que es cada fila hoy:
+   'entrada', 'reentrada', o por que no se muestra. */
+function clasificarEstr(f,porT,R){
+  const ops=ESTRD.ops.filter(o=>o.t===f.t);
+  if(ops.some(o=>!o.fs))return {tipo:'cartera'};
+  const delCruce=f.fecha_cruce?ops.filter(o=>o.cruce===f.fecha_cruce):[];
+  if(!delCruce.length)return {tipo:'entrada',fallan:f.fallan};
+  const sal=Math.max(...delCruce.map(o=>+o.fs));
+  const re=reentrada(porT.get(f.t),R,sal);
+  const fallan=[2,3,4,5,6,7,8].filter(k=>!f['f'+k]);
+  if(!re)return {tipo:'operada'};
+  // la regla propia de la re-entrada cuenta como un filtro mas
+  if(!re.ok)fallan.push(10);
+  return {tipo:'reentrada',fallan,re};}
+
+const fmtN=(v,d=2)=>isFinite(v)?(+v).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+const fmtP=(v,d=1)=>isFinite(v)?(v>0?'+':'')+fmtN(v*100,d)+' %':'—';
+const ok=b=>b?'<b class="es-si">✔</b>':'<b class="es-no">✘</b>';
+
+function renderEstrategia(){
+  if(!vistaEstr)return;
+  const cuerpo=$('#estrCuerpo');
+  if(!(DATOS.simbolos&&DATOS.simbolos.length)){cuerpo.innerHTML='<p class="bo-vacio">Todavía no hay precios cargados.</p>';return;}
+  if(!RSU)traerRsu();
+  const E=calcularEstrategia();
+  if(E.error){cuerpo.innerHTML=`<p class="bo-vacio">${esc(E.error)}</p>`;return;}
+  const {R,filas,porT,mercado}=E, d=ESTRD;
+  const abiertas=d.ops.filter(o=>!o.fs);
+  const pausa=!mercado||mercado.pausa;
+
+  // --- qué se muestra: señales y, si se pide, casi-señales ---
+  const lista=[];
+  for(const f of filas){const c=clasificarEstr(f,porT,R);
+    if(c.tipo!=='entrada'&&c.tipo!=='reentrada')continue;
+    const fl=c.fallan;
+    if(!fl.length)lista.push({f,c,senal:true});
+    else if(fl.length===1&&d.casi)lista.push({f,c,senal:false});}
+  lista.sort((a,b)=>(b.senal-a.senal)||((b.f.prio||0)-(a.f.prio||0)));
+
+  // --- los lugares: 10 - abiertas, o lo que diga el usuario ---
+  const auto=Math.max(0,ESTR.lugares-abiertas.length);
+  const libres=d.lugares===''||!isFinite(+d.lugares)?auto:Math.max(0,Math.floor(+d.lugares));
+  const capital=+d.capital, monto=capital>0?capital/ESTR.lugares:NaN;
+  let caja=+d.efectivo>0?+d.efectivo:(d.efectivo===''?NaN:0), puesto=0;
+  if(!pausa)for(const x of lista){if(!x.senal||puesto>=libres)continue;
+    if(isFinite(monto)&&isFinite(caja)){if(caja<monto/2)break;
+      x.monto=Math.min(monto,caja);caja-=x.monto;}
+    else if(isFinite(monto))x.monto=monto;
+    x.puesto=++puesto;}
+
+  const rsRojo=E.fuente==='propio';
+  const notaRs=rsRojo
+    ?`<span class="es-mal">RS contra tus ${filas.length} papeles, NO contra el universo amplio${RSU&&RSU.error?' ('+esc(RSU.error)+')':''}</span>`
+    :`RS contra ${RSU.n.toLocaleString('es-AR')} acciones de NYSE/Nasdaq · cortes del ${fechaCorta(RSU.fecha)}`+
+      (RSU.fecha!==R?` <span class="es-ojo">(no son de la vela usada: son del ${fechaCorta(RSU.fecha)})</span>`:'');
+
+  const cajaM=(nombre,x,regla,cond)=>x?`<div class="es-asd ${x.pausa?'mal':'bien'}">
+      <div class="es-asd-t">${nombre}</div>
+      <div class="es-asd-v"><span>SmthBulls <b>${fmtN(x.bulls,3)}</b></span><span>SmthBears <b>${fmtN(x.bears,3)}</b></span></div>
+      <div class="es-asd-e">${x.pausa?'EN PAUSA':'OK'} · pausa si ${regla}</div>${cond||''}</div>`:'';
+  const merc=mercado?`<div class="es-cartel ${pausa?'mal':'bien'}">${pausa
+      ?'PAUSA: no abrir operaciones nuevas <small>(las abiertas siguen con sus reglas)</small>'
+      :'SE PUEDE ENTRAR'}</div>
+    <div class="es-asds">
+      ${cajaM('ASH diario del SPY · STOCHASTIC 9 / 1 · ALMA',mercado.diario,'SmthBears &gt; SmthBulls')}
+      ${cajaM('ASH semanal del SPY · RSI 21 / 4 · ALMA · semanas cerradas',mercado.semanal,'SmthBears &gt; 2 · SmthBulls',
+        `<div class="es-asd-e">última semana cerrada: la del ${fechaCorta(mercado.semanal.semana)}</div>`)}
+    </div>`:'<div class="es-cartel mal">Sin estado del mercado: falta historia del SPY</div>';
+
+  const th=['Ticker','Cierre','Días desde el cruce','WMA 21 / WMA 26','ADR%(20)',
+    `RS${rsRojo?' <span class="es-mal">⚠</span>':''}`,'% sobre mín. 52 s','% bajo máx. 52 s',
+    'Régimen SMA 50/200','MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)',
+    'ATR%(14)','Prioridad','Entry','SL (precio · %)','TP','Activación +20 %','SMA 40',''];
+  const celda=(x,k,html)=>{const falla=!x.senal&&x.c.fallan.includes(k);
+    return `<td class="${falla?'es-falla':''}">${html}</td>`;};
+  const filasHtml=lista.map(x=>{const f=x.f,c=x.c,re=c.tipo==='reentrada';
+    const pe=x.pe||f.cierre;const p=planEstr(pe,f.atr_pct);
+    const tk=`<span class="tk">${esc(f.t)}</span>`+
+      (re?' <span class="es-et">re-entrada</span>':'')+
+      (x.puesto?` <span class="es-et comprar" title="Entra según los lugares libres${x.monto?' · USD '+fmtN(x.monto,0):''}">#${x.puesto}${x.monto?' · USD '+fmtN(x.monto,0):''}</span>`:'');
+    const reNota=re?` title="re-entrada: cerró ≤ SMA 40 desde la salida ${c.re.bajo?'✔':'✘'} · Low tocó EMA 34 ${c.re.toco?'✔':'✘'} · hoy > SMA 40 ${c.re.hoy?'✔':'✘'}"`:'';
+    return `<tr data-t="${esc(f.t)}"${reNota}>
+      <td class="${!x.senal&&c.fallan.includes(10)?'es-falla':''}">${tk}</td>
+      <td>${fmtN(f.cierre)}</td>
+      ${celda(x,1,(f.dias_cruce==null?'sin cruce':f.dias_cruce)+' '+ok(f.f1))}
+      ${celda(x,1,fmtN(f.wma21)+' / '+fmtN(f.wma26))}
+      ${celda(x,2,fmtN(f.adr)+' % '+ok(f.f2))}
+      ${celda(x,3,`<span class="${rsRojo?'es-mal':''}">${isFinite(f.rs)?Math.round(f.rs):'—'}</span> ${ok(f.f3)}`)}
+      ${celda(x,4,fmtP(f.sobre_min)+' '+ok(f.f4))}
+      ${celda(x,5,fmtP(f.bajo_max)+' '+ok(f.f5))}
+      ${celda(x,6,(f.regimen?'encendido':'apagado')+' '+ok(f.f6))}
+      ${celda(x,7,fmtN(f.hist3,3)+' · '+fmtN(f.hist3_ant,3)+' '+ok(f.f7))}
+      ${celda(x,8,fmtN(f.ewo1)+' · '+fmtN(f.ewo2)+' · '+fmtN(f.ewo_senal)+' '+ok(f.f8))}
+      <td>${fmtN(f.atr_pct*100)} %</td>
+      <td>${fmtN(f.prio,1)}</td>
+      <td><input class="es-pe" type="number" step="any" placeholder="${isFinite(f.cierre)?f.cierre.toFixed(2):''}" value="${x.pe||''}" title="Tu precio real de entrada: recalcula SL, TP y activación"></td>
+      <td class="es-sl">${fmtN(p.sl)} · −${fmtN(p.sl_pct*100)} %</td>
+      <td class="es-tp">${fmtN(p.tp)}</td>
+      <td class="es-act">${fmtN(p.activacion)}</td>
+      <td>${fmtN(f.sma40)} · ${fmtP(f.cierre/f.sma40-1)}</td>
+      <td><button class="mini es-entre" title="Anotar que entraste">Entré</button></td></tr>`;}).join('');
+
+  // --- cartera: las abiertas, con lo que dicen sus reglas ---
+  const cart=abiertas.map(o=>{const s=porT.get(o.t);
+    if(!s)return `<tr><td class="tk">${esc(o.t)}</td><td colspan="8">sin datos de este papel</td><td></td></tr>`;
+    const g=seguirPosicion(s,o,R);
+    const estado=g.salida?`<b class="es-mal">salida por ${g.salida} el ${fechaCorta(g.fecha)} a ${fmtN(g.precio)}</b>`
+      :(g.activa?`activada el ${fechaCorta(g.desde)}: sale al cierre si C &lt; SMA 40`:'antes de la activación: sólo SL y TP');
+    return `<tr data-id="${esc(o.id)}"><td class="tk">${esc(o.t)}</td><td>${fechaCorta(o.fe)}</td>
+      <td>${fmtN(o.pe)}</td><td>${fmtN(g.sl)}</td><td>${fmtN(g.tp)}</td><td>${fmtN(g.activacion)}</td>
+      <td>${fmtN(g.cierre)} · ${fmtP(g.cierre/o.pe-1)}</td><td>${fmtN(g.sma40)} · ${fmtP(g.cierre/g.sma40-1)}</td>
+      <td>${estado}</td>
+      <td><input class="es-ps" type="number" step="any" placeholder="precio de salida" value="${g.salida?g.precio:''}">
+        <button class="mini es-sali" data-f="${g.salida?g.fecha:R}">Salí</button>
+        <button class="mini es-borrar" title="Borrar esta operación del registro">×</button></td></tr>`;}).join('');
+  const cerradas=d.ops.filter(o=>o.fs).sort((a,b)=>b.fs-a.fs);
+  const hist=cerradas.map(o=>`<tr data-id="${esc(o.id)}"><td class="tk">${esc(o.t)}</td><td>${fechaCorta(o.fe)}</td>
+      <td>${fmtN(o.pe)}</td><td>${fechaCorta(o.fs)}</td><td>${fmtN(o.ps)}</td>
+      <td>${fmtP(o.ps/o.pe*(1-ESTR.comision)/(1+ESTR.comision)-1)}</td><td>cruce del ${fechaCorta(o.cruce)}</td>
+      <td><button class="mini es-borrar">×</button></td></tr>`).join('');
+
+  const ocultas=filas.filter(f=>{const t=clasificarEstr(f,porT,R).tipo;return t==='cartera'||t==='operada';}).length;
+  cuerpo.innerHTML=`${merc}
+    <div class="es-info">Vela usada: <b>${fechaCorta(R)}</b> (cierre) · última vela de 3 días cerrada: <b>${fechaCorta(E.v3)}</b> ·
+      ${filas.length} papeles con la vela del día${E.sinVela.length?` · <span class="es-ojo" title="${esc(E.sinVela.join(' '))}">${E.sinVela.length} sin la vela del ${fechaCorta(R)}, quedan afuera</span>`:''}
+      <br>${notaRs}${ocultas?` · ${ocultas} en cartera o ya operados en este cruce`:''}</div>
+    <div class="es-ctrl ctrl-host">
+      <label><input type="checkbox" id="esCasi" ${d.casi?'checked':''}> ver casi-señales</label>
+      <label>lugares libres <input type="number" id="esLugares" min="0" max="10" placeholder="${auto}" value="${esc(d.lugares)}"></label>
+      <label>capital USD <input type="number" id="esCapital" min="0" step="any" value="${esc(d.capital)}"></label>
+      <label>efectivo USD <input type="number" id="esEfectivo" min="0" step="any" value="${esc(d.efectivo)}"></label>
+      <span class="nota">${abiertas.length} abiertas · ${libres} lugares${isFinite(monto)?' · USD '+fmtN(monto,0)+' por lugar; si el efectivo no llega a la mitad, no se compra':''}</span>
+    </div>
+    <div class="es-tabla-wrap ${pausa?'atenuada':''}"><table class="bo-tabla es-tabla">
+      <thead><tr>${th.map(x=>`<th>${x}</th>`).join('')}</tr></thead>
+      <tbody>${filasHtml||`<tr><td colspan="${th.length}" class="bo-vacio">Hoy ningún papel cumple todo${d.casi?' ni falla en uno solo':''}.</td></tr>`}</tbody></table></div>
+    <h3 class="es-sub">Cartera · ${abiertas.length} abiertas</h3>
+    ${cart?`<div class="es-tabla-wrap"><table class="bo-tabla es-tabla"><thead><tr><th>Ticker</th><th>Entrada</th><th>Entry</th><th>SL</th><th>TP</th><th>Activación</th><th>Cierre</th><th>SMA 40</th><th>Estado</th><th></th></tr></thead><tbody>${cart}</tbody></table></div>`
+      :'<p class="nota">No hay operaciones abiertas. Con «Entré» en una señal queda anotada acá.</p>'}
+    ${hist?`<details class="es-hist"><summary>Cerradas (${cerradas.length})</summary><div class="es-tabla-wrap"><table class="bo-tabla es-tabla"><thead><tr><th>Ticker</th><th>Entrada</th><th>Entry</th><th>Salida</th><th>Precio</th><th>Resultado neto</th><th>Cruce</th><th></th></tr></thead><tbody>${hist}</tbody></table></div></details>`:''}
+    <p class="nota es-ref">Comisión de referencia: ${fmtN(ESTR.comision*100)} % por lado (el resultado neto de las cerradas ya la descuenta).
+      Referencia del backtest 2019–2026: CAGR 46,7 %, MaxDD −31,4 %, ~40 operaciones por año. Es lo que dio el pasado, no una promesa.</p>`;
+  engancharEstr(lista,R);}
+
+function engancharEstr(lista,R){
+  const guardar=()=>{grabarEstr(ESTRD);memoEstr.clave='';renderEstrategia();};
+  $('#esCasi').onchange=e=>{ESTRD.casi=e.target.checked;guardar();};
+  for(const [id,k] of [['#esLugares','lugares'],['#esCapital','capital'],['#esEfectivo','efectivo']])
+    $(id).onchange=e=>{ESTRD[k]=e.target.value.trim();guardar();};
+  const porT=new Map(lista.map(x=>[x.f.t,x]));
+  $$('#estrCuerpo tr[data-t]').forEach(tr=>{const x=porT.get(tr.dataset.t);if(!x)return;
+    const inp=tr.querySelector('.es-pe');
+    inp.oninput=()=>{const v=+inp.value;x.pe=v>0?v:null;const p=planEstr(x.pe||x.f.cierre,x.f.atr_pct);
+      tr.querySelector('.es-sl').textContent=fmtN(p.sl)+' · −'+fmtN(p.sl_pct*100)+' %';
+      tr.querySelector('.es-tp').textContent=fmtN(p.tp);
+      tr.querySelector('.es-act').textContent=fmtN(p.activacion);};
+    tr.querySelector('.es-entre').onclick=()=>{
+      ESTRD.ops.push({id:x.f.t+'-'+R+'-'+Date.now().toString(36),t:x.f.t,cruce:x.f.fecha_cruce,
+        fe:R,pe:x.pe||x.f.cierre,atr_pct:x.f.atr_pct,fs:null,ps:null,
+        tipo:x.c.tipo});
+      guardar();};});
+  $$('#estrCuerpo tr[data-id]').forEach(tr=>{const o=ESTRD.ops.find(z=>z.id===tr.dataset.id);if(!o)return;
+    const b=tr.querySelector('.es-borrar');
+    if(b)b.onclick=()=>{ESTRD.ops=ESTRD.ops.filter(z=>z!==o);guardar();};
+    const s=tr.querySelector('.es-sali');
+    if(s)s.onclick=()=>{const v=+tr.querySelector('.es-ps').value;
+      if(!(v>0)){tr.querySelector('.es-ps').focus();return;}
+      o.fs=+s.dataset.f;o.ps=v;guardar();};});}
+
+/* Al restaurar un respaldo las operaciones se FUSIONAN por id, como los
+   perfiles: restaurar no borra lo que ya estaba. */
+function fusionarEstr(d){if(!d||typeof d!=='object')return;
+  const ids=new Set(ESTRD.ops.map(o=>o.id));
+  for(const o of Array.isArray(d.ops)?d.ops:[])if(o&&o.id&&o.t&&!ids.has(o.id))ESTRD.ops.push(o);
+  for(const k of ['lugares','capital','efectivo'])if(ESTRD[k]===''&&d[k]!=null)ESTRD[k]=String(d[k]);
+  grabarEstr(ESTRD);memoEstr.clave='';}
 
 /* ---------- favoritos ---------- */
 const FAVS='screener_ash_favoritos';
@@ -5396,7 +5952,7 @@ function etiquetaCruce(){
 function montarChips(){
   // Este callback no guardaba la sesion: elegias grupos, recargabas y volvia
   // todo al default. Era la queja mas concreta sobre "la memoria".
-  const grupos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))].sort();
+  const grupos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(g=>g&&g!==ESTR.grupoAdr))].sort();
   chips($('#chipsGrupo'),grupos,gruposOn,(v,on)=>{
     on?gruposOn.add(v):gruposOn.delete(v);aplicar();guardarSesion();});
 }
@@ -6180,6 +6736,7 @@ function iniciar(){
   $('#chipVista').onclick=()=>verVista('p');
   $('#chipTabla').onclick=()=>verVista('t');
   $('#chipBonos').onclick=()=>verVista('b');
+  $('#chipEstr').onclick=()=>verVista('e');
   $('#buscarPan').addEventListener('input',()=>renderPanorama());
   $('#panTabs').onclick=e=>{const c=e.target.closest('.chip[data-panel]');if(!c)return;
     panelSel=+c.dataset.panel;renderPanorama();guardarSesion();};
@@ -6321,7 +6878,7 @@ function iniciar(){
   $('#btnAbrir').onclick=()=>panel(true);
   $('#velo').onclick=()=>panel(false);
   $('#btnGrupos').onclick=()=>{
-    const todos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(Boolean))];
+    const todos=[...new Set(DATOS.simbolos.map(s=>s.g).filter(g=>g&&g!==ESTR.grupoAdr))];
     gruposOn=gruposOn.size?new Set():new Set(todos);montarChips();aplicar();};
   $('#btnReset').onclick=limpiarFiltros;
   $('#chipsLetra').onclick=e=>{const c=e.target.closest('.chip');
@@ -6420,6 +6977,7 @@ function iniciar(){
     else if((e.key==='b'||e.key==='B')&&!escribiendo){
       verVista(document.body.classList.contains('bonos')?'t':'b');}
     else if((e.key==='r'||e.key==='R')&&!escribiendo){refrescarPrecios();}
+    else if((e.key==='e'||e.key==='E')&&!escribiendo){verVista(vistaEstr?'t':'e');}
     else if((e.key==='g'||e.key==='G')&&!escribiendo){
       verGrafico(document.body.classList.contains('sin-grafico'));}
     else if((e.key==='f'||e.key==='F')&&!escribiendo&&seleccion){marcarFavorito(seleccion);}});
@@ -6478,7 +7036,7 @@ function iniciar(){
   if(vista){sucio=true;grabarSesion();}
   // la vista va al final: renderPanorama() necesita `filas` ya calculadas
   const guardada=leerLS('screener_ash_vista');
-  if(guardada==='p'||guardada==='b')verVista(guardada);
+  if(guardada==='p'||guardada==='b'||guardada==='e')verVista(guardada);
 }
 
 /* ---------- secuencia de arranque ----------
