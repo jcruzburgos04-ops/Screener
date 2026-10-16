@@ -1,0 +1,37 @@
+# Estrategia (base v3.1): las acciones que cotizan fuera de EE.UU. en otra
+# moneda se reemplazan por su ADR en USD. Lo decidio el usuario el 16/10/2026,
+# uno por uno. Columna vacia = queda afuera de la estrategia, porque no tiene
+# un ADR confiable. SMSN.IL no esta: cotiza en USD y entra tal cual.
+# Solo vale para el menu Estrategia: la tabla del screener no cambia.
+local,adr
+PETR3.SA,PBR
+VALE3.SA,VALE
+ABEV3.SA,ABEV
+SBSP3.SA,SBS
+SUZB3.SA,SUZ
+VIVT3.SA,VIV
+TIMS3.SA,TIMB
+CSNA3.SA,SID
+BBDC3.SA,BBDO
+BBAS3.SA,BDORY
+ITUB3.SA,ITUB
+WEGE3.SA,WEGZY
+BAS.DE,BASFY
+DTE.DE,DTEGY
+ADS.DE,ADDYY
+BAYN.DE,BAYRY
+EOAN.DE,EONGY
+MBG.DE,MBGYY
+BN.PA,DANOY
+2317.TW,HNHPF
+MGLU3.SA,
+6701.T,
+CPLE3.SA,
+LREN3.SA,
+NATU3.SA,
+PCAR3.SA,
+PRIO3.SA,
+RENT3.SA,
+HAPV3.SA,
+BPAC11.SA,
+000660.KS,

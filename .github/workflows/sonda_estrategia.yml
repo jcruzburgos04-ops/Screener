@@ -1,0 +1,19 @@
+# SONDA TEMPORAL (se borra): ancla de 3 dias contando desde 1997, ADRs,
+# historial completo contra 850 barras y el RS amplio al 2/10/2026.
+name: Sonda estrategia
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {ref: gh-pages, path: pub}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: pip install -q -r requirements.txt
+      - run: python .github/sonda/sonda_estrategia.py
