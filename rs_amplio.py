@@ -136,6 +136,14 @@ def main():
         sys.exit("[X] no vino el SPY")
     fspy = [int(x.strftime("%Y%m%d")) for x in spy.index]
     fecha = args.fecha or fspy[-1]
+    # La misma regla que la pagina: la vela de hoy recien desde las 16:30 de
+    # Nueva York. Corrida a mano a media rueda, si no, los cortes saldrian de
+    # un precio que todavia se mueve.
+    if not args.fecha:
+        from zoneinfo import ZoneInfo
+        ny = datetime.now(ZoneInfo("America/New_York"))
+        if fecha >= int(ny.strftime("%Y%m%d")) and ny.hour * 60 + ny.minute < 16 * 60 + 30:
+            fecha = fspy[-2]
     if fecha not in fspy:
         sys.exit(f"[X] {fecha} no es una rueda del SPY")
     cs = spy["Close"].to_numpy(float)[:fspy.index(fecha) + 1]
