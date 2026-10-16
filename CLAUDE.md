@@ -2522,6 +2522,10 @@ Chromium, para que la batería siga corriendo en cualquier máquina.
 a mano en vez de esperar el refresco automático. Cuando dependía del automático,
 pasaba o fallaba según con qué fecha se hubiera armado la fixtura, y al cruzar la
 medianoche empezó a fallar sola.
+Lo mismo le pasó a `renta_fija.py`: las filas armadas a mano de las curvas en
+pesos llevaban vencimientos fijos (`S30S6` al 30/09/2026) y el 16/10/2026 las
+letras «vivas» se vencieron solas y las curvas salieron vacías; ahora se arman
+con `vence(días)`, relativo a hoy.
 
 **Ojo con el debounce en los tests:** el guardado de sesión tiene 400 ms. Si el
 test lee `localStorage` antes de eso, ve `undefined` y parece un bug que no lo es.

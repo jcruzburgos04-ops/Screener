@@ -22,7 +22,7 @@ el importe del cupon y no en las fechas ni en la formula.
 """
 import sys
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -190,29 +190,38 @@ ok("y los ordena por lo que el mercado les cobra",
 print("\n== curvas en pesos: se arman solas, sin lista de tickers ==")
 # Lo que se prueba aca es que la seleccion sea por REGLA y no por lista: es lo
 # que hace que una letra nueva aparezca sola y una vencida desaparezca sola.
+# Los vencimientos van RELATIVOS A HOY y no con fecha fija. Estas filas no
+# traen `estimation_date`, asi que `armar_pesos` mide contra `date.today()`:
+# con fechas escritas a mano (S30S6 al 30/09/2026) las letras "vivas" se
+# vencieron solas el 16/10/2026 y las curvas salieron vacias sin que el codigo
+# cambiara. Los dias van junto a la fecha para que digan lo mismo que ella.
+def vence(dias):
+    return {"end_date": (date.today() + timedelta(days=dias)).isoformat(),
+            "days_to_finish": dias}
+
+
 PESOS = [
-    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-09-30", "days_to_finish": 27,
+    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", **vence(27),
      "last_price": 115.4, "tir": 0.27, "tna": 0.24, "mtir": 0.020,
      "modified_duration": 0.06, "parity": 1.003, "settlement": "24hs"},
     # el mismo papel en contado inmediato: gana el de 24hs
-    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-09-30", "days_to_finish": 27,
+    {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo", **vence(27),
      "last_price": 99.9, "tir": 0.99, "tna": 0.9, "mtir": 0.06, "settlement": "CI"},
-    {"ticker": "TZXM9", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2029-03-28", "days_to_finish": 937,
+    {"ticker": "TZXM9", "bond_family": "LETRAS-CER", "index": "CER", **vence(937),
      "last_price": 89.9, "tir": 0.098, "tna": 0.094, "mtir": 0.0078,
      "modified_duration": 2.34, "parity": 0.787, "settlement": "24hs"},
     # pata sintetica de un dual: TIR de -95%, no es comprable
-    {"ticker": "TTS26_CAP", "bond_family": "TAMAR-FIJA", "index": "Fijo", "end_date": "2026-09-15", "days_to_finish": 12,
+    {"ticker": "TTS26_CAP", "bond_family": "TAMAR-FIJA", "index": "Fijo", **vence(12),
      "last_price": 168.8, "tir": -0.958, "tna": -2.78, "mtir": -0.232, "settlement": "CI"},
     # ya vencido
-    {"ticker": "VIEJO", "bond_family": "LETRAS-FIJO", "index": "Fijo", "end_date": "2026-08-01", "days_to_finish": -30,
+    {"ticker": "VIEJO", "bond_family": "LETRAS-FIJO", "index": "Fijo", **vence(-30),
      "last_price": 100.0, "tir": 0.3, "tna": 0.28, "mtir": 0.022, "settlement": "24hs"},
     # sin precio
-    {"ticker": "SINPX", "bond_family": "LETRAS-CER", "index": "CER", "end_date": "2028-01-01", "days_to_finish": 480,
+    {"ticker": "SINPX", "bond_family": "LETRAS-CER", "index": "CER", **vence(480),
      "last_price": 0, "tir": 0, "settlement": "24hs"},
     # familia que no esta en CURVAS_PESOS: se ignora en vez de romper
     {"ticker": "OTRO", "bond_family": "FAMILIA-NUEVA", "index": "InventadoNuevo",
-     "bond_family_label": "Una familia que todavía no existe", "end_date": "2028-01-01",
-     "days_to_finish": 480, "last_price": 100, "tir": 0.2, "settlement": "24hs"},
+     "bond_family_label": "Una familia que todavía no existe", **vence(480), "last_price": 100, "tir": 0.2, "settlement": "24hs"},
 ]
 c = bonos.armar_pesos(PESOS)
 por = {x["clave"]: [f["t"] for f in x["filas"]] for x in c}
@@ -237,7 +246,7 @@ ok("y uno sin precio tampoco entra", "SINPX" not in str(por))
 # mismo plazo con rendimientos muy distintos.
 DOLAR = PESOS + [
     {"ticker": "SS6D", "bond_family": "LETRAS-FIJO-USD", "index": "Fijo",
-     "end_date": "2026-09-30", "days_to_finish": 27, "last_price": 0.068,
+     **vence(27), "last_price": 0.068,
      "tir": 0.35, "tna": 0.30, "mtir": 0.025, "settlement": "24hs"},
 ]
 ok("las familias en dolares no entran a la curva en pesos",
@@ -255,10 +264,10 @@ ok("las conocidas van en el orden declarado y las nuevas al final",
 # Agrupando por familia salian nueve curvas donde el mercado ve cinco.
 JUNTAS = [
     {"ticker": "S30S6", "bond_family": "LETRAS-FIJO", "index": "Fijo",
-     "end_date": "2026-09-30", "days_to_finish": 27, "last_price": 115.4,
+     **vence(27), "last_price": 115.4,
      "tir": 0.27, "tna": 0.24, "mtir": 0.020, "settlement": "24hs"},
     {"ticker": "TO26", "bond_family": "BONO-CAPITALIZABLE", "index": "Fijo",
-     "end_date": "2026-10-17", "days_to_finish": 46, "last_price": 104.7,
+     **vence(46), "last_price": 104.7,
      "tir": 0.2559, "tna": 0.23, "mtir": 0.0192, "settlement": "24hs"},
 ]
 j = bonos.armar_pesos(JUNTAS)
