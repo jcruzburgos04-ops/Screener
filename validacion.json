@@ -1,0 +1,53 @@
+{
+ "generado": "2026-10-17 05:53 UTC",
+ "datos": "2026-10-17 05:52",
+ "ok": false,
+ "senales": {
+  "coinciden": 961,
+  "filas": 961,
+  "dias": 66,
+  "pausas": 66
+ },
+ "operaciones": {
+  "iguales": 94,
+  "total": 94
+ },
+ "etsy": {
+  "dias": 6,
+  "ok": false
+ },
+ "ajuste": {
+  "FMX": 0.9853,
+  "FCX": 0.9978,
+  "DAL": 0.9972,
+  "GE": 0.9985,
+  "HMY": 0.9726,
+  "ABBV": 0.9939
+ },
+ "vivo": {
+  "coinciden": 956,
+  "diferencias": 12,
+  "ejemplos": [
+   "20260701 IFF: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260702 IFF dia de la senal: 20260702 contra 20260701",
+   "20260706 SNA: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260707 IFF dia de la senal: 20260702 contra 20260701",
+   "20260729 ADP: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260806 UAL: califica para nosotros y no en el backtest",
+   "20260806 DD: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260807 UAL: califica para nosotros y no en el backtest",
+   "20260810 BKR: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260811 BKR dia de la senal: 20260811 contra 20260810",
+   "20260904 HAL: califica para nosotros y no en el backtest",
+   "20260929 DAL: califica para nosotros y no en el backtest"
+  ]
+ },
+ "sin_datos_en_el_csv": [
+  "UNH",
+  "UPS",
+  "UAL"
+ ],
+ "diferencias": [
+  "ETSY 20261016 rs: 79 contra 82"
+ ]
+}
