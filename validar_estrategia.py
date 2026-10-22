@@ -301,6 +301,37 @@ def comparar_ops(M, ops):
     return dif
 
 
+def comparar_orden(M, ops):
+    """
+    El orden de la tabla tiene que ser el orden en que el backtest compra: en
+    cada dia con compras, lo que compro tienen que ser los primeros por
+    prioridad entre los candidatos (califican, senal abierta, SPY sin pausa,
+    no estaban en cartera). Se mide con NUESTROS numeros, no con los del CSV.
+    """
+    num_ = lambda f: int(f.replace("-", "")) if f else None
+    dif, dias = [], 0
+    fechas = sorted({num_(o["entrada"]) for o in ops if num_(o["entrada"]) >= 20260701})
+    for d in fechas:
+        if d > FIN_BACKTEST or M.pausa(d)["pausa"]:
+            continue
+        compro = [o["ticker"] for o in ops if num_(o["entrada"]) == d and o["reentrada"] != "True"]
+        tenia = {o["ticker"] for o in ops
+                 if num_(o["entrada"]) < d and (num_(o["salida"]) or 99999999) >= d}
+        cand = []
+        for t, x in M.dia(d).items():
+            if not x["califica"] or t in tenia or t in M.excl:
+                continue
+            h = M.senal(t, d)
+            if h and h["fecha"] and not h["g"]["salida"]:
+                cand.append((-x["prio"], t))
+        orden = [t for _, t in sorted(cand)]
+        dias += 1
+        if sorted(compro) != sorted(orden[:len(compro)]):
+            dif.append(f"{d} orden: el backtest compro {compro}, "
+                       f"los primeros por prioridad son {orden[:len(compro) + 2]}")
+    return dif, dias
+
+
 def comparar_etsy(M):
     dif, filas = [], 0
     if "ETSY" not in M.se:
@@ -326,7 +357,9 @@ def comparar_etsy(M):
                                   ("hist3", nuestro[7], h3, 0.02), ("hist3_ant", nuestro[8], h3a, 0.02),
                                   ("ewo", nuestro[9], ewo, 0), ("pausa", nuestro[10], pausa, 0),
                                   ("califica", nuestro[11], cal, 0)):
-            if en_vivo and nombre in ("cierre", "wma21", "wma26", "adr"):
+            # el 16/10 el usuario lo midio con la rueda abierta: el cierre final
+            # movio el precio y, con el de todos, el percentil del RS
+            if en_vivo and nombre in ("cierre", "wma21", "wma26", "adr", "rs"):
                 continue
             if isinstance(b, bool) or b is None or tol == 0:
                 ok = a == b
@@ -377,6 +410,9 @@ def main():
     auto = autocontrol(Mb, P)
     d_sen, info = comparar_senales(Mb, sen, ash)
     d_ops = comparar_ops(Mb, ops)
+    d_ord, n_ord = comparar_orden(Mb, ops)
+    print(f"   orden de compra: {n_ord - len(d_ord)} de {n_ord} dias con compras salen "
+          "de los primeros por prioridad")
     print(f"   pausa del SPY: {info['pausas']} dias · papeles-dia que coinciden: "
           f"{info['coinciden']} de {info['filas']} · diferencias: {len(d_sen)}")
     print(f"   operaciones: {len(ops) - len(d_ops)} de {len(ops)} salen igual")
@@ -390,7 +426,7 @@ def main():
           f"diferencias: {len(d_viv)} (informativo)")
     d_etsy, n_etsy = comparar_etsy(Mv)
     print(f"== ETSY 9-16/10: {n_etsy} dias comparados · diferencias: {len(d_etsy)}")
-    errores = auto + d_sen + d_ops + d_etsy
+    errores = auto + d_sen + d_ops + d_ord + d_etsy
     for x in errores[:80]:
         print("   ✘", x)
     for x in d_viv[:15]:
@@ -406,6 +442,7 @@ def main():
             "senales": {"coinciden": info["coinciden"], "filas": info["filas"],
                         "dias": info["dias"], "pausas": info["pausas"]},
             "operaciones": {"iguales": len(ops) - len(d_ops), "total": len(ops)},
+            "orden": {"iguales": n_ord - len(d_ord), "dias": n_ord},
             "etsy": {"dias": n_etsy, "ok": not d_etsy},
             "ajuste": info["ajuste"],
             "vivo": {"coinciden": info_v["coinciden"], "diferencias": len(d_viv),

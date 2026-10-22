@@ -660,7 +660,20 @@ página muestra arriba de la tabla en verde o en ámbar con las diferencias.
 
 Resultado del 16/10/2026: **961 de 961** papeles-día que califican, **66 de
 66** días de pausa, **94 de 94** salidas (fecha y motivo), y el caso de ETSY
-del 9 al 16/10 que mandó el usuario. Llegar ahí enseñó cuatro cosas, todas
+del 9 al 16/10 que mandó el usuario.
+
+**El orden de la tabla es el orden en que el backtest compra** (lo preguntó
+el usuario el 22/10: «cuál debe ser la prioridad de elección para parecerse
+al backtest»). Se verificó con sus operaciones: en los 8 días con compras de
+jul–oct (16 operaciones), cada papel comprado fue de los primeros N por
+prioridad entre los candidatos —califican, señal abierta, SPY sin pausa, no
+estaban en cartera—, **sin importar la antigüedad de la señal** (HWM entró
+con la señal de hace 12 ruedas por delante de señales nuevas). El validador
+lo comprueba en cada corrida con nuestros números (`comparar_orden`).
+
+> **El ETSY del 16/10 que mandó el usuario se midió con la rueda abierta.**
+> Contra el cierre final cambian el precio y el RS (82 → 79): el validador no
+> compara esas columnas ese día. Ya puso la franja en ámbar una vez. Llegar ahí enseñó cuatro cosas, todas
 deducidas de sus archivos y después confirmadas por él:
 
 1. **Las series se alinean al calendario del SPY** (`alinear`/`alinearEstr`):

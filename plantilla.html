@@ -5834,6 +5834,7 @@ function renderEstrategia(){
       ${v.ok?'✔':'⚠'} Validación contra tu backtest (${esc(v.generado)}):
       ${v.senales.coinciden} de ${v.senales.filas} señales en ${v.senales.dias} días ·
       pausa ${v.senales.pausas} días · ${v.operaciones.iguales} de ${v.operaciones.total} operaciones ·
+      ${v.orden?`orden de compra ${v.orden.iguales} de ${v.orden.dias} días ·`:''}
       ETSY ${v.etsy.ok?'ok':'distinto'}${v.ok?'':` · <b>${(v.diferencias||[]).length} diferencias</b>`}</div>`:'';
 
   const th=['Ticker','Cierre','Días desde el cruce','WMA 21 / WMA 26','ADR%(20)','RS',
