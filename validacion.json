@@ -1,0 +1,61 @@
+{
+ "generado": "2026-10-31 07:18 UTC",
+ "datos": "2026-10-31 07:17",
+ "ok": true,
+ "senales": {
+  "coinciden": 961,
+  "filas": 961,
+  "dias": 66,
+  "pausas": 66
+ },
+ "operaciones": {
+  "iguales": 94,
+  "total": 94
+ },
+ "orden": {
+  "iguales": 8,
+  "dias": 8
+ },
+ "etsy": {
+  "dias": 6,
+  "ok": true
+ },
+ "ajuste": {
+  "FMX": 0.9853,
+  "TXN": 0.9952,
+  "DELL": 0.9986,
+  "FCX": 0.9978,
+  "DAL": 0.9972,
+  "GE": 0.9985,
+  "AKO-B": 0.9918,
+  "ASML": 0.9987,
+  "MS": 0.994,
+  "HMY": 0.9726,
+  "ABBV": 0.9939,
+  "CAT": 0.9976
+ },
+ "vivo": {
+  "coinciden": 956,
+  "diferencias": 12,
+  "ejemplos": [
+   "20260701 IFF: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260702 IFF dia de la senal: 20260702 contra 20260701",
+   "20260706 SNA: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260707 IFF dia de la senal: 20260702 contra 20260701",
+   "20260729 ADP: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260806 UAL: califica para nosotros y no en el backtest",
+   "20260806 DD: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260807 UAL: califica para nosotros y no en el backtest",
+   "20260810 BKR: califica en el backtest y no para nosotros (falla 3 (RS 70))",
+   "20260811 BKR dia de la senal: 20260811 contra 20260810",
+   "20260904 HAL: califica para nosotros y no en el backtest",
+   "20260929 DAL: califica para nosotros y no en el backtest"
+  ]
+ },
+ "sin_datos_en_el_csv": [
+  "UNH",
+  "UPS",
+  "UAL"
+ ],
+ "diferencias": []
+}
