@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from estrategia import cargar_adr, cargar_excluidos
+from estrategia import cargar_adr, cargar_excluidos, cargar_ratios
 from screener import (BENCHMARK, MIN_BARRAS_NUEVO, PERIODO, atrasos, bajar_fundamentales,
                       bajar_precios, cargar_precios, guardar_precios,
                       leer_universo, repescar_atrasados)
@@ -125,7 +125,9 @@ def armar_payload(precios, meta, uni, barras):
             # en el payload para que la pagina y Python lean la MISMA tabla.
             "estr_adr": cargar_adr(),
             # los que no pueden ser candidatos (UPS): siguen en los percentiles
-            "estr_excl": cargar_excluidos()}
+            "estr_excl": cargar_excluidos(),
+            # ratio de cada CEDEAR (panel de BYMA): solo para el valor teorico
+            "cedear_ratio": cargar_ratios()}
 
 
 def main():

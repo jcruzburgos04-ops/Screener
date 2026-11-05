@@ -393,12 +393,15 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const res2=w.eval('calcularEstrategia()');Object.assign(res,res2);
   ok('…pero nunca aparece como candidata',!filas().some(tr=>tr.dataset.t==='UPS'));
   const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent);
-  ok('las columnas en el orden pedido',th.slice(0,27).join('|')===['Ticker','Cierre','Días desde el cruce',
-    'WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s','Régimen SMA 50/200',
-    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ASH D ADX 14/1 (AvgBulls · AvgBears)',
-    'Supertrend 4/21 (dir. · línea)','Califica v3.1','ATR%(14)','Prioridad',
-    'Señal','Nueva hoy','Entrada óptima','SL · TP · Activ. óptimos','Precio vs óptima','Estado de la señal',
-    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %','SMA 40'].join('|'),th.join('|'));
+  ok('las columnas en el orden pedido: primero lo que se mira para decidir, después los filtros',
+    th.slice(0,29).join('|')===['Ticker','Prioridad','Señal','Nueva hoy','Entrada óptima','Rendimiento en el backtest',
+    'SL','TP','Activación → salida móvil','Precio hoy · vs óptima','CEDEAR (teórico · BYMA)',
+    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %',
+    'Días desde el cruce','WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s',
+    'Régimen SMA 50/200','MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)',
+    'ASH D ADX 14/1 (AvgBulls · AvgBears)','Supertrend 4/21 (dir. · línea)','Califica v3.1','ATR%(14)','SMA 40'].join('|'),th.join('|'));
+  ok('cada fila tiene tantas celdas como encabezados',filas().every(tr=>tr.children.length===th.length),
+    filas().map(tr=>tr.children.length).join(',')+' vs '+th.length);
   // grupos: primero las validas (califican + senal abierta), por prioridad y despues ticker
   const cl=f=>w.eval(`clasificarEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`);
   const validas=res.filas.filter(f=>f.pasa&&f.t!=='UPS'&&cl(f).valida);
@@ -410,7 +413,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
     pr.every((f,i)=>!i||pr[i-1].prio>f.prio||(pr[i-1].prio===f.prio&&pr[i-1].t<f.t)));
   ok('el resto va atenuado',trs.slice(validas.length).every(tr=>tr.classList.contains('es-at')));
   ok('una señal que pasó sólo en pausa dice «sin señal válida»',
-    trs.every(tr=>tr.children[21].textContent.trim()!==''));
+    trs.every(tr=>tr.children[5].textContent.trim()!==''));
   ok('la prueba tiene señales válidas con que trabajar',validas.length>=2,validas.length);
   w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:true});renderEstrategia()');
   ok('en pausa ninguna es COMPRA',$$('.es-et.comprar').length===0);
@@ -449,7 +452,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   w.eval(`(()=>{const E=calcularEstrategia(),h=Object.assign({},historiaEstr(E,E.filas.find(x=>x.t===${JSON.stringify(vc)})),
     {salida:'SL',salida_fecha:E.R,salida_precio:1});E.historias.set(${JSON.stringify(vc)},h);renderEstrategia();})()`);
   const trc=filas().find(tr=>tr.dataset.t===vc);
-  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[21].textContent.startsWith('cerrada por SL'));
+  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[5].textContent.startsWith('cerrada por SL'));
   ok('ver señales cerradas las agrega, atenuadas y con su salida',filas().length===sinCerr+nCerr,
     `${filas().length} vs ${sinCerr}+${nCerr}`);
   ok('los interruptores quedan guardados',JSON.parse(A._m.screener_ash_estrategia).casi===true&&
@@ -461,16 +464,52 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
    const c=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
    ok('Señal: fecha y hace cuánto',c[0]==='09/10/2026 · hace 4 ruedas',c[0]);
    ok('Nueva hoy: no',c[1]==='no');
-   ok('Entrada óptima y SL/TP/activación con el ATR% de ese día',c[2]==='100,00'&&c[3]==='93,00 · 300,00 · 120,00',c[2]+' | '+c[3]);
-   ok('Precio vs óptima, sin colores',c[4]==='+10,0 %'&&!tb.children[0].children[4].className);
-   ok('Estado: cerrada por SL con gap, con fecha y resultado neto',c[5]==='cerrada por SL con gap el 14/10/2026 (-7,6 %)',c[5]);
+   ok('Entrada óptima, y SL y TP con el ATR% de ese día',c[2]==='100,00'&&c[4]==='93,00 · −7,00 %'&&c[5]==='300,00',c.join(' | '));
+   ok('Precio hoy y vs óptima, sin colores',c[7]==='110,00 · +10,0 %'&&!tb.children[0].children[7].className,c[7]);
+   ok('Rendimiento en el backtest: cerrada por SL con gap, con fecha y resultado neto',c[3]==='cerrada por SL con gap el 14/10/2026 (-7,6 %)',c[3]);
+   ok('cerrada: no hay salida móvil que mostrar',c[6]==='—');
    const h2=Object.assign({},h,{ruedas:0,salida:null,activa:false});
-   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100,pasa:true})`)+'</tr>';
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100,pasa:true,sma40:95})`)+'</tr>';
    const c2=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
    ok('la de hoy: nueva hoy = sí, abierta en el backtest con la comisión (−0,7 %)',
-     c2[0].endsWith('hoy')&&c2[1]==='sí'&&c2[5]==='abierta en el backtest (-0,7 %)',c2.join(' | '));
+     c2[0].endsWith('hoy')&&c2[1]==='sí'&&c2[3]==='abierta en el backtest (-0,7 %)',c2.join(' | '));
+   ok('sin activar: dice a qué cierre se activa, cuánto falta, y que después la salida es la SMA 40',
+     c2[6]==='se activa con cierre ≥ 120,00 (falta +20,0 %) · después sale si cierra < SMA 40 (hoy 95,00)',c2[6]);
+   const h3=Object.assign({},h2,{activa:true,plan:{desde:20261012}});
+   tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h3)},{cierre:130,pasa:true,sma40:117})`)+'</tr>';
+   const c3=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
+   ok('activada: desde cuándo y dónde está hoy la salida móvil (la SMA 40) contra el precio',
+     c3[6]==='activada el 12/10/2026 · sale si cierra < SMA 40: 117,00 (-10,0 % del precio)',c3[6]);
    tb.innerHTML='<tr>'+w.eval(`celdasSenal({fecha:null,enPausa:20261008},{cierre:100,pasa:true})`)+'</tr>';
    ok('si sólo calificó en pausa: sin señal válida',tb.textContent.includes('sin señal válida (pausa del SPY en todos los días)'));}
+  // EL CEDEAR: teorico = USD x CCL x acciones / cedears; BYMA al lado, solo para comparar
+  {const t=w.eval("DATOS.simbolos.find(s=>s.t==='AAPL')")?'AAPL':null;
+   if(!t)ok('la fixtura trae AAPL',false);
+   else{const cierre=w.eval("DATOS.simbolos.find(s=>s.t==='AAPL').c.at(-1)");
+     const r=w.eval("DATOS.cedear_ratio&&DATOS.cedear_ratio.AAPL");
+     ok('el ratio del panel de BYMA viaja en el payload (AAPL 20:1)',r&&r[0]===20&&r[1]===1,JSON.stringify(r));
+     w.eval("BONOS={tc:{ccl:1500}};CEDBYMA.precios=null");
+     const sin=w.eval(`cedearDe('AAPL',${cierre})`);
+     ok('teórico = precio × CCL × acciones / cedears',Math.abs(sin.teorico-cierre*1500/20)<1e-9&&sin.cod==='AAPL');
+     ok('sin precio de BYMA no inventa uno',sin.byma===undefined);
+     w.eval(`CEDBYMA.precios=new Map([['AAPL',{c:${cierre*1500/20*1.02}}]])`);
+     const tb=w.document.createElement('tbody');
+     tb.innerHTML='<tr>'+w.eval(`celdaCedear('AAPL',${cierre})`)+'</tr>';
+     ok('la celda muestra el teórico, el ratio y BYMA con su desvío',
+       tb.textContent.includes('AAPL 20:1')&&tb.textContent.includes('(+2,0 %)')&&tb.textContent.includes('$ '),tb.textContent);
+     w.eval("BONOS=null;cclIntento=Date.now()");
+     tb.innerHTML='<tr>'+w.eval(`celdaCedear('AAPL',${cierre})`)+'</tr>';
+     ok('sin CCL lo dice, no pone un número',tb.textContent.includes('falta el CCL'));
+     w.eval("BONOS={tc:{ccl:1500}}");
+     tb.innerHTML='<tr>'+w.eval(`celdaCedear('UPS',100)`)+'</tr>';
+     ok('un CEDEAR que no está en el panel (UPS): sin ratio, sin teórico',tb.textContent.includes('sin ratio')||tb.textContent==='—',tb.textContent);
+     // la COMPRA dice cuantos CEDEARs son
+     w.eval("memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:false});ESTRD.capital='100000';renderEstrategia()");
+     const conRatio=filas().filter(tr=>tr.querySelector('.es-et.comprar')&&w.eval(`!!cedearDe(${JSON.stringify(tr.dataset.t)},1).ratio`));
+     ok('con capital cargado, la COMPRA dice cuántos CEDEARs son',conRatio.length>0&&
+       conRatio.every(tr=>/≈ \d+ CEDEARs/.test(tr.querySelector('.es-et.comprar').textContent)),
+       conRatio.map(tr=>tr.querySelector('.es-et.comprar').textContent).join(' / '));
+     w.eval("ESTRD.capital='';CEDBYMA.precios=null;renderEstrategia()");}}
   // registro: Entre / posiciones / Sali
   const tr0=filas()[0];
   if(tr0){const inp=tr0.querySelector('.es-pe');inp.value='100';inp.dispatchEvent(new w.Event('input'));

@@ -633,6 +633,33 @@ def cargar_adr(path="estrategia_adr.csv"):
     return mapa
 
 
+def cargar_ratios(path="cedears_ratios.csv"):
+    """
+    codigo BYMA -> [cedears, acciones] del panel oficial (cedears_ratios.csv).
+    Solo para mostrar el valor teorico del CEDEAR; ningun calculo lo usa.
+    Una linea rota se saltea, como en cedears.csv.
+    """
+    from pathlib import Path
+    mapa = {}
+    p = Path(path)
+    if not p.is_absolute() and not p.exists():
+        p = Path(__file__).parent / path       # se corre desde otra carpeta (pruebas/)
+    if not p.exists():
+        return mapa
+    for ln in p.read_text(encoding="utf-8").splitlines():
+        ln = ln.strip()
+        if not ln or ln.startswith("#") or ln.lower().startswith("codigo,"):
+            continue
+        partes = [x.strip() for x in ln.split(",")]
+        try:
+            a, b = float(partes[1]), float(partes[2])
+        except (IndexError, ValueError):
+            continue
+        if partes[0] and a > 0 and b > 0:
+            mapa[partes[0].upper()] = [a, b]
+    return mapa
+
+
 def es_etf(grupo):
     return str(grupo or "").startswith("ETF")
 

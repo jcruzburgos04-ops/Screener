@@ -5975,31 +5975,86 @@ const fmtP=(v,d=1)=>isFinite(v)?(v>0?'+':'')+fmtN(v*100,d)+' %':'—';
 const ok=b=>b?'<b class="es-si">✔</b>':'<b class="es-no">✘</b>';
 const netoEstr=(e,p)=>p*(1-ESTR.comision)/(e*(1+ESTR.comision))-1;
 
-/* Las columnas de la senal (seccion 4 de la especificacion). El sobreprecio
-   va SIN colores de alerta: el usuario midio que entrar 1-3 ruedas tarde
-   rinde casi igual y que el sobreprecio no predice el resultado. */
-function celdasSenal(h,f,estado){
+/* Las columnas de la senal (seccion 4 de la especificacion), las primeras de
+   la tabla porque son las que se miran para decidir (lo pidio el usuario el
+   5/11: entrada optima, hace cuanto, como le fue en el backtest, SL, TP y
+   donde esta la salida movil). El sobreprecio va SIN colores de alerta: el
+   usuario midio que entrar 1-3 ruedas tarde rinde casi igual y que el
+   sobreprecio no predice el resultado.
+   LA SALIDA MOVIL: el backtest no tiene trailing stop; desde el dia siguiente
+   a un CIERRE >= entrada x 1,20 la salida pasa a ser el cierre debajo de la
+   SMA 40, y esa media es la que "sube" con el precio. */
+function celdasSenal(h,f){
   if(!h||!h.fecha){const t=h&&h.enPausa?'sin señal válida (pausa del SPY en todos los días)':'—';
-    return `<td>${t}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${f.pasa?t:'—'}</td>`;}
+    return `<td>${t}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${fmtN(f.cierre)}</td>`;}
   const cuando=h.ruedas===0?'hoy':`hace ${h.ruedas} rueda${h.ruedas===1?'':'s'}`;
   const tit=[`primer día de la racha que calificó con el SPY sin pausa: ${fechaCorta(h.fecha)}`];
   if(h.enPausa)tit.push(`ya había calificado el ${fechaCorta(h.enPausa)}, con el SPY en pausa`);
-  const p=planEstr(h.entry,h.atr_pct);
+  const p=planEstr(h.entry,h.atr_pct),g=h.plan||{};
   const st=h.salida
     ?`cerrada por ${h.salida} el ${fechaCorta(h.salida_fecha)} (${fmtP(netoEstr(h.entry,h.salida_precio))})`
-    :`abierta en el backtest (${fmtP(netoEstr(h.entry,f.cierre))})${h.activa?' · activada':''}`;
+    :`abierta en el backtest (${fmtP(netoEstr(h.entry,f.cierre))})`;
+  const movil=h.salida?'—'
+    :h.activa?`<b class="es-si">activada</b> el ${fechaCorta(g.desde)} · sale si cierra &lt; SMA 40: <b>${fmtN(f.sma40)}</b> (${fmtP(f.sma40/f.cierre-1)} del precio)`
+    :`se activa con cierre ≥ <b>${fmtN(p.activacion)}</b> (falta ${fmtP(p.activacion/f.cierre-1)}) · después sale si cierra &lt; SMA 40 (hoy ${fmtN(f.sma40)})`;
   return `<td title="${esc(tit.join(' · '))}">${fechaCorta(h.fecha)} · ${cuando}</td>
     <td>${h.ruedas===0?'<b class="es-si">sí</b>':'no'}</td>
     <td title="cierre del día de la señal (ajustado por dividendos, como el backtest)">${fmtN(h.entry)}</td>
-    <td>${fmtN(p.sl)} · ${fmtN(p.tp)} · ${fmtN(p.activacion)}</td>
-    <td>${fmtP(f.cierre/h.entry-1)}</td>
-    <td class="${h.salida?'es-mal':''}" title="la operación del backtest, desde la entrada óptima hasta hoy, con sus reglas de salida (resultado con 0,35 % de comisión por lado)">${st}</td>`;}
+    <td class="${h.salida?'es-mal':''}" title="la operación del backtest, desde la entrada óptima hasta hoy, con sus reglas de salida (resultado con 0,35 % de comisión por lado)">${st}</td>
+    <td title="fijo, intradiario: 1 − 3,5 × ATR% del día de la señal">${fmtN(p.sl)} · −${fmtN(p.sl_pct*100)} %</td>
+    <td title="orden límite: entrada × 3 (+200 %)">${fmtN(p.tp)}</td>
+    <td class="es-movil">${movil}</td>
+    <td>${fmtN(f.cierre)} · ${fmtP(f.cierre/h.entry-1)}</td>`;}
+
+/* EL CEDEAR: el valor que tendria que tener en pesos = precio del subyacente
+   x CCL x acciones / cedears (ratio del panel de BYMA, cedears_ratios.csv).
+   El precio que el CEDEAR tiene de verdad en BYMA (data912) va al lado SOLO
+   para comparar: ningun calculo lo usa (invariante 2). El CCL es la mediana
+   de los soberanos de bonos.json, el mismo de la tira de Argentina. */
+let CEDBYMA={ts:0,precios:null,pidiendo:false};
+async function traerCedearsByma(){
+  if(CEDBYMA.pidiendo||Date.now()-CEDBYMA.ts<5*60000)return;CEDBYMA.pidiendo=true;
+  try{const r=await fetch('https://data912.com/live/arg_cedears',{cache:'no-cache'});
+    if(r.ok){const j=await r.json(),m=new Map();
+      for(const x of Array.isArray(j)?j:[])if(x&&x.symbol&&x.c>0)m.set(String(x.symbol).toUpperCase(),x);
+      CEDBYMA.precios=m;}}
+  catch(e){}
+  finally{CEDBYMA.ts=Date.now();CEDBYMA.pidiendo=false;}
+  if(vistaEstr)renderEstrategia();}
+// si bonos.json no esta (servidor local, archivo suelto) se reintenta cada 5
+// minutos, no en cada pintada: si no, fallar y volver a pintar seria un bucle
+let bajandoCcl=false,cclIntento=0;
+async function traerCcl(){
+  if(BONOS||bajandoCcl||Date.now()-cclIntento<5*60000)return;bajandoCcl=true;cclIntento=Date.now();
+  try{const r=await fetch('bonos.json?v='+Math.floor(Date.now()/120000),{cache:'no-cache'});
+    if(r.ok)BONOS=await r.json();}catch(e){}
+  finally{bajandoCcl=false;}
+  if(BONOS&&vistaEstr)renderEstrategia();}
+function cedearDe(t,cierre){
+  const s=DATOS.simbolos.find(x=>x.t===t),cod=s&&s.local?String(s.local).replace(/\.BA$/,'').toUpperCase():'';
+  const ratio=cod&&DATOS.cedear_ratio?DATOS.cedear_ratio[cod]:null;
+  const ccl=BONOS&&BONOS.tc&&BONOS.tc.ccl>0?BONOS.tc.ccl:NaN;
+  const o={cod,ratio,ccl};
+  if(ratio&&isFinite(ccl)&&isFinite(cierre))o.teorico=cierre*ccl*ratio[1]/ratio[0];
+  if(cod&&CEDBYMA.precios&&CEDBYMA.precios.has(cod))o.byma=CEDBYMA.precios.get(cod).c;
+  return o;}
+function celdaCedear(t,cierre){const o=cedearDe(t,cierre);
+  if(!o.cod)return '<td title="no hay CEDEAR de este papel en tu universo">—</td>';
+  if(!o.ratio)return `<td title="${esc(o.cod)}: no está en el panel de BYMA del 16/09/2026">${esc(o.cod)} · sin ratio</td>`;
+  const rt=`${fmtN(o.ratio[0],0)}:${fmtN(o.ratio[1],0)}`;
+  if(!isFinite(o.ccl))return `<td>${esc(o.cod)} ${rt} · falta el CCL</td>`;
+  const tit=`${o.cod}, ratio ${rt} (CEDEARs:acciones) · teórico = ${fmtN(cierre)} USD × CCL ${fmtN(o.ccl)} × ${fmtN(o.ratio[1],0)} / ${fmtN(o.ratio[0],0)}`
+    +(o.byma?` · en BYMA ${fmtN(o.byma)} (data912, sólo para comparar)`:'');
+  const dif=o.byma?` · BYMA ${fmtN(o.byma,0)} (${fmtP(o.byma/o.teorico-1)})`:'';
+  return `<td title="${esc(tit)}"><b>$ ${fmtN(o.teorico,0)}</b> <span class="nota">${esc(o.cod)} ${rt}${dif}</span></td>`;}
 
 function renderEstrategia(){
   if(!vistaEstr)return;
   const cuerpo=$('#estrCuerpo');
   if(!(DATOS.simbolos&&DATOS.simbolos.length)){cuerpo.innerHTML='<p class="bo-vacio">Todavía no hay precios cargados.</p>';return;}
   if(!VALID)traerValidacion();
+  if(!BONOS)traerCcl();
+  traerCedearsByma();
   const E=calcularEstrategia();
   if(E.error){cuerpo.innerHTML=`<p class="bo-vacio">${esc(E.error)}</p>`;return;}
   const {R,filas,mercado}=E, d=ESTRD;
@@ -6055,25 +6110,33 @@ function renderEstrategia(){
       «califica v3.1» ${v.v31.senales.coinciden} de ${v.v31.senales.filas} señales, pausa ${v.v31.senales.pausas} días,
       ${v.v31.operaciones.iguales} de ${v.v31.operaciones.total} operaciones${v.ok?'':` · <b>${(v.diferencias||[]).length} diferencias</b>`}</div>`:'';
 
-  const th=['Ticker','Cierre','Días desde el cruce','WMA 21 / WMA 26','ADR%(20)','RS',
+  const th=['Ticker','Prioridad','Señal','Nueva hoy','Entrada óptima','Rendimiento en el backtest',
+    'SL','TP','Activación → salida móvil','Precio hoy · vs óptima','CEDEAR (teórico · BYMA)',
+    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %',
+    'Días desde el cruce','WMA 21 / WMA 26','ADR%(20)','RS',
     '% sobre mín. 52 s','% bajo máx. 52 s','Régimen SMA 50/200','MACD 3D hist (valor · anterior)',
     'EWO D (ewo1 · ewo2 · señal)','ASH D ADX 14/1 (AvgBulls · AvgBears)','Supertrend 4/21 (dir. · línea)',
-    'Califica v3.1','ATR%(14)','Prioridad',
-    'Señal','Nueva hoy','Entrada óptima','SL · TP · Activ. óptimos','Precio vs óptima','Estado de la señal',
-    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %','SMA 40',''];
+    'Califica v3.1','ATR%(14)','SMA 40',''];
   const celda=(x,k,html)=>{const falla=!x.senal&&(x.c.fallan||[]).includes(k);
     return `<td class="${falla?'es-falla':''}">${html}</td>`;};
   const fila=(x,atenuada)=>{const f=x.f,c=x.c,re=c.tipo==='reentrada';
-    const p=planEstr(x.pe||f.cierre,f.atr_pct);
+    const p=planEstr(x.pe||f.cierre,f.atr_pct),ced=cedearDe(f.t,f.cierre);
+    const nom=x.monto&&ced.ratio?Math.floor(x.monto/(f.cierre*ced.ratio[1]/ced.ratio[0])):null;
     const tk=`<span class="tk">${esc(f.t)}</span>`+
       (f.etf?' <span class="es-et">ETF</span>':'')+
       (re?' <span class="es-et">re-entrada</span>':'')+
       (f.propia?'':' <span class="es-et" title="ese día el papel no operó: la vela es el cierre anterior, como en el backtest">sin vela propia</span>')+
-      (x.puesto?` <span class="es-et comprar">COMPRA #${x.puesto}${x.monto?' · USD '+fmtN(x.monto,0):''}</span>`:'');
+      (x.puesto?` <span class="es-et comprar" title="${nom!=null?esc(`USD ${fmtN(x.monto,0)} son ≈ ${nom} CEDEARs ${ced.cod} (ratio ${ced.ratio[0]}:${ced.ratio[1]})`):''}">COMPRA #${x.puesto}${x.monto?' · USD '+fmtN(x.monto,0):''}${nom!=null?' ≈ '+nom+' CEDEARs':''}</span>`:'');
     const reNota=re?` title="re-entrada: cerró ≤ SMA 40 desde la salida ${c.re.bajo?'✔':'✘'} · Low tocó EMA 34 ${c.re.toco?'✔':'✘'} · hoy > SMA 40 ${c.re.hoy?'✔':'✘'}"`:'';
     return `<tr data-t="${esc(f.t)}" class="${atenuada?'es-at':''}"${reNota}>
       <td class="${!x.senal&&(c.fallan||[]).includes('re')?'es-falla':''}">${tk}</td>
-      <td>${fmtN(f.cierre)}</td>
+      <td title="percentil del ADR%(20) + percentil del ATR%(14), sobre todos tus papeles">${fmtN(f.prio/100,3)}</td>
+      ${re?`<td>re-entrada</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${fmtN(f.cierre)}</td>`:celdasSenal(c.h,f)}
+      ${celdaCedear(f.t,f.cierre)}
+      <td><input class="es-pe" type="number" step="any" placeholder="${isFinite(f.cierre)?f.cierre.toFixed(2):''}" value="${x.pe||''}" title="Tu precio real de entrada: recalcula SL, TP y activación (con el ATR% de hoy)"></td>
+      <td class="es-sl">${fmtN(p.sl)} · −${fmtN(p.sl_pct*100)} %</td>
+      <td class="es-tp">${fmtN(p.tp)}</td>
+      <td class="es-act">${fmtN(p.activacion)}</td>
       ${celda(x,1,(f.dias_cruce==null?'sin cruce':f.dias_cruce)+' '+ok(f.f1))}
       ${celda(x,1,fmtN(f.wma21)+' / '+fmtN(f.wma26))}
       ${celda(x,2,fmtN(f.adr)+' % '+ok(f.f2))}
@@ -6087,12 +6150,6 @@ function renderEstrategia(){
       ${celda(x,10,(f.st_dir===-1?'alcista':'bajista')+' · '+fmtN(f.st_linea)+' '+ok(f.f10))}
       <td title="filtros 1 a 8; la pausa de la v3.1 es sólo D o W">${ok(f.pasa31)}</td>
       <td>${fmtN(f.atr_pct*100)} %</td>
-      <td>${fmtN(f.prio/100,3)}</td>
-      ${re?'<td>re-entrada</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>':celdasSenal(c.h,f,c.estado)}
-      <td><input class="es-pe" type="number" step="any" placeholder="${isFinite(f.cierre)?f.cierre.toFixed(2):''}" value="${x.pe||''}" title="Tu precio real de entrada: recalcula SL, TP y activación (con el ATR% de hoy)"></td>
-      <td class="es-sl">${fmtN(p.sl)} · −${fmtN(p.sl_pct*100)} %</td>
-      <td class="es-tp">${fmtN(p.tp)}</td>
-      <td class="es-act">${fmtN(p.activacion)}</td>
       <td>${fmtN(f.sma40)} · ${fmtP(f.cierre/f.sma40-1)}</td>
       <td><button class="mini es-entre" title="Anotar que entraste hoy">Entré</button></td></tr>`;};
   const lista=[...g1,...g2];

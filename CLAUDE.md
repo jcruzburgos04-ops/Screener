@@ -120,6 +120,7 @@ datos incrustados.
 | `universo.csv` | `ticker,grupo[,subyacente]` — 492 símbolos. |
 | `estrategia_excluidos.csv` | `ticker,motivo` — los que nunca son candidatos en Estrategia pero siguen en los percentiles (UPS). |
 | `backtest/` | Los tres CSV que generó el backtest del usuario: la vara contra la que se valida Estrategia. No se tocan a mano. |
+| `cedears_ratios.csv` | `codigo,cedears,acciones,mercado` — el ratio de cada CEDEAR, del panel oficial de BYMA del 16/9/2026 (PDF del usuario). **Sólo** para mostrar el valor teórico en Estrategia; la cabecera dice qué no se copió tal cual (XLU duplicado, NU/UN). Ninguna fuente abierta lo publica: se probó data912, el panel de BYMA y su ficha técnica. |
 | `estrategia_adr.csv` | `local,adr` — la cotización local que en Estrategia se reemplaza por su ADR en USD (vacío = afuera). Lo decidió el usuario uno por uno. |
 | `cedears.csv` | `local,subyacente` — 416 mapeos, del panel oficial de BYMA del 12/6/2026 actualizado con el del 3/9/2026. |
 | `bonos_cronograma.csv` | `bono,fecha,cupon_anual,amortiza,verificado` — los once soberanos del canje 2020, completos desde la emisión. **La cabecera documenta de dónde sale cada dato y cómo se verificó**; leerla antes de tocar una línea. |
@@ -667,6 +668,27 @@ El motor está **dos veces**, como el ASH: en el bloque `motor` de
 `pruebas/estrategia.js` compara JS contra Python (columnas a 1e-10, cero
 decisiones distintas, y las dos carteras con las mismas operaciones y la
 misma curva). **Si tocás una, tocá la otra.**
+
+### Qué se mira para decidir va primero (5/11/2026)
+
+Lo pidió el usuario: entrada óptima, hace cuánto dio la señal, cómo le fue en
+el backtest, SL, TP, **la salida móvil** y la prioridad, y **cuánto tendría
+que valer el CEDEAR**. La tabla arranca con eso y los diez filtros van
+después.
+
+- **La salida móvil** no es un trailing stop: el backtest no tiene. Desde el
+  día siguiente a un cierre ≥ entrada × 1,20 la salida es el cierre debajo de
+  la SMA 40, y esa media es la que acompaña al precio. Sin activar, la celda
+  dice a qué cierre se activa y cuánto falta; activada, desde cuándo y dónde
+  está hoy la SMA 40 contra el precio.
+- **El CEDEAR teórico** = precio del subyacente × CCL × acciones / cedears
+  (`cedears_ratios.csv`, viaja como `cedear_ratio`). El CCL es el de
+  `bonos.json` (mediana de los soberanos). Verificado contra BYMA el 5/11:
+  AAPL −0,44 %, KO +0,45 %, NVDA +0,44 %, SPCX +0,13 %. Al lado va el precio
+  que el CEDEAR tiene en BYMA (data912 `arg_cedears`, cada 5 minutos) **sólo
+  para comparar**: es la excepción documentada al invariante 18, ningún
+  número del screener sale de ahí.
+- **La COMPRA dice cuántos CEDEARs son** cuando hay capital cargado.
 
 ### La cartera: el orden de cada día, del usuario (5/11/2026)
 
