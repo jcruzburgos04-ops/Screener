@@ -56,7 +56,7 @@ echo; echo "== lineas de tendencia =="
 node tendencias.js
 echo; echo "== AVWAP anclado al ultimo maximo =="
 node avwap.js
-echo; echo "== estrategia (base v3.1): paridad con Python, reglas y pantalla =="
+echo; echo "== estrategia (v3.3): paridad con Python, reglas y pantalla =="
 node estrategia.js
 # Contra el backtest del usuario hace falta un datos.json REAL (la fixtura es
 # sintetica). En Actions corre en cada publicacion; aca, si se le pasa uno.

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-ESTRATEGIA (base v3.1)  ·  la referencia en Python de lo que calcula la pagina
+ESTRATEGIA (v3.3 «confirmacion»)  ·  la referencia en Python de lo que calcula la pagina
 ================================================================================
 
 POR QUE EXISTE SI LA PAGINA YA LO CALCULA
@@ -11,12 +11,14 @@ Por lo mismo que el ASH esta dos veces: el usuario compara estos numeros contra
 su backtest en Python, y la unica forma de saber que el JS de `plantilla.html`
 dice lo mismo es tener una segunda implementacion y compararlas
 (`pruebas/estrategia.js`). Ademas la usa `validar_estrategia.py`, que en cada
-publicacion compara el screener contra los archivos del backtest (backtest/).
+publicacion compara el screener contra los archivos del backtest (backtest/v33
+y backtest/v31).
 
 LAS REGLAS SON DEL USUARIO, NO NUESTRAS
 ---------------------------------------
-Cada numero de aca viene de su especificacion (la del 16/10/2026, que reemplazo
-a la primera) y de sus respuestas. No se "simplifica" nada sin preguntarle. Lo que la especificacion
+Cada numero de aca viene de su especificacion (la v3.3 del 5/11/2026, que
+reemplazo a la v3.1 del 16/10; respecto de ella suma los filtros 9 y 10, la
+pausa E y la comparacion contra la v3.1) y de sus respuestas. No se "simplifica" nada sin preguntarle. Lo que la especificacion
 no decia y hubo que elegir esta marcado con ELEGIDO, para que sepa donde mirar
 si un valor no le cierra contra el backtest.
 
@@ -53,6 +55,12 @@ TP_K, ACT_K = 3.00, 1.20
 SMA_SAL, EMA_REENT = 40, 34
 LUGARES = 10
 COMISION = 0.0035
+# v3.3 «confirmacion»: dos filtros y una pausa mas (especificacion del 5/11/2026)
+ASH9_N, ASH9_K = 14, 2.0          # 9 · ASH diario ADX, ALMA 14/1: AvgBulls > 2*AvgBears
+ST_FACTOR, ST_ATR = 4.0, 21       # 10 · Supertrend 4 / ATR 21 sobre hl2
+EXT_N, EXT_K = 200, 1.10          # pausa E: SPY > 1,10 * SMA 200
+FILTROS = 10                      # "califica" = 1 a 10; la v3.1 era 1 a 8
+FILTROS_V31 = 8
 # Una vela de 3 dias CERRO el viernes 2/10/2026 (dato del usuario). Las
 # siguientes son 5-6-7/10, 8-9-12/10... Se cuenta sobre el calendario de NYSE,
 # que en la practica es el de las fechas del SPY.
@@ -131,6 +139,56 @@ def atr_p(h, l, c, n):
                   np.fmax(np.fmax(h - l, np.abs(h - pc)), np.abs(l - pc)),
                   h - l)
     return rma_p(tr, n)
+
+
+def ash_adx(h, l, n=ASH9_N):
+    """
+    Filtro 9: el ASH en modo ADX con ALMA n y Smooth 1 (la misma serie).
+    Bulls = max(H - H[1], 0), Bears = max(L[1] - L, 0). Es el calc_ash del
+    screener, el que tiene la paridad de 6,7e-14 con el JS.
+    """
+    import pandas as pd
+    df = pd.DataFrame({"Close": np.asarray(h, float), "High": np.asarray(h, float),
+                       "Low": np.asarray(l, float)})
+    b, r, _ = calc_ash(df, n, 1, "ADX", "ALMA")
+    return b.to_numpy(), r.to_numpy()
+
+
+def supertrend(h, l, c, factor=ST_FACTOR, n=ST_ATR):
+    """
+    ta.supertrend(factor, n) de Pine, linea por linea (el codigo de referencia
+    del manual), sobre hl2 y con ta.atr (RMA de Wilder sembrada con la SMA):
+
+        lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
+        upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
+        direction := na(atr[1]) ? 1 : prevSuperTrend == prevUpperBand ?
+                     (close > upperBand ? -1 : 1) : (close < lowerBand ? 1 : -1)
+
+    prevLowerBand = nz(lowerBand[1]): un na vale 0, y una comparacion con na
+    da falso, como en Pine. Devuelve (direccion, linea); -1 = alcista.
+    """
+    h, l, c = (np.asarray(v, float) for v in (h, l, c))
+    a = atr_p(h, l, c, n)
+    src = (h + l) / 2
+    up_raw, lo_raw = src + factor * a, src - factor * a
+    N = len(c)
+    up, lo, st = np.full(N, np.nan), np.full(N, np.nan), np.full(N, np.nan)
+    di = np.full(N, np.nan)
+    for i in range(N):
+        pl = lo[i - 1] if i and np.isfinite(lo[i - 1]) else 0.0
+        pu = up[i - 1] if i and np.isfinite(up[i - 1]) else 0.0
+        c1 = c[i - 1] if i else np.nan
+        lo[i] = lo_raw[i] if (lo_raw[i] > pl or c1 < pl) else pl
+        up[i] = up_raw[i] if (up_raw[i] < pu or c1 > pu) else pu
+        if i == 0 or not np.isfinite(a[i - 1]):
+            d = 1
+        elif st[i - 1] == up[i - 1]:
+            d = -1 if c[i] > up[i] else 1
+        else:
+            d = 1 if c[i] < lo[i] else -1
+        di[i] = d
+        st[i] = lo[i] if d == -1 else up[i]
+    return di, st
 
 
 def pct_rank(valores):
@@ -491,6 +549,16 @@ def evaluar(s, spy, hasta, universo_rs=None, calendario=None):
     r["f8"] = bool(np.isfinite(ewo1[i]) and np.isfinite(sew[i])
                    and ewo1[i] > 0 and ewo2[i] > sew[i])
 
+    # 9 · ASH diario ADX, ALMA 14 / 1, regla "verde"
+    b9, r9 = ash_adx(h, l)
+    r["ash9_bulls"], r["ash9_bears"] = b9[i], r9[i]
+    r["f9"] = bool(np.isfinite(b9[i]) and np.isfinite(r9[i]) and b9[i] > ASH9_K * r9[i])
+
+    # 10 · Supertrend 4 / 21: direccion -1 (alcista)
+    di, st = supertrend(h, l, c)
+    r["st_dir"], r["st_linea"] = int(di[i]), st[i]
+    r["f10"] = bool(di[i] == -1)
+
     # Para el orden y el plan
     a = atr_p(h, l, c, ATR_N)
     r["atr"] = a[i]
@@ -503,7 +571,8 @@ def evaluar(s, spy, hasta, universo_rs=None, calendario=None):
     r["sl"] = c[i] * (1 - dist)
     r["tp"] = c[i] * TP_K
     r["activacion"] = c[i] * ACT_K
-    r["pasa"] = all(r[f"f{k}"] for k in range(1, 9))
+    r["pasa"] = all(r[f"f{k}"] for k in range(1, FILTROS + 1))
+    r["pasa31"] = all(r[f"f{k}"] for k in range(1, FILTROS_V31 + 1))
     return r
 
 
@@ -524,8 +593,13 @@ def ash_spy(spy, hasta):
     sem = {"bulls": float(bw.iloc[-1]), "bears": float(rw.iloc[-1]),
            "semana": int(fs[-1]) if fs else None}
     sem["pausa"] = sem["bears"] > 2 * sem["bulls"]
-    return {"fecha": int(hasta), "diario": dia, "semanal": sem,
-            "pausa": dia["pausa"] or sem["pausa"]}
+    # E · SPY extendido: cierre > 1,10 * SMA 200 de cierres diarios cerrados
+    s200 = sma(c, EXT_N)[-1] if n else np.nan
+    ext = {"cierre": float(c[-1]) if n else np.nan, "sma200": float(s200),
+           "pausa": bool(np.isfinite(s200) and c[-1] > EXT_K * s200)}
+    return {"fecha": int(hasta), "diario": dia, "semanal": sem, "extendido": ext,
+            "pausa": dia["pausa"] or sem["pausa"] or ext["pausa"],
+            "pausa31": dia["pausa"] or sem["pausa"]}
 
 
 def prioridad(filas):
@@ -794,7 +868,165 @@ def serie_papel(a, cal, cs):
     sew = ema_p(ewo2, EWO_S)
     r.update(ewo1=ewo1, ewo2=ewo2, ewo_senal=sew,
              f8=np.isfinite(ewo1) & np.isfinite(sew) & (ewo1 > 0) & (ewo2 > sew))
+    b9, r9 = ash_adx(h, l)
+    r.update(ash9_bulls=b9, ash9_bears=r9,
+             f9=np.isfinite(b9) & np.isfinite(r9) & (b9 > ASH9_K * r9))
+    di, st = supertrend(h, l, c)
+    r.update(st_dir=di, st_linea=st, f10=di == -1)
     r["atr_pct"] = atr_p(h, l, c, ATR_N) / c
     r["sma40"] = sma(c, SMA_SAL)
     r["ema34"] = ema_p(c, EMA_REENT)
+    r["bajo40"] = np.isfinite(r["sma40"]) & (c <= r["sma40"])
+    r["toco34"] = np.isfinite(r["ema34"]) & (l <= r["ema34"])
     return r
+
+
+# ==============================================================================
+# 7. LA CARTERA DEL BACKTEST, DIA POR DIA
+# ==============================================================================
+#
+# Como la describio el usuario (5/11/2026), cada dia y en este orden:
+#   B. salen las posiciones: gap al open, SL, TP durante la rueda; al cierre,
+#      la SMA 40. Lo que liberan se puede usar ese mismo dia.
+#   C. capital = efectivo + posiciones abiertas al cierre de ese dia, despues
+#      de las salidas.
+#   D. entradas por prioridad: objetivo = capital/10; monto = min(objetivo,
+#      efectivo/(1+com)); si el monto es menos de la mitad del objetivo no se
+#      compra; el efectivo baja monto*(1+com) y la posicion vale
+#      monto*precio/entrada. Al vender entra valor*(1-com).
+# Las salidas dependen solo del camino del precio, asi que se calculan una vez
+# al entrar (seguir_posicion hasta el final) y se cobran el dia que tocan.
+
+def simular_cartera(dias, info, version=33, capital=1.0, abiertas=(), historia=(),
+                    lugares=LUGARES):
+    """
+    `info` da lo que el motor ya calculo:
+      info.dia(d)      {t: {"j", "prio", "f": [10 bools], "rs"}} (filtros con el RS)
+      info.pausa(d)    ash_spy() de ese dia (pausa y pausa31)
+      info.se[t]       serie_papel(); info.al[t], la serie alineada
+      info.excl        los que no pueden ser candidatos (UPS)
+    `abiertas`: posiciones con las que arranca, {t, fe, pe, atr_pct, monto}.
+    `historia`: operaciones ya cerradas antes de arrancar, {t, fe, fs}: hacen
+    falta para "una entrada por cruce" y para la re-entrada (RKLB entro el
+    13/9/2024, salio por TP el 13/11 y el 27/1/2025 re-entro en el mismo cruce).
+    Devuelve {"ops": [...], "curva": [(d, capital, exposicion)], "abiertas": [...]}.
+    """
+    nf = FILTROS if version == 33 else FILTROS_V31
+    clave_p = "pausa" if version == 33 else "pausa31"
+    fin = int(dias[-1]) if len(dias) else 0
+    senales = {}
+
+    def idx(t, d):
+        s = info.se[t]["d"]
+        k = int(np.searchsorted(s, d))
+        return k if k < len(s) and s[k] == d else None
+
+    def cierre(t, d):
+        s = info.se[t]
+        k = int(np.searchsorted(s["d"], d, "right")) - 1
+        return s["cierre"][k] if k >= 0 else np.nan
+
+    def califica(x):
+        return all(x["f"][:nf])
+
+    def senal_abierta(t, d, x):
+        """La senal de este cruce (primer dia que califico sin pausa) sigue abierta a d."""
+        s = info.se[t]
+        j = x["j"]
+        cr = int(s["fecha_cruce"][j])
+        if (t, cr) not in senales:
+            k = j - int(s["dias_cruce"][j])
+            res = None
+            for jj in range(k, j + 1):
+                dj = int(s["d"][jj])
+                y = info.dia(dj).get(t)
+                if not y or not califica(y) or info.pausa(dj)[clave_p]:
+                    continue
+                g = seguir_posicion(info.al[t], dj, s["cierre"][jj], s["atr_pct"][jj], fin)
+                res = (dj, g["fecha"] if g["salida"] else None)
+                break
+            if res is None:
+                return False         # todavia no hubo senal: no se cachea
+            senales[(t, cr)] = res
+        dsen, dsal = senales[(t, cr)]
+        return dsen <= d and (dsal is None or dsal > d)
+
+    def abrir(t, d, j, monto, reent):
+        s = info.se[t]
+        pe, ap = s["cierre"][j], s["atr_pct"][j]
+        g = seguir_posicion(info.al[t], d, pe, ap, fin)
+        return {"t": t, "fe": int(d), "pe": float(pe), "atr_pct": float(ap), "monto": monto,
+                "cruce": int(s["fecha_cruce"][j]) if s["fecha_cruce"][j] else None,
+                "reentrada": reent, "g": g}
+
+    cash = capital
+    pos = []
+    for a in abiertas:
+        j = idx(a["t"], a["fe"])
+        if j is None:
+            continue
+        p = abrir(a["t"], a["fe"], j, a["monto"], a.get("reentrada", False))
+        p["pe"], p["atr_pct"] = a["pe"], a["atr_pct"]
+        p["g"] = seguir_posicion(info.al[a["t"]], a["fe"], a["pe"], a["atr_pct"], fin)
+        pos.append(p)
+        cash -= a["monto"] * (1 + COMISION)
+    if abiertas and "efectivo" in abiertas[0]:
+        cash = abiertas[0]["efectivo"]
+    ops, curva = [], []
+    for h in historia:
+        j = idx(h["t"], h["fe"])
+        if j is None or not info.se[h["t"]]["fecha_cruce"][j]:
+            continue
+        ops.append({"t": h["t"], "fe": int(h["fe"]), "fs": int(h["fs"]), "previa": True,
+                    "cruce": int(info.se[h["t"]]["fecha_cruce"][j])})
+    for d in map(int, dias):
+        # B · salidas
+        quedan = []
+        for p in pos:
+            g = p["g"]
+            if g["salida"] and g["fecha"] <= d:
+                cash += p["monto"] * g["precio"] / p["pe"] * (1 - COMISION)
+                ops.append(dict(p, fs=int(g["fecha"]), ps=float(g["precio"]), motivo=g["salida"],
+                                ret=resultado_neto(p["pe"], g["precio"])))
+            else:
+                quedan.append(p)
+        pos = quedan
+        # C · capital al cierre
+        valor = sum(p["monto"] * cierre(p["t"], d) / p["pe"] for p in pos)
+        cap = cash + valor
+        # D · entradas
+        if not info.pausa(d)[clave_p] and len(pos) < lugares:
+            tengo = {p["t"] for p in pos}
+            cand = []
+            for t, x in info.dia(d).items():
+                if t in tengo or t in info.excl:
+                    continue
+                s = info.se[t]
+                j = x["j"]
+                if not np.isfinite(s["dias_cruce"][j]):
+                    continue
+                cr = int(s["fecha_cruce"][j])
+                previas = [o for o in ops if o["t"] == t and o["cruce"] == cr]
+                if not previas:
+                    if califica(x) and senal_abierta(t, d, x):
+                        cand.append((-x["prio"], t, j, False))
+                elif all(x["f"][1:nf]):
+                    k = idx(t, max(o["fs"] for o in previas))
+                    if (k is not None and s["bajo40"][k:j + 1].any() and s["toco34"][k:j + 1].any()
+                            and np.isfinite(s["sma40"][j]) and s["cierre"][j] > s["sma40"][j]):
+                        cand.append((-x["prio"], t, j, True))
+            for _, t, j, reent in sorted(cand):
+                if len(pos) >= lugares:
+                    break
+                obj = cap / lugares
+                monto = min(obj, cash / (1 + COMISION))
+                if monto < obj / 2:
+                    break
+                cash -= monto * (1 + COMISION)
+                p = abrir(t, d, j, monto, reent)
+                p["peso"] = monto / cap
+                pos.append(p)
+        valor = sum(p["monto"] * cierre(p["t"], d) / p["pe"] for p in pos)
+        curva.append((d, cash + valor, valor / (cash + valor) if cash + valor else 0.0))
+    return {"ops": [o for o in ops if not o.get("previa")], "curva": curva,
+            "abiertas": pos, "efectivo": cash}

@@ -108,7 +108,8 @@ jobs:
         run: |
           python bonos.py --salida sitio || echo "(bonos: no salio, sigo)"
 
-      # Estrategia contra los archivos del backtest del usuario (backtest/).
+      # Estrategia contra los archivos del backtest del usuario (backtest/v33 y
+      # backtest/v31: la v3.3 vigente y la v3.1 de la columna «califica v3.1»).
       # NO frena la publicacion: deja validacion.json y la pagina lo muestra.
       - name: Validar Estrategia contra el backtest
         run: |

@@ -1,5 +1,5 @@
 /* ===========================================================================
-   ESTRATEGIA (base v3.1)
+   ESTRATEGIA (v3.3 «confirmacion»)
    ===========================================================================
    1. PARIDAD con estrategia.py, la referencia en Python: todas las columnas,
       todos los filtros y el ASH del SPY, en varias fechas de la fixtura. Es el
@@ -39,8 +39,7 @@ console.log('== 1. paridad con estrategia.py ==');
       u.length+' vs '+ref[R].universo.length);
     const fil=u.map(t=>M.evaluarEstr(S.get(t),spy,R,null,spy.d)).filter(Boolean);
     const U=fil.map(f=>f.rs_puntaje).filter(isFinite).sort((a,b)=>a-b);
-    fil.forEach(f=>{f.rs=M.rsDePuntaje(f.rs_puntaje,U);f.f3=f.rs>70;
-      f.pasa=[1,2,3,4,5,6,7,8].every(k=>f['f'+k]);});
+    fil.forEach(f=>{f.rs=M.rsDePuntaje(f.rs_puntaje,U);f.f3=f.rs>70;M.cerrarFiltros(f);});
     M.prioridadEstr(fil);
     ok(`mismas filas el ${R}`,fil.length===Object.keys(ref[R].filas).length);
     for(const f of fil){const r=ref[R].filas[f.t];filas++;pasan+=f.pasa;
@@ -83,10 +82,61 @@ console.log('== 1. paridad con estrategia.py ==');
     for(const q of ['diario','semanal'])for(const z of ['bulls','bears'])
       ashPeor=Math.max(ashPeor,Math.abs(a[q][z]-b[q][z])/Math.abs(b[q][z]));
     if(a.pausa!==b.pausa||a.diario.pausa!==b.diario.pausa||a.semanal.pausa!==b.semanal.pausa||
-       a.semanal.semana!==b.semanal.semana)ashDec++;}
+       a.semanal.semana!==b.semanal.semana||a.pausa31!==b.pausa31||a.extendido.pausa!==b.extendido.pausa||
+       Math.abs(a.extendido.sma200-b.extendido.sma200)>1e-9*b.extendido.sma200)ashDec++;}
   ok('todas las columnas coinciden (desvío relativo < 1e-10)',peor<1e-10,peor.toExponential(2)+' en '+donde);
   ok('ninguna decisión distinta (filtros 1-8 y pasa)',dec===0,dec+' · '+ejemplo);
-  ok('el ASH del SPY coincide, diario y semanal',ashPeor<1e-10&&ashDec===0,ashPeor+' / '+ashDec);
+  ok('el ASH del SPY coincide, diario y semanal, y la pausa E (SPY > 1,10 · SMA 200)',ashPeor<1e-10&&ashDec===0,ashPeor+' / '+ashDec);
+  ok('la prueba mira los filtros 9 y 10: hay papeles que pasan y que fallan cada uno',
+    ['f9','f10'].every(k=>Object.values(ref[fechas[0]].filas).some(r=>r[k])&&Object.values(ref[fechas[0]].filas).some(r=>!r[k])));
+  // TODOS LOS DIAS DE UNA VEZ: serieEstr contra serie_papel de Python
+  {let sp=0,sd=0,sej='',n=0;
+   for(const [t,r] of Object.entries(ref.serie)){const a=S.get(t),se=M.serieEstr(a,spy.d,spy.c);
+     if(JSON.stringify(se.d)!==JSON.stringify(r.d)){sd++;sej=t+' fechas';continue;}
+     for(const [k,v] of Object.entries(r)){if(k==='d')continue;
+       v.forEach((y,j)=>{const x=se[k][j];n++;
+         if(typeof y==='boolean'){if(!!x!==y){sd++;sej=`${t} ${k} ${se.d[j]}`;}}
+         else if(y===null){if(isFinite(x)){sd++;sej=`${t} ${k} ${se.d[j]} (null en Python)`;}}
+         else{const e=isFinite(x)?Math.abs(x-y)/Math.max(1e-9,Math.abs(y)):Infinity;
+           if(e>sp){sp=e;sej=`${t} ${k} ${se.d[j]}`;}}});}}
+   ok('serieEstr (todos los días de una vez) = serie_papel de Python',sd===0&&sp<1e-10,`${sd} · ${sp} · ${sej} · ${n} valores`);}
+  // y serieEstr dice lo mismo que evaluarEstr, que es la que usa la tabla
+  {let dd=0,ej='';const R=fechas[0],u=M.universoEstr(P.simbolos,P.estr_adr).tickers.filter(t=>S.has(t));
+   const SE=new Map(u.map(t=>[t,M.serieEstr(S.get(t),spy.d,spy.c)])),dia=M.diaEstr(SE,R);
+   const fil=u.map(t=>M.evaluarEstr(S.get(t),spy,R,null,spy.d)).filter(Boolean);
+   const U=fil.map(f=>f.rs_puntaje).filter(isFinite).sort((a,b)=>a-b);
+   fil.forEach(f=>{f.rs=M.rsDePuntaje(f.rs_puntaje,U);f.f3=isFinite(f.rs)&&f.rs>70;M.cerrarFiltros(f);});
+   M.prioridadEstr(fil);
+   for(const f of fil){const x=dia.get(f.t);
+     const mismoRs=x&&(x.rs===f.rs||(isNaN(x.rs)&&isNaN(f.rs)));
+     if(!x||!mismoRs||x.f.some((b,k)=>b!==!!f['f'+(k+1)])||Math.abs(x.prio*100-f.prio)>1e-9){dd++;ej=f.t;}}
+   ok('diaEstr (RS, prioridad y los diez filtros desde las series) = evaluarEstr',dd===0&&fil.length>50,dd+' '+ej);}
+  // LAS DOS CARTERAS: simularCartera contra simular_cartera, sin pausa
+  {const u=M.universoEstr(P.simbolos,P.estr_adr).tickers.filter(t=>S.has(t));
+   const SE=new Map(u.map(t=>[t,M.serieEstr(S.get(t),spy.d,spy.c)])),AL=new Map(u.map(t=>[t,S.get(t)]));
+   const dm=new Map();
+   const info={se:SE,al:AL,excl:new Set(Object.keys(P.estr_excl||{})),
+     dia:d=>{if(!dm.has(d))dm.set(d,M.diaEstr(SE,d));return dm.get(d);},
+     pausa:d=>Object.assign({},M.ashSpy(spy,d),{pausa:false,pausa31:false})};
+   const r33=M.simularCartera(ref.sim.dias,info,33,1,[],[]);
+   for(const v of [33,31]){const r=v===33?r33:M.simularCartera(ref.sim.dias,info,v,1,[],[]),y=ref.sim['v'+v];
+     const a=r.ops.map(o=>[o.t,o.fe,o.fs,o.motivo,o.reentrada].join(' ')),b=y.ops.map(o=>[o[0],o[1],o[2],o[3],o[5]].join(' '));
+     const ret=Math.max(0,...r.ops.map((o,k)=>y.ops[k]?Math.abs(o.ret-y.ops[k][4]):1));
+     const cur=Math.max(...r.curva.map((c,k)=>Math.abs(c[1]-y.curva[k][1])));
+     ok(`cartera v${v/10}: las mismas operaciones, el mismo retorno y la misma curva que Python`,
+       JSON.stringify(a)===JSON.stringify(b)&&ret<1e-12&&cur<1e-12&&
+       JSON.stringify(r.abiertas.map(p=>[p.t,p.fe]))===JSON.stringify(y.abiertas),
+       `${a.length} vs ${b.length} · ret ${ret} · curva ${cur}`);
+     if(v===33)ok('y la prueba compara algo: operaciones cerradas y abiertas',r.ops.length>=5&&r.abiertas.length>0,r.ops.length);}
+   // las reglas de tamano: 10 lugares, capital/10 y la mitad del efectivo
+   let mal=0,ej2='';
+   const abiertasEn=d=>[...r33.ops.filter(o=>o.fe<=d&&o.fs>d),...r33.abiertas.filter(p=>p.fe<=d)].length;
+   for(const d of ref.sim.dias)if(abiertasEn(d)>10){mal++;ej2='más de 10 el '+d;}
+   for(const o of [...r33.ops,...r33.abiertas])if(o.peso>0.1+1e-12||o.peso<0.05-1e-12){mal++;ej2=o.t+' peso '+o.peso;}
+   ok('nunca más de 10 posiciones, y cada compra entre la mitad y el total de capital/10',mal===0,ej2);
+   ok('la v3.3 compra con menos o igual que la v3.1 (filtros de más), no con otras reglas',
+     r33.ops.length+r33.abiertas.length<=ref.sim.v31.ops.length+ref.sim.v31.abiertas.length+3);
+  }
   ok('y la prueba compara algo: filas y señales',filas>500&&pasan>0,filas+' filas, '+pasan+' señales');
   console.log(`         (${filas} filas en ${fechas.length} fechas, desvío máximo ${peor.toExponential(1)})`);
 }
@@ -217,6 +267,46 @@ function serie(c,extra){const n=c.length,d=dias(20230101,20291231).slice(0,n);
   ok('RS = redondeo(percentil × 98 + 1)',M.rsDePuntaje(3,[1,2,3,4])===M.redondeoPar(3/4*98+1));
 }
 
+{
+  // 10 · Supertrend: sube parejo -> alcista con la linea DEBAJO; se derrumba -> bajista con la linea ARRIBA
+  const c=[];for(let i=0;i<120;i++)c.push(100+i);for(let i=0;i<30;i++)c.push(219-i*6);
+  const h=c.map(v=>v+1),l=c.map(v=>v-1),st=M.supertrendP(h,l,c,4,21);
+  ok('Supertrend: sin ATR de la vela anterior la dirección es 1 (Pine: na(atr[1]))',st.dir[0]===1&&st.dir[20]===1&&st.dir[21]!==undefined);
+  ok('Supertrend: en la suba queda alcista (−1) con la línea debajo del cierre',st.dir[119]===-1&&st.linea[119]<c[119]);
+  ok('Supertrend: con el derrumbe pasa a bajista (1) con la línea arriba',st.dir[149]===1&&st.linea[149]>c[149]);
+  // la banda de abajo no baja mientras el cierre anterior no la perfore (el := de Pine)
+  let sube=true;for(let i=60;i<119;i++)if(st.linea[i+1]<st.linea[i])sube=false;
+  ok('Supertrend: en la suba la línea nunca baja (la banda sólo se corre a favor)',sube);
+  ok('Supertrend: factor y ATR del usuario, 4 y 21',M.ESTR.stFactor===4&&M.ESTR.stAtr===21);
+  // 9 · ASH ADX: maximos que suben siempre -> AvgBears = 0 y pasa; si los minimos bajan igual, no
+  const H=[],L=[];for(let i=0;i<40;i++){H.push(100+i);L.push(90+i);}
+  const a=M.ashAdxEstr(H,L);
+  ok('ASH ADX 14/1: con máximos y mínimos que suben, AvgBears = 0 y AvgBulls = 1',a.bears[39]===0&&Math.abs(a.bulls[39]-1)<1e-12);
+  ok('ASH ADX 14/1: arranca en la vela 14 (la primera no tiene H[1])',isNaN(a.bulls[13])&&isFinite(a.bulls[14]));
+  const H2=[],L2=[];for(let i=0;i<40;i++){H2.push(100+(i%2?2:0));L2.push(90-(i%2?2:0));}
+  const b=M.ashAdxEstr(H2,L2);
+  ok('ASH ADX: con los dos lados iguales no pasa la regla «verde» (AvgBulls > 2 · AvgBears)',
+    !(b.bulls[39]>2*b.bears[39])&&Math.abs(b.bulls[39]-b.bears[39])<1);
+  // E · SPY extendido: estricto, C > 1,10 · SMA 200
+  const mk=ult=>{const c=[];for(let i=0;i<260;i++)c.push(100);c.push(ult);
+    const d=dias(20240101,20261231).slice(0,c.length);return {t:'SPY',d,o:c,h:c,l:c,c};};
+  const s1=mk(115),e1=M.ashSpy(s1,s1.d[s1.d.length-1]);
+  ok('pausa E: el SPY 15 % arriba de su SMA 200 pausa',e1.extendido.pausa&&e1.pausa);
+  ok('pero la v3.1 no la tiene: su pausa es sólo D o W',e1.pausa31===(e1.diario.pausa||e1.semanal.pausa));
+  const s2=mk(100),e2=M.ashSpy(s2,s2.d[s2.d.length-1]);
+  ok('pausa E: pegado a la SMA 200 no pausa',!e2.extendido.pausa);
+  const s3=mk(110.05),e3=M.ashSpy(s3,s3.d[s3.d.length-1]),lim=1.10*e3.extendido.sma200;
+  ok('pausa E: el corte es 1,10 · SMA 200 y es estricto',e3.extendido.pausa===(110.05>lim)&&M.ESTR.extK===1.10&&M.ESTR.extN===200);
+  // califica = 1 a 10; califica v3.1 = 1 a 8
+  const r={f1:true,f2:true,f3:true,f4:true,f5:true,f6:true,f7:true,f8:true,f9:false,f10:true};
+  M.cerrarFiltros(r);
+  ok('falla el 9: no califica, pero «califica v3.1» sí',!r.pasa&&r.pasa31&&r.fallan.join()==='9');
+  r.f9=true;r.f10=false;M.cerrarFiltros(r);
+  ok('falla el 10: lo mismo',!r.pasa&&r.pasa31&&r.fallan.join()==='10');
+  r.f10=true;r.f8=false;M.cerrarFiltros(r);
+  ok('falla el 8: no califica en ninguna de las dos',!r.pasa&&!r.pasa31);
+}
+
 console.log('\n== 3. la pantalla ==');
 const {JSDOM}=require('jsdom');
 const html=fs.readFileSync(path.join(SITIO,'index.html'),'utf8');
@@ -240,8 +330,10 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   getItem(k){return this._m[k]??null},setItem(k,v){this._m[k]=String(v)},removeItem(k){delete this._m[k]}};}
 (async()=>{
   const A=almacen();
-  const VAL={generado:'2026-10-16 22:00 UTC',ok:false,senales:{coinciden:960,filas:961,dias:66,pausas:66},
-    operaciones:{iguales:94,total:94},etsy:{ok:true},diferencias:['20260701 IFF: algo']};
+  const VAL={generado:'2026-11-05 22:00 UTC',ok:false,version:33,
+    v33:{iguales:90,total:91,desvio_curva:-0.19},
+    v31:{senales:{coinciden:960,filas:961,dias:66,pausas:66},operaciones:{iguales:94,total:94},etsy:{ok:true}},
+    diferencias:['AMD 20260410: el backtest entro y nosotros no']};
   let w=await abrir(A,VAL);const $=s=>w.document.querySelector(s),$$=s=>[...w.document.querySelectorAll(s)];
   $('#chipEstr').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
   await esperar(120);
@@ -249,9 +341,11 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const res=w.eval('calcularEstrategia()');
   const cartel=$('.es-cartel').textContent;
   ok('el cartel dice lo que dice el ASH del SPY',res.mercado.pausa?cartel.startsWith('PAUSA'):cartel==='SE PUEDE ENTRAR',cartel);
-  ok('muestra SmthBulls y SmthBears de los dos',$$('.es-asd').length===2&&$$('.es-asd-v b').length===4);
+  ok('muestra SmthBulls y SmthBears de los dos, y el SPY contra su SMA 200 (pausa E)',$$('.es-asd').length===3&&$$('.es-asd-v b').length===6
+    &&$$('.es-asd-t')[2].textContent.includes('SMA 200'));
+  ok('dice también la pausa de la v3.1 (sólo D o W)',$('#estrCuerpo').textContent.includes('Pausa de la v3.1 (sólo D o W): '+(res.mercado.pausa31?'sí':'no')));
   ok('la validación contra el backtest se ve, y avisa si no coincide',
-    !!$('.es-valid.mal')&&$('.es-valid').textContent.includes('960 de 961'),$('.es-valid')&&$('.es-valid').textContent);
+    !!$('.es-valid.mal')&&$('.es-valid').textContent.includes('90 de 91 operaciones')&&$('.es-valid').textContent.includes('960 de 961'),$('.es-valid')&&$('.es-valid').textContent);
   ok('los ETFs son candidatos y llevan su etiqueta',res.filas.some(f=>f.t==='SPY'&&f.etf));
   ok('UPS cuenta en los percentiles…',res.filas.some(f=>f.t==='UPS')||!P.simbolos.some(s=>s.t==='UPS'));
   const filas=()=>[...$$('#estrCuerpo .es-tabla')[0].querySelectorAll('tbody tr[data-t]')];
@@ -263,9 +357,10 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const res2=w.eval('calcularEstrategia()');Object.assign(res,res2);
   ok('…pero nunca aparece como candidata',!filas().some(tr=>tr.dataset.t==='UPS'));
   const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent);
-  ok('las columnas en el orden pedido',th.slice(0,24).join('|')===['Ticker','Cierre','Días desde el cruce',
+  ok('las columnas en el orden pedido',th.slice(0,27).join('|')===['Ticker','Cierre','Días desde el cruce',
     'WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s','Régimen SMA 50/200',
-    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ATR%(14)','Prioridad',
+    'MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)','ASH D ADX 14/1 (AvgBulls · AvgBears)',
+    'Supertrend 4/21 (dir. · línea)','Califica v3.1','ATR%(14)','Prioridad',
     'Señal','Nueva hoy','Entrada óptima','SL · TP · Activ. óptimos','Precio vs óptima','Estado de la señal',
     'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %','SMA 40'].join('|'),th.join('|'));
   // grupos: primero las validas (califican + senal abierta), por prioridad y despues ticker
@@ -279,7 +374,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
     pr.every((f,i)=>!i||pr[i-1].prio>f.prio||(pr[i-1].prio===f.prio&&pr[i-1].t<f.t)));
   ok('el resto va atenuado',trs.slice(validas.length).every(tr=>tr.classList.contains('es-at')));
   ok('una señal que pasó sólo en pausa dice «sin señal válida»',
-    trs.every(tr=>tr.children[18].textContent.trim()!==''));
+    trs.every(tr=>tr.children[21].textContent.trim()!==''));
   ok('la prueba tiene señales válidas con que trabajar',validas.length>=2,validas.length);
   w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:true});renderEstrategia()');
   ok('en pausa ninguna es COMPRA',$$('.es-et.comprar').length===0);
@@ -318,7 +413,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   w.eval(`(()=>{const E=calcularEstrategia(),h=Object.assign({},historiaEstr(E,E.filas.find(x=>x.t===${JSON.stringify(vc)})),
     {salida:'SL',salida_fecha:E.R,salida_precio:1});E.historias.set(${JSON.stringify(vc)},h);renderEstrategia();})()`);
   const trc=filas().find(tr=>tr.dataset.t===vc);
-  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[18].textContent.startsWith('cerrada por SL'));
+  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[21].textContent.startsWith('cerrada por SL'));
   ok('ver señales cerradas las agrega, atenuadas y con su salida',filas().length===sinCerr+nCerr,
     `${filas().length} vs ${sinCerr}+${nCerr}`);
   ok('los interruptores quedan guardados',JSON.parse(A._m.screener_ash_estrategia).casi===true&&
@@ -358,6 +453,11 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
     ok('Salí la cierra con fecha, precio y motivo',reg2.ops[0].fs>0&&reg2.ops[0].ps===110&&!!reg2.ops[0].ms);
     const c=cl({t});
     ok('cerrada en este cruce: sólo vuelve como re-entrada',c.tipo==='reentrada'||c.tipo==='operada',c.tipo);
+    {const E=w.eval('calcularEstrategia()'),f=E.filas.find(x=>x.t===t);
+     if(f&&c.tipo==='reentrada'){const g=Object.assign({},f,{f10:false});
+       const c2=w.eval(`clasificarEstr(calcularEstrategia(),${JSON.stringify(g)})`);
+       ok('la re-entrada exige los filtros 2 a 10: sin el Supertrend no vale',!c2.valida&&c2.fallan.includes(10),c2.fallan);}
+     else ok('la re-entrada exige los filtros 2 a 10',true);}
     let blob=null;w.URL.createObjectURL=b=>{blob=b;return 'blob:x';};w.URL.revokeObjectURL=()=>{};
     w.HTMLAnchorElement.prototype.click=()=>{};
     w.eval('exportarConfig()');const txt=await blob.text();
@@ -366,6 +466,37 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
     const w2=await abrir(B);w2.eval(`importarConfig(${JSON.stringify(txt)})`);
     ok('restaurar FUSIONA: queda la que había y entra la del respaldo',JSON.parse(B._m.screener_ash_estrategia).ops.length===2);
   }
+  // LA COMPARACION CON LA v3.1: dos carteras en papel desde la adopcion
+  {const R=w.eval('calcularEstrategia().R');
+   w.eval(`ESTR.adopcion=${R+1};memoEstr.clave='';renderEstrategia()`);
+   ok('antes de la adopción, el panel dice cuándo arrancan',$('#estrCuerpo').textContent.includes('arrancan el'));
+   // en la fixtura el SPY esta casi siempre en pausa: sin ella hay operaciones que comparar
+   w.eval(`ESTR.adopcion=calcularEstrategia().cal.at(-200);memoEstr.clave='';
+     window._a=ashSpy;ashSpy=(s,d)=>Object.assign(window._a(s,d),{pausa:false,pausa31:false});renderEstrategia()`);
+   const E=w.eval('calcularEstrategia()'),pp=E.papel;
+   ok('simula las dos carteras desde la adopción',pp&&pp.v33&&pp.v31&&pp.dias.length>=199,pp&&pp.error);
+   const tx=$('#estrCuerpo').textContent;
+   ok('muestra las dos, con su retorno, cerradas y abiertas',$$('.es-papel tbody tr').length===2&&tx.includes('v3.3 (filtros 1 a 10')&&tx.includes('v3.1 (filtros 1 a 8'));
+   ok('y el estado de la regla de vuelta',/Regla de vuelta: (todavía no se evalúa|seguir con la v3\.3|VOLVER A LA v3\.1)/.test(tx));
+   ok('las carteras arrancan vacías: ninguna operación anterior a la adopción',
+     [...pp.v33.ops,...pp.v31.ops,...pp.v33.abiertas].every(o=>o.fe>=w.eval('ESTR.adopcion')));
+   ok('y la prueba compara algo: hubo operaciones',pp.v33.ops.length+pp.v31.ops.length>0);
+   // la regla, con carteras armadas a mano
+   const papel=(cap33,cap31,n)=>JSON.stringify({v33:{ops:new Array(n).fill({}),curva:[[0,cap33,0]]},v31:{ops:[],curva:[[0,cap31,0]]}});
+   const rv=(p,R)=>w.eval(`reglaVuelta(${p},${R})`);
+   w.eval('ESTR.adopcion=20261105');
+   const a=rv(papel(0.94,1.00,30),20261201);
+   ok('regla: 30 cerradas y la v3.3 6 puntos abajo → volver a la v3.1',a.cumple&&a.volver&&Math.abs(a.dif+6)<1e-9);
+   const b=rv(papel(0.96,1.00,30),20261201);
+   ok('regla: 4 puntos abajo no alcanza',b.cumple&&!b.volver);
+   const c=rv(papel(0.95,1.00,30),20261201);
+   ok('regla: 5 puntos abajo justo, sí (≥ 5)',c.volver);
+   const d=rv(papel(0.80,1.00,29),20261201);
+   ok('regla: con 29 cerradas y antes de los 6 meses todavía no se evalúa',!d.cumple&&!d.volver);
+   const e=rv(papel(0.80,1.00,3),20270505);
+   ok('regla: a los 6 meses (5/5/2027) se evalúa aunque haya pocas operaciones',e.cumple&&e.volver&&e.seis===20270505);
+   ok('regla: el 4/5/2027 todavía no',!rv(papel(0.80,1.00,3),20270504).cumple);
+   w.eval(`ashSpy=window._a;memoEstr.clave='';renderEstrategia()`);}
   // la vela sin vela propia
   const hueco=P.simbolos.find(s=>{const ds=new Set(s.d);return spy.d.some(d=>d>s.d[0]&&d<s.d[s.d.length-1]&&!ds.has(d));});
   if(hueco){const r=w.eval('calcularEstrategia()');const a=r.AL.get(hueco.t);

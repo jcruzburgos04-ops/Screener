@@ -633,27 +633,90 @@ da 0 y la recta ya se descarta).
 > una fila de aviso. Contar `tbody tr` da 1 cuando no hay nada; hay que contar
 > las filas con ticker (`tbody tr .tk`).
 
-## 4f. Estrategia (base v3.1): reproducir el backtest del usuario
+## 4f. Estrategia (v3.3 «confirmación»): reproducir el backtest del usuario
 
-Menú **Estrategia** (tecla `E`). La especificación vigente es la **segunda**
-que mandó el usuario (16/10/2026), que *reemplaza* a la primera: *«el objetivo
-es que el screener reproduzca mi backtest lo más exacto posible, para que en
-vivo obtenga resultados parecidos. No cambies ningún número ni definición
-"para simplificar" sin preguntarme.»*
+Menú **Estrategia** (tecla `E`). La especificación vigente es la **v3.3**
+(5/11/2026), que *reemplaza* a la v3.1 del 16/10: *«el objetivo es que el
+screener reproduzca mi backtest lo más exacto posible, para que en vivo
+obtenga resultados parecidos. No cambies ningún número ni definición "para
+simplificar" sin preguntarme.»* Respecto de la v3.1 cambian **sólo tres
+cosas**, y todo lo de abajo sobre la v3.1 sigue valiendo:
+
+1. **Dos filtros más.** 9 · ASH diario en modo ADX, ALMA 14 / Smooth 1:
+   AvgBulls > 2 · AvgBears (es el `calcAsh`/`calc_ash` del screener, el de la
+   paridad de 6,7e-14). 10 · Supertrend 4 / ATR 21 sobre hl2, como
+   `ta.supertrend`: dirección −1. «Califica» = filtros 1 a 10.
+2. **Una pausa más.** E: cierre del SPY > 1,10 · SMA 200. PAUSA = D o W o E.
+3. **La comparación contra la v3.1** (sección 12 de su especificación): la
+   columna «califica v3.1» (filtros 1 a 8; la pausa de la v3.1 es D o W), dos
+   **carteras en papel** —v3.3 y v3.1— simuladas desde la adopción
+   (`ESTR.adopcion` = 5/11/2026, arrancan vacías) y el estado de la **regla de
+   vuelta**: con ≥ 30 operaciones cerradas de la v3.3 o ≥ 6 meses, si la v3.3
+   va ≥ 5 puntos abajo de la v3.1 en retorno acumulado **de la cartera**, se
+   vuelve a la v3.1. Las carteras se **calculan**, no se anotan (lo eligió el
+   usuario): se recalculan solas con cada vela y no dependen del navegador.
+
+La re-entrada pasa a exigir los filtros **2 a 10**.
 
 El motor está **dos veces**, como el ASH: en el bloque `motor` de
 `plantilla.html` (`alinearEstr`, `evaluarEstr`, `historiaSenal`,
-`seguirPosicion`, `ashSpy`, `velas3d`, constante `ESTR`) y en `estrategia.py`
-(`alinear`, `evaluar`, `historia_senal`, `seguir_posicion`, `ash_spy` y además
-`serie_papel`, la versión que calcula todos los días de un papel de una vez).
-`pruebas/estrategia.js` compara JS contra Python (1,4e-13, cero decisiones
-distintas). **Si tocás una, tocá la otra.**
+`seguirPosicion`, `ashSpy`, `velas3d`, `supertrendP`, `ashAdxEstr`,
+`serieEstr`, `diaEstr`, `simularCartera`, constante `ESTR`) y en
+`estrategia.py` (`alinear`, `evaluar`, `historia_senal`, `seguir_posicion`,
+`ash_spy`, `supertrend`, `ash_adx`, `serie_papel`, `simular_cartera`).
+`pruebas/estrategia.js` compara JS contra Python (columnas a 1e-10, cero
+decisiones distintas, y las dos carteras con las mismas operaciones y la
+misma curva). **Si tocás una, tocá la otra.**
 
-### Validado contra el backtest, y queda validándose solo
+### La cartera: el orden de cada día, del usuario (5/11/2026)
 
-Los tres archivos que generó su backtest están en `backtest/` (señales de
-jul–oct 2026, la pausa del SPY día por día, y sus 94 operaciones de
-2025-2026). `validar_estrategia.py` rehace todo desde el `datos.json`
+`simular_cartera` / `simularCartera`. Cada día: **B** salen las posiciones
+(gap al open, SL, TP; al cierre la SMA 40) y lo que liberan se usa ese mismo
+día; **C** capital = efectivo + abiertas al cierre, después de las salidas;
+**D** entradas por prioridad: objetivo = capital/10, monto = mín(objetivo,
+efectivo/(1+com)); con menos de la mitad del objetivo no se compra; el
+efectivo baja monto·(1+com); al vender entra valor·(1−com). Candidatas: las
+que califican con la señal **abierta** y no se operaron en ese cruce, y las
+re-entradas. Las salidas dependen sólo del camino del precio, así que se
+calculan una vez al entrar.
+
+> **Para validar hace falta la historia de antes del arranque.** Se arranca
+> el 31/12/2024 con las diez abiertas de ese día (`abiertas_al_2024-12-31.csv`,
+> el monto sale del peso por el capital de su curva) **y con las operaciones
+> ya cerradas**: sin ellas, RKLB —que salió por TP el 13/11/2024— no
+> re-entra el 27/1/2025 como en el backtest, porque la simulación no sabe que
+> ya operó ese cruce, y la cartera se corre desde ahí.
+
+### Validado contra la v3.3 (5/11/2026)
+
+`backtest/v33/`: sus 504 operaciones 2010-2026, las abiertas al 31/12/2024 y
+su curva día por día. Resultado: **91 de 91** operaciones desde el
+31/12/2024 iguales (entrada, salida, motivo, retorno a 0,2 puntos,
+re-entrada), y la curva a **−0,19 %** como máximo (capital final 220,47
+contra 220,89). La simulación JS da **exactamente** lo mismo que la de
+Python sobre los datos reales (83 cerradas, abiertas y curva idénticas).
+
+> **SMSN.IL, pendiente con el usuario.** Con SMSN.IL adentro, el 10/4/2026
+> califica holgado (ASH 127 contra 2·30, Supertrend alcista desde el 8/4),
+> entra en vez de AMD y la cartera se corre desde ahí (85 de 91). Su v3.1
+> **sí** lo compró ese día, y en la v3.3 no operó nunca desde 2010: tiene la
+> pinta del corte de descarga que en la v3.1 dejó afuera a UNH/UPS/UAL. Por
+> eso el validador corre la v3.3 sin SMSN.IL (`SIN_DATOS_V33`) y en «vivo»
+> con él. Si el usuario confirma que no tuvo datos, queda así; si los tuvo,
+> hay que buscar qué filtro le da distinto.
+
+> **Faltan `spy_v33.csv` y `senales_v33.csv`** (el día por día de la v3.3
+> en jul–nov). La especificación pide comparar el 4/11, el 1/10 y el 1/7;
+> las operaciones y la curva ya validan los filtros 9 y 10 y la pausa E de
+> punta a punta, pero cuando lleguen hay que sumar la comparación columna por
+> columna, como la de la v3.1.
+
+### La v3.1, que ahora es la columna «califica v3.1»
+
+Los tres archivos que generó su backtest de la v3.1 están en `backtest/v31/`
+(señales de jul–oct 2026, la pausa del SPY día por día, y sus 94
+operaciones de 2025-2026), y se siguen comparando con los filtros 1 a 8 y la
+pausa D o W: son la prueba de la columna «califica v3.1». `validar_estrategia.py` rehace todo desde el `datos.json`
 publicado y compara. Corre **en cada publicación** (`actualizar.yml` y cada
 vuelta de `intradia.yml`), **no frena nada** y deja `validacion.json`, que la
 página muestra arriba de la tabla en verde o en ámbar con las diferencias.
@@ -689,14 +752,15 @@ deducidas de sus archivos y después confirmadas por él:
    **al par**, como numpy: nueve filas con 74,5 exacto el backtest las da 74.
    **Nada de universo amplio**: `rs_amplio.py` y `rs_universo.json` se fueron.
 3. **ETFs candidatos**, con la etiqueta «ETF», y en los dos percentiles.
-4. **UNH, UPS y UAL**: el CSV coincide exacto sólo si esos tres NO están en el
+4. **UNH, UPS y UAL**: el CSV de la v3.1 coincide exacto sólo si esos tres NO están en el
    universo de jul–oct (con ellos: 830 de 961 RS exactos; sin ellos: 960). El
    usuario dice que están en su lista. Se le avisó: su backtest
    aparentemente no les bajó datos en ese tramo. Por eso la validación tiene
    **dos modos**: «backtest» (sin esos tres; tiene que coincidir exacto) y
    «vivo» (las reglas de la página; se informa cuánto se aparta, hoy 12
    diferencias, todas RS en el borde del 70 y UAL). `SIN_DATOS_EN_EL_CSV` en
-   el validador; si el usuario regenera el CSV, sacarlos de ahí.
+   el validador (ahora `SIN_DATOS_V31`). El usuario confirmó (5/11) que fue
+   un corte de descarga de Yahoo de esa corrida; en la v3.3 los tres están.
 
 **UPS no es candidata** (ya no está en el panel de CEDEARs de BYMA desde el
 3/9) pero **sigue en los percentiles**, porque así está en el backtest:
@@ -742,8 +806,13 @@ EWO) se suma un piso de 0,1 % de la escala de la columna, como con el ASH.
 - **Re-entrada** (filtros 2 a 8, sin pausa, en la misma racha, después de una
   salida: cerró ≤ SMA 40 y el Low tocó la EMA 34 desde la salida, hoy > SMA
   40). Es rara: 1 % de las operaciones.
-- Una ayuda «Cómo ejecutar para parecerse al backtest» y la referencia (CAGR
-  ≈ 48 %, MaxDD ≈ −30 %, ~40 operaciones por año), no como promesa.
+- Una ayuda «Cómo ejecutar para parecerse al backtest» y la referencia de la
+  v3.3 (Sharpe ≈ 1,31, CAGR ≈ 42 %, MaxDD ≈ −29 %, win rate ≈ 53 %, ~32
+  operaciones por año; la v3.1 hacía ~41), no como promesa.
+- **El estado del mercado** muestra las tres pausas (D, W y E) y, aparte, si
+  la v3.1 estaría en pausa (sólo D o W).
+- **Comparación con la v3.1**: las dos carteras en papel (retorno, cerradas,
+  abiertas, exposición), sus operaciones y el estado de la regla de vuelta.
 
 **El registro de operaciones** vive en el navegador (`screener_ash_estrategia`,
 vía `leerLS`/`escribirLS`) y dentro del respaldo `.json` (se fusiona por id):
@@ -2499,7 +2568,7 @@ corre todo. Hoy: **paridad OK (6,7e-14) + 36/36 de interfaz + gráfico + estrés
 | `estres.js` | períodos extremos, longitudes absurdas en los combos, fuentes del rVWAP, sin columnas, industrias, CSV |
 | `combos.py` | EMA de Pine, los tres combos, el rVWAP por días calendario y el piso de 850 barras que impone la EMA 600 |
 | `consolidacion.py` | la caja: largo elegido, ADR propio, y el caso real de PLTR |
-| `estrategia.js` + `estrategia_ref.py` | Estrategia: paridad con `estrategia.py` en cuatro fechas, cada regla con su borde (día 20 del cruce sí y 21 no, empate del régimen, velas de 3 días, Viernes Santo, 16:29 contra 16:30, SL y TP en la misma vela, activación por cierre y no por máximo, re-entrada) la alineación al calendario del SPY (hueco, sábado, vela mal formada), el redondeo al par, y la pantalla (cartel, grupos y orden, COMPRA sólo sin pausa, UPS fuera de candidatos, señales cerradas, casi-señales en rojo, Entré/Salí, posiciones, respaldo, la marca de la validación). Veinte sabotajes probados, todos detectados. |
+| `estrategia.js` + `estrategia_ref.py` | Estrategia: paridad con `estrategia.py` en cuatro fechas, cada regla con su borde (día 20 del cruce sí y 21 no, empate del régimen, velas de 3 días, Viernes Santo, 16:29 contra 16:30, SL y TP en la misma vela, activación por cierre y no por máximo, re-entrada) la alineación al calendario del SPY (hueco, sábado, vela mal formada), el redondeo al par, y la pantalla (cartel, grupos y orden, COMPRA sólo sin pausa, UPS fuera de candidatos, señales cerradas, casi-señales en rojo, Entré/Salí, posiciones, respaldo, la marca de la validación). De la v3.3: el Supertrend y el ASH ADX con casos a mano, la pausa E estricta, «califica v3.1», la re-entrada con 2 a 10, `serieEstr` contra `serie_papel` y contra `evaluarEstr`, las dos carteras contra Python (mismas operaciones y curva), los topes de tamaño, la regla de vuelta en sus bordes (5 puntos justo, 29/30 cerradas, 4 y 5 de mayo de 2027) y el panel. Veinte sabotajes de la v3.1 y veintiuno de la v3.3, todos detectados. |
 | `directriz.js` | la recta de máximos que bajan: un caso por control, la ruptura con cierre (la mecha no alcanza, se vence a las 5 ruedas, deja de valer si vuelve abajo), velas reales, columna, filtros y dibujo |
 | `compresion.js` | las rectas que se juntan: cada tipo, lo que no es (caja plana, V, caída, triángulo empinado), la ruptura, velas reales de PG/TGT/KO, y la columna, el filtro y el dibujo |
 | `teclado.js` | saltos en la tabla, hoja de atajos, y que no dispare escribiendo |
@@ -2659,7 +2728,8 @@ necesitan internet.
 27. **Estrategia: las reglas son del usuario y están en dos lados.** No se
     cambia un número ni una media sin preguntarle; si se toca `evaluarEstr`,
     se toca `estrategia.py` y se corre `pruebas/estrategia.js`. Y
-    `validar_estrategia.py` tiene que seguir diciendo OK contra `backtest/`:
+    `validar_estrategia.py` tiene que seguir diciendo OK contra `backtest/v33/`
+    y `backtest/v31/`:
     si un cambio lo pone en ámbar, la diferencia se explica antes de
     publicarla, no se afloja la tolerancia.
 

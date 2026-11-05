@@ -7,45 +7,49 @@ VALIDAR ESTRATEGIA  ·  el screener contra el backtest del usuario
 
 POR QUE EXISTE
 --------------
-El usuario quiere que el menu Estrategia reproduzca su backtest (v3.1) "lo mas
+El usuario quiere que el menu Estrategia reproduzca su backtest "lo mas
 exacto posible, para que en vivo obtenga resultados parecidos", y pidio que la
 comparacion contra sus archivos "corra en cada publicacion y avise si algo deja
 de coincidir". Eso es esto. Corre en actualizar.yml y en intradia.yml, NO frena
 la publicacion, y deja el resultado en validacion.json, que la pagina muestra
 arriba de la tabla de Estrategia.
 
-CONTRA QUE
-----------
-Los archivos que genero su backtest, en backtest/:
-  spy_ash.csv                 la pausa del SPY dia por dia (jul-oct 2026)
-  senales_jul_oct_2026.csv    cada dia, cada papel que calificaba, todas las
-                              columnas, el dia de la senal y el estado
-  operaciones_2025_2026.csv   sus operaciones: entrada, salida y motivo
-y el caso de ETSY del 9 al 16/10/2026 que mando en el mensaje.
+DOS VERSIONES, DOS JUEGOS DE ARCHIVOS
+-------------------------------------
+backtest/v33/  la estrategia vigente (v3.3 «confirmacion», 5/11/2026):
+  abiertas_al_2024-12-31.csv            las 10 posiciones abiertas ese dia
+  operaciones_v33_completas_2010_2026.csv  todas sus operaciones
+  curva_v33.csv                         capital y exposicion dia por dia
+  Se arranca la cartera el 31/12/2024 con esas diez y se simula hasta el
+  ultimo dia de su curva con las reglas de tamano que dio el usuario
+  (estrategia.simular_cartera). Tienen que salir las mismas operaciones
+  (entrada, salida, motivo, retorno) y la misma curva.
 
-LO QUE SE DESCUBRIO COMPARANDO (16/10/2026), y por eso hay dos modos
---------------------------------------------------------------------
-El CSV de senales coincide EXACTO (961 de 961 papeles-dia, 960 RS) si UNH, UPS
-y UAL no estan en el universo, y con ellos adentro el RS sale bien en 830 de
-961. El usuario dice que los tres estan en su lista; los datos dicen que en
-jul-oct su backtest no los tuvo. Asi que:
+backtest/v31/  la v3.1, que ahora es la columna «califica v3.1» y la cartera
+  en papel contra la que se mide la regla de vuelta (seccion 12):
+  spy_ash.csv, senales_jul_oct_2026.csv, operaciones_2025_2026.csv y el caso
+  de ETSY del 9 al 16/10/2026. Se comparan con los filtros 1 a 8 y la pausa
+  D o W, como antes.
 
-  modo "backtest"  el universo que de hecho uso el CSV (sin esos tres). Tiene
-                   que coincidir: es el que dice si el motor esta bien.
-  modo "vivo"      las reglas que corren en la pagina (UNH y UAL como todos,
-                   UPS en los percentiles pero no candidata). Se informa
-                   cuanto se aparta; no es una falla.
+LOS PAPELES QUE SU BACKTEST NO TUVO
+-----------------------------------
+v3.1: UNH, UPS y UAL (el usuario lo confirmo el 5/11: un corte de descarga
+de Yahoo de esa corrida). v3.3: SMSN.IL. Con SMSN.IL adentro, el 10/4/2026
+califica holgado (y la v3.1 del usuario SI lo compro ese dia), entra en vez
+de AMD y la cartera se corre desde ahi; sin el, salen 91 de 91 operaciones.
+En la v3.3 nunca opero desde 2010. Pendiente de que el usuario confirme si
+tuvo datos. Por eso hay dos modos:
+
+  modo "backtest"  el universo que de hecho uso cada corrida. Tiene que
+                   coincidir: es el que dice si el motor esta bien.
+  modo "vivo"      las reglas que corren en la pagina (todos adentro, UPS en
+                   los percentiles pero no candidata). Se informa.
 
 LA TOLERANCIA
 -------------
-La que pidio el usuario: 0,1 % en los valores y +/-1 en el RS. Dos detalles:
-  - Los precios de Yahoo se reajustan por dividendos cuando se bajan de nuevo,
-    asi que un papel puede venir entero corrido (HMY: 2,7 %). Se mide el
-    factor k = nuestro cierre / su cierre y los campos en precios se comparan
-    divididos por k; el factor se informa aparte.
-  - En los osciladores que pasan por cero (MACD, EWO) el 0,1 % relativo no
-    sirve: se suma un piso de 0,1 % de la escala de la columna (la mediana de
-    su valor absoluto). Es lo mismo que se hace con el ASH (seccion 4).
+La que pidio el usuario: 0,1 % en los valores y +/-1 en el RS. En las
+operaciones, el retorno con 0,2 puntos (los precios de Yahoo se reajustan por
+dividendos cuando se bajan de nuevo). En la curva, 1 %.
 
     python validar_estrategia.py --datos sitio/datos.json --salida sitio
 ================================================================================
@@ -63,10 +67,15 @@ import numpy as np
 import estrategia as E
 
 CARPETA = Path(__file__).parent / "backtest"
-SIN_DATOS_EN_EL_CSV = ("UNH", "UPS", "UAL")
+SIN_DATOS_V31 = ("UNH", "UPS", "UAL")
+SIN_DATOS_V33 = ("SMSN.IL",)
 MOTIVO = {"media de salida": "SMA 40", "SL intradiario": "SL", "SL con gap": "SL con gap",
           "TP": "TP", "TP con gap": "TP con gap", "abierta al final": None}
+MOTIVO_V33 = {"media": "SMA 40", "SL": "SL", "SL gap": "SL con gap", "TP": "TP",
+              "TP gap": "TP con gap", "abierta al final": None}
 FIN_BACKTEST = 20261002
+ARRANQUE_V33 = 20241231
+TOL_RET, TOL_CURVA = 0.002, 0.01
 
 # El caso de ETSY que mando el usuario (datos de Yahoo del 16/10, redondeados).
 # fecha: (cierre, dias de cruce o None, wma21, wma26, adr, rs, regimen,
@@ -87,7 +96,7 @@ def num(f):
 
 def leer(nombre):
     with open(CARPETA / nombre, encoding="utf-8") as f:
-        filas = list(csv.DictReader(f))
+        filas = [{k: (v or "").strip() for k, v in r.items()} for r in csv.DictReader(f)]
     for r in filas:      # en el backtest los sufijos van con guion
         if r.get("ticker") == "SMSN-IL":
             r["ticker"] = "SMSN.IL"
@@ -97,7 +106,10 @@ def leer(nombre):
 class Motor:
     """Las series de todos los papeles y lo que se calcula por dia, con memo."""
 
-    def __init__(self, P, fuera=()):
+    def __init__(self, P, fuera=(), version=33):
+        self.v = version
+        self.nf = E.FILTROS if version == 33 else E.FILTROS_V31
+        self.kp = "pausa" if version == 33 else "pausa31"
         S = {s["t"]: s for s in P["simbolos"]}
         self.spy = E.alinear(S["SPY"], S["SPY"]["d"])
         self.cal = np.asarray(self.spy["d"], np.int64)
@@ -117,6 +129,16 @@ class Motor:
             self.se[t] = E.serie_papel(a, self.cal, self.cs)
         self._dia, self._pausa = {}, {}
 
+    def otra_version(self, version):
+        """El mismo universo y las mismas series, con los filtros y la pausa de otra version."""
+        import copy
+        m = copy.copy(self)
+        m.v = version
+        m.nf = E.FILTROS if version == 33 else E.FILTROS_V31
+        m.kp = "pausa" if version == 33 else "pausa31"
+        m._dia = {}                      # "califica" depende de la version
+        return m
+
     def idx(self, t, d):
         s = self.se[t]["d"]
         k = int(np.searchsorted(s, d))
@@ -126,6 +148,10 @@ class Motor:
         if d not in self._pausa:
             self._pausa[d] = E.ash_spy(self.spy, d)
         return self._pausa[d]
+
+    def pausado(self, d):
+        """La pausa de ESTA version: D, W o E en la v3.3; D o W en la v3.1."""
+        return self.pausa(d)[self.kp]
 
     def dia(self, d):
         """RS, prioridad y si califica, para cada papel con dato ese dia."""
@@ -147,8 +173,9 @@ class Motor:
             rs = E.rs_de_puntaje(pun[n], U)
             f = [bool(s["f1"][j]), bool(s["f2"][j]), bool(np.isfinite(rs) and rs > E.RS_MIN),
                  bool(s["f4"][j]), bool(s["f5"][j]), bool(s["f6"][j]),
-                 bool(s["f7"][j]), bool(s["f8"][j])]
-            out[t] = {"j": j, "rs": rs, "prio": pa[n] + pt[n], "f": f, "califica": all(f)}
+                 bool(s["f7"][j]), bool(s["f8"][j]), bool(s["f9"][j]), bool(s["f10"][j])]
+            out[t] = {"j": j, "rs": rs, "prio": pa[n] + pt[n], "f": f,
+                      "califica": all(f[:self.nf]), "califica31": all(f[:E.FILTROS_V31])}
         self._dia[d] = out
         return out
 
@@ -162,7 +189,7 @@ class Motor:
         for j in range(k, x["j"] + 1):
             dj = int(s["d"][j])
             y = self.dia(dj).get(t)
-            if not y or not y["califica"] or self.pausa(dj)["pausa"]:
+            if not y or not y["califica"] or self.pausado(dj):
                 continue
             g = E.seguir_posicion(self.al[t], dj, s["cierre"][j], s["atr_pct"][j], d)
             return {"fecha": dj, "ruedas": x["j"] - j, "entry": s["cierre"][j],
@@ -178,9 +205,9 @@ def comparar_senales(M, sen, ash):
         d = num(r["fecha"])
         a = M.pausa(d)
         suyo = (r["D_pausa"] == "True", r["W_pausa"] == "True", r["PAUSA"] == "True")
-        if (a["diario"]["pausa"], a["semanal"]["pausa"], a["pausa"]) != suyo:
+        if (a["diario"]["pausa"], a["semanal"]["pausa"], a[M.kp]) != suyo:
             dif.append(f"{r['fecha']} pausa: nuestra D/W/total "
-                       f"{a['diario']['pausa']}/{a['semanal']['pausa']}/{a['pausa']} · suya {suyo}")
+                       f"{a['diario']['pausa']}/{a['semanal']['pausa']}/{a[M.kp]} · suya {suyo}")
         for k, x in (("D_SmthBulls", a["diario"]["bulls"]), ("D_SmthBears", a["diario"]["bears"]),
                      ("W_SmthBulls", a["semanal"]["bulls"]), ("W_SmthBears", a["semanal"]["bears"])):
             y = float(r[k])
@@ -245,7 +272,7 @@ def comparar_senales(M, sen, ash):
                     dif.append(f"{d} {t} {col}: {v / kk:.4f} contra {y:.4f}")
             if (r["regimen_50_200"] == "encendido") != bool(s["regimen"][j]):
                 dif.append(f"{d} {t} regimen distinto")
-            if (r["pausa_spy"] == "True") != M.pausa(d)["pausa"]:
+            if (r["pausa_spy"] == "True") != M.pausado(d):
                 dif.append(f"{d} {t} pausa del SPY distinta")
             h = M.senal(t, d)
             sd = num(r["dia_senal"])
@@ -312,7 +339,7 @@ def comparar_orden(M, ops):
     dif, dias = [], 0
     fechas = sorted({num_(o["entrada"]) for o in ops if num_(o["entrada"]) >= 20260701})
     for d in fechas:
-        if d > FIN_BACKTEST or M.pausa(d)["pausa"]:
+        if d > FIN_BACKTEST or M.pausado(d):
             continue
         compro = [o["ticker"] for o in ops if num_(o["entrada"]) == d and o["reentrada"] != "True"]
         tenia = {o["ticker"] for o in ops
@@ -348,7 +375,7 @@ def comparar_etsy(M):
                    round(float(s["wma21"][j]), 2), round(float(s["wma26"][j]), 2),
                    round(float(s["adr"][j]), 2), int(x["rs"]), bool(s["regimen"][j]),
                    round(float(s["hist3"][j]), 2), round(float(s["hist3_ant"][j]), 2),
-                   bool(s["f8"][j]), M.pausa(d)["pausa"], x["califica"])
+                   bool(s["f8"][j]), M.pausado(d), x["califica"])
         en_vivo = d == 20261016          # el usuario lo midio con la rueda abierta
         for nombre, a, b, tol in (("cierre", nuestro[0], c, 0.0015 * c), ("cruce", nuestro[1], cr, 0),
                                   ("wma21", nuestro[2], w1, 0.0015 * w1),
@@ -387,14 +414,80 @@ def autocontrol(M, P):
             for k_e, k_s in (("wma21", "wma21"), ("adr", "adr"), ("hist3", "hist3"),
                              ("hist3_ant", "hist3_ant"), ("ewo_senal", "ewo_senal"),
                              ("atr_pct", "atr_pct"), ("sobre_min", "sobre_min"),
-                             ("rs_puntaje", "rs_puntaje")):
+                             ("rs_puntaje", "rs_puntaje"), ("ash9_bulls", "ash9_bulls"),
+                             ("ash9_bears", "ash9_bears"), ("st_linea", "st_linea"),
+                             ("st_dir", "st_dir")):
                 a, b = e[k_e], M.se[t][k_s][j]
                 if not (np.isnan(a) and np.isnan(b)) and abs(a - b) > 1e-9 * max(1, abs(a)):
                     dif.append(f"autocontrol {d} {t} {k_e}: evaluar {a} contra serie {b}")
             mismo_rs = (np.isnan(e["rs"]) and np.isnan(dd[t]["rs"])) or e["rs"] == dd[t]["rs"]
-            if e["pasa"] != dd[t]["califica"] or not mismo_rs:
+            if (e["pasa"] != all(dd[t]["f"]) or e["pasa31"] != dd[t]["califica31"]
+                    or not mismo_rs):
                 dif.append(f"autocontrol {d} {t}: evaluar y serie no califican igual")
     return dif
+
+
+def simular_v33(M, ops, curva):
+    """La cartera desde el 31/12/2024, con las diez abiertas de ese dia."""
+    cur = {num(r["fecha"]): (float(r["capital"]), float(r["expo"])) for r in curva}
+    cap0, expo0 = cur[ARRANQUE_V33]
+    ab = []
+    for r in leer("v33/abiertas_al_2024-12-31.csv"):
+        t, fe = r["ticker"], num(r["entrada"])
+        j = M.idx(t, fe) if t in M.se else None
+        if j is None:
+            continue
+        # el monto sale del peso y del capital de ese dia; la entrada, de
+        # NUESTRO cierre (un reajuste por dividendos no corre el resultado)
+        ab.append({"t": t, "fe": fe, "pe": float(M.se[t]["cierre"][j]),
+                   "atr_pct": float(r["atr_pct_entrada"]) / 100,
+                   "monto": float(r["peso"]) * cur[fe][0]})
+    if ab:
+        ab[0]["efectivo"] = cap0 * (1 - expo0)
+    hist = [{"t": r["ticker"], "fe": num(r["entrada"]), "fs": num(r["salida"])}
+            for r in ops if r["salida"] and num(r["salida"]) <= ARRANQUE_V33]
+    fin = max(cur)
+    dias = [int(d) for d in M.cal if ARRANQUE_V33 < d <= fin]
+    return E.simular_cartera(dias, M, 33, capital=cap0, abiertas=ab, historia=hist), cur
+
+
+def comparar_v33(R, ops, cur):
+    suyo = {(r["ticker"], num(r["entrada"])): r for r in ops
+            if (num(r["salida"]) or 99999999) > ARRANQUE_V33}
+    nos = {(o["t"], o["fe"]): o for o in R["ops"]}
+    nos.update({(p["t"], p["fe"]): dict(p, fs=None, motivo=None, ret=None) for p in R["abiertas"]})
+    dif, iguales = [], 0
+    for k in sorted(set(suyo) | set(nos), key=lambda k: (k[1], k[0])):
+        s, n = suyo.get(k), nos.get(k)
+        f = f"{k[0]} {k[1]}"
+        if s and n:
+            sm, sf = MOTIVO_V33.get(s["motivo"], s["motivo"]), num(s["salida"])
+            mal = []
+            if (sm, sf) != (n["motivo"], n["fs"]):
+                mal.append(f"salida {n['motivo'] or 'abierta'} {n['fs'] or ''} contra "
+                           f"{s['motivo']} {s['salida']}")
+            if n["ret"] is not None and abs(n["ret"] - float(s["ret"])) > TOL_RET:
+                mal.append(f"retorno {n['ret'] * 100:+.2f} % contra {float(s['ret']) * 100:+.2f} %")
+            if (s["reentrada"] == "True") != bool(n.get("reentrada")):
+                mal.append("re-entrada distinta")
+            if mal:
+                dif.append(f + ": " + "; ".join(mal))
+            else:
+                iguales += 1
+        elif s:
+            dif.append(f"{f}: el backtest entro ({s['motivo']} {s['salida']}) y nosotros no")
+        else:
+            dif.append(f"{f}: entramos y el backtest no")
+    desvio, cuando = 0.0, None
+    for d, c, _ in R["curva"]:
+        if d in cur and abs(c / cur[d][0] - 1) > abs(desvio):
+            desvio, cuando = c / cur[d][0] - 1, d
+    if abs(desvio) > TOL_CURVA:
+        dif.append(f"curva: {desvio * 100:+.2f} % el {cuando}")
+    ultimo = R["curva"][-1] if R["curva"] else (None, np.nan, 0)
+    return dif, {"iguales": iguales, "total": len(suyo), "desvio_curva": round(desvio * 100, 3),
+                 "fecha_desvio": cuando, "capital": round(float(ultimo[1]), 3),
+                 "capital_suyo": cur.get(ultimo[0], (np.nan,))[0], "hasta": ultimo[0]}
 
 
 def main():
@@ -403,33 +496,47 @@ def main():
     ap.add_argument("--salida", default=None, help="carpeta donde dejar validacion.json")
     args = ap.parse_args()
     P = json.loads(Path(args.datos).read_text())
-    sen, ash, ops = leer("senales_jul_oct_2026.csv"), leer("spy_ash.csv"), leer("operaciones_2025_2026.csv")
 
-    print("== modo backtest: el universo que uso el CSV (sin " + ", ".join(SIN_DATOS_EN_EL_CSV) + ")")
-    Mb = Motor(P, fuera=SIN_DATOS_EN_EL_CSV)
-    auto = autocontrol(Mb, P)
+    # ---- v3.3 ----
+    ops33 = leer("v33/operaciones_v33_completas_2010_2026.csv")
+    curva33 = leer("v33/curva_v33.csv")
+    print("== v3.3, modo backtest (sin " + ", ".join(SIN_DATOS_V33) + ")")
+    M33 = Motor(P, fuera=SIN_DATOS_V33)
+    auto = autocontrol(M33, P)
+    R33, cur = simular_v33(M33, ops33, curva33)
+    d33, i33 = comparar_v33(R33, ops33, cur)
+    print(f"   operaciones desde el 31/12/2024: {i33['iguales']} de {i33['total']} iguales · "
+          f"curva: desvio maximo {i33['desvio_curva']:+.2f} % ({i33['fecha_desvio']}) · "
+          f"capital {i33['capital']} contra {i33['capital_suyo']}")
+    print("== v3.3, modo vivo (todos adentro)")
+    M33v = Motor(P)
+    R33v, _ = simular_v33(M33v, ops33, curva33)
+    d33v, i33v = comparar_v33(R33v, ops33, cur)
+    print(f"   {i33v['iguales']} de {i33v['total']} iguales · {len(d33v)} diferencias (informativo)")
+
+    # ---- v3.1: la columna «califica v3.1» ----
+    sen, ash, ops = (leer("v31/senales_jul_oct_2026.csv"), leer("v31/spy_ash.csv"),
+                     leer("v31/operaciones_2025_2026.csv"))
+    print("== v3.1 (califica v3.1), modo backtest (sin " + ", ".join(SIN_DATOS_V31) + ")")
+    Mb = Motor(P, fuera=SIN_DATOS_V31, version=31)
     d_sen, info = comparar_senales(Mb, sen, ash)
     d_ops = comparar_ops(Mb, ops)
     d_ord, n_ord = comparar_orden(Mb, ops)
-    print(f"   orden de compra: {n_ord - len(d_ord)} de {n_ord} dias con compras salen "
-          "de los primeros por prioridad")
     print(f"   pausa del SPY: {info['pausas']} dias · papeles-dia que coinciden: "
           f"{info['coinciden']} de {info['filas']} · diferencias: {len(d_sen)}")
-    print(f"   operaciones: {len(ops) - len(d_ops)} de {len(ops)} salen igual")
+    print(f"   operaciones: {len(ops) - len(d_ops)} de {len(ops)} salen igual · orden de compra: "
+          f"{n_ord - len(d_ord)} de {n_ord} dias")
     if info["ajuste"]:
         print("   precio reajustado distinto (dividendos): "
               + ", ".join(f"{t} x{k}" for t, k in info["ajuste"].items()))
-    print("== modo vivo: las reglas de la pagina")
-    Mv = Motor(P)
-    d_viv, info_v = comparar_senales(Mv, sen, ash)
-    print(f"   papeles-dia que coinciden: {info_v['coinciden']} de {info_v['filas']} · "
-          f"diferencias: {len(d_viv)} (informativo)")
+    Mv = M33v.otra_version(31)
     d_etsy, n_etsy = comparar_etsy(Mv)
-    print(f"== ETSY 9-16/10: {n_etsy} dias comparados · diferencias: {len(d_etsy)}")
-    errores = auto + d_sen + d_ops + d_ord + d_etsy
+    print(f"== ETSY 9-16/10 (v3.1): {n_etsy} dias comparados · diferencias: {len(d_etsy)}")
+
+    errores = auto + d33 + [f"v3.1 {x}" for x in d_sen + d_ops + d_ord + d_etsy]
     for x in errores[:80]:
         print("   ✘", x)
-    for x in d_viv[:15]:
+    for x in d33v[:15]:
         print("   (vivo)", x)
     ok = not errores
     print("\nVALIDACION OK" if ok else f"\nVALIDACION CON {len(errores)} DIFERENCIAS")
@@ -437,18 +544,20 @@ def main():
         out = Path(args.salida)
         out.mkdir(parents=True, exist_ok=True)
         (out / "validacion.json").write_text(json.dumps({
+            "version": 33,
             "generado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "datos": P.get("fecha"), "ok": ok,
-            "senales": {"coinciden": info["coinciden"], "filas": info["filas"],
-                        "dias": info["dias"], "pausas": info["pausas"]},
-            "operaciones": {"iguales": len(ops) - len(d_ops), "total": len(ops)},
-            "orden": {"iguales": n_ord - len(d_ord), "dias": n_ord},
-            "etsy": {"dias": n_etsy, "ok": not d_etsy},
+            "v33": dict(i33, sin_datos=list(SIN_DATOS_V33),
+                        vivo={"iguales": i33v["iguales"], "diferencias": len(d33v),
+                              "ejemplos": d33v[:20]}),
+            "v31": {"senales": {"coinciden": info["coinciden"], "filas": info["filas"],
+                                "dias": info["dias"], "pausas": info["pausas"]},
+                    "operaciones": {"iguales": len(ops) - len(d_ops), "total": len(ops)},
+                    "orden": {"iguales": n_ord - len(d_ord), "dias": n_ord},
+                    "etsy": {"dias": n_etsy, "ok": not d_etsy},
+                    "sin_datos": list(SIN_DATOS_V31)},
             "ajuste": info["ajuste"],
-            "vivo": {"coinciden": info_v["coinciden"], "diferencias": len(d_viv),
-                     "ejemplos": d_viv[:20]},
-            "sin_datos_en_el_csv": list(SIN_DATOS_EN_EL_CSV),
-            "diferencias": errores[:200]}, ensure_ascii=False, indent=1))
+            "diferencias": errores[:200]}, ensure_ascii=False, indent=1, default=float))
     return 0 if ok else 1
 
 
