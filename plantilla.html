@@ -5932,7 +5932,8 @@ function reglaVuelta(papel,R){
   const a=ESTR.adopcion,seis=(Math.floor(a/10000)+(Math.floor(a/100)%100+6>12?1:0))*10000
     +((Math.floor(a/100)%100+5)%12+1)*100+a%100;
   const cerradas=papel.v33.ops.length,cumple=cerradas>=ESTR.reglaOps||R>=seis;
-  return {r33,r31,dif,cerradas,seis,cumple,volver:cumple&&dif<=-ESTR.reglaPuntos};}
+  return {r33,r31,dif,cerradas,seis,cumple,// 1e-9: 5 puntos justos pueden llegar como 4,99999999999 por la coma flotante, y cuentan
+    volver:cumple&&dif<=-ESTR.reglaPuntos+1e-9};}
 
 /* El RS de otro dia: contra todos los papeles del usuario con dato ESE dia. */
 function uDeEstr(E,d){

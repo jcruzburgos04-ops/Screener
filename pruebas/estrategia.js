@@ -307,6 +307,42 @@ function serie(c,extra){const n=c.length,d=dias(20230101,20291231).slice(0,n);
   ok('falla el 8: no califica en ninguna de las dos',!r.pasa&&!r.pasa31);
 }
 
+{
+  // LA CARTERA CON UN PAPEL ARMADO A MANO: la re-entrada y la pausa de cada version
+  // baja (para que haya cruce), sube y se activa (+20 %), cae a la SMA 40 y sale,
+  // y al dia siguiente cierra arriba de la SMA 40 sin que se corte la racha
+  const c=[];for(let i=0;i<80;i++)c.push(140-i*0.5);for(let i=0;i<25;i++)c.push(100.5+i*2.5);
+  for(const v of [150,140,130,122,126,131,136,141,146,151,156,161])c.push(v);
+  const d=dias(20250101,20271231).slice(0,c.length);
+  const a={t:'X',d,o:c.slice(),h:c.map(v=>v*1.01),l:c.map(v=>v*0.99),c,propia:c.map(()=>true)};
+  const cs=c.map(()=>100),se=M.serieEstr(a,d,cs);
+  // los filtros los fija la prueba: califica todo el tramo en que la WMA esta arriba
+  const mk=(pausa)=>({se:new Map([['X',se]]),al:new Map([['X',a]]),excl:new Set(),
+    dia:x=>{const j=d.indexOf(x);return new Map(isFinite(se.dias_cruce[j])?[['X',{j,prio:1,f:new Array(10).fill(true)}]]:[]);},
+    pausa:()=>pausa||{pausa:false,pausa31:false}});
+  const r=M.simularCartera(d.slice(80),mk(),33,1,[],[]);
+  const todas=[...r.ops,...r.abiertas];
+  ok('cartera armada: entra, se activa, sale por SMA 40 y re-entra en el mismo cruce',
+    r.ops.length>=1&&r.ops[0].motivo==='SMA 40'&&todas.some(o=>o.reentrada&&o.cruce===r.ops[0].cruce),
+    JSON.stringify(todas.map(o=>[o.fe,o.fs,o.motivo,o.reentrada])));
+  const se2=Object.assign({},se,{toco34:se.toco34.map(()=>false)});
+  const info2=mk();info2.se=new Map([['X',se2]]);
+  const r2=M.simularCartera(d.slice(80),info2,33,1,[],[]);
+  ok('sin tocar la EMA 34 desde la salida, no re-entra',![...r2.ops,...r2.abiertas].some(o=>o.reentrada));
+  const se3=Object.assign({},se,{bajo40:se.bajo40.map(()=>false)});
+  const info3=mk();info3.se=new Map([['X',se3]]);
+  ok('sin cerrar ≤ SMA 40 desde la salida, tampoco',![...M.simularCartera(d.slice(80),info3,33,1,[],[]).ops,
+    ...M.simularCartera(d.slice(80),info3,33,1,[],[]).abiertas].some(o=>o.reentrada));
+  // la pausa de cada version: con la E sola, la v3.1 compra y la v3.3 no
+  const soloE={pausa:true,pausa31:false};
+  const p33=M.simularCartera(d.slice(80),mk(soloE),33,1,[],[]),p31=M.simularCartera(d.slice(80),mk(soloE),31,1,[],[]);
+  ok('con sólo la pausa E: la v3.3 no compra y la v3.1 sí',
+    p33.ops.length+p33.abiertas.length===0&&p31.ops.length+p31.abiertas.length>0);
+  // una entrada por cruce: sin re-entrada valida, el mismo cruce no se vuelve a comprar
+  ok('una entrada por cruce: después de la salida no vuelve a entrar como nueva',
+    r2.ops.length+r2.abiertas.length===1);
+}
+
 console.log('\n== 3. la pantalla ==');
 const {JSDOM}=require('jsdom');
 const html=fs.readFileSync(path.join(SITIO,'index.html'),'utf8');
@@ -491,6 +527,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
    ok('regla: 4 puntos abajo no alcanza',b.cumple&&!b.volver);
    const c=rv(papel(0.95,1.00,30),20261201);
    ok('regla: 5 puntos abajo justo, sí (≥ 5)',c.volver);
+   ok('regla: 4,99999999999 puntos (5 justos con coma flotante) también: es ≥, no >',rv(papel(0.9500000000001,1.00,30),20261201).volver);
    const d=rv(papel(0.80,1.00,29),20261201);
    ok('regla: con 29 cerradas y antes de los 6 meses todavía no se evalúa',!d.cumple&&!d.volver);
    const e=rv(papel(0.80,1.00,3),20270505);
