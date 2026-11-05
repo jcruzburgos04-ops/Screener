@@ -1,0 +1,59 @@
+# =============================================================================
+# SONDA TEMPORAL: ¿alguna fuente publica el RATIO de cada CEDEAR?
+# Hace falta para el valor teorico del CEDEAR en Estrategia. Se borra despues
+# de contestar, como las sondas anteriores.
+# =============================================================================
+name: Sonda ratios CEDEAR
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Preguntar
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def pedir(url, cuerpo=None):
+              h = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json",
+                   "Accept": "application/json, text/plain, */*"}
+              data = json.dumps(cuerpo).encode() if cuerpo is not None else None
+              r = urllib.request.Request(url, data=data, headers=h)
+              with urllib.request.urlopen(r, timeout=30) as f:
+                  return f.status, f.read()
+          def mostrar(nombre, url, cuerpo=None):
+              print("\n=====", nombre, url)
+              try:
+                  st, b = pedir(url, cuerpo)
+                  print("status", st, "bytes", len(b))
+                  try:
+                      j = json.loads(b)
+                  except Exception:
+                      print(b[:800]); return
+                  filas = j if isinstance(j, list) else j.get("data", j)
+                  if isinstance(filas, dict):
+                      print("claves", list(filas)[:40]); print(json.dumps(filas)[:1500]); return
+                  print("filas", len(filas))
+                  if filas:
+                      print("claves", list(filas[0]))
+                      for f in filas[:3]:
+                          print(json.dumps(f)[:700])
+                      for f in filas:
+                          s = json.dumps(f)
+                          if '"AAPL' in s or '"SPCX' in s or '"KO"' in s or '"NVDA' in s:
+                              print("  >>", s[:700])
+              except Exception as e:
+                  print("error", repr(e)[:300])
+          mostrar("data912 arg_cedears", "https://data912.com/live/arg_cedears")
+          c = {"excludeZeroPxAndQty": True, "T1": True, "T0": False, "Content-Type": "application/json"}
+          mostrar("BYMA cedears", "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cedears", c)
+          mostrar("BYMA cedears T0", "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cedears", {"excludeZeroPxAndQty": False, "T0": True})
+          mostrar("BYMA especie", "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/bnown/fichatecnica/especies/general", {"symbol": "AAPL", "Content-Type": "application/json"})
+          mostrar("data912 openapi", "https://data912.com/openapi.json")
+          PY
