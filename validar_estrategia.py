@@ -427,6 +427,103 @@ def autocontrol(M, P):
     return dif
 
 
+FECHAS_V33 = (20261104, 20261001, 20260701)     # las tres que pidio comparar
+_w = np.exp(-((np.arange(14) - 0.85 * 13) ** 2) / (2 * (14 / 6) ** 2))
+PESO_MAX_ALMA14 = float(_w.max() / _w.sum())
+
+
+def comparar_senales_v33(M, sen, spy):
+    """
+    senales_v33.csv y spy_v33.csv, dia por dia (jul-nov 2026): la pausa con
+    sus tres partes, los papeles que califican (filtros 1 a 10) y cada
+    columna con la tolerancia del usuario (0,1 % y RS +/-1), como la v3.1.
+    """
+    dif, info = [], {"filas": len(sen), "pausas": 0, "coinciden": 0, "ajuste": {},
+                     "fechas": {}}
+    for r in spy:
+        d = num(r["fecha"])
+        a = M.pausa(d)
+        nuestro = (a["diario"]["pausa"], a["semanal"]["pausa"], a["extendido"]["pausa"], a["pausa"])
+        suyo = tuple(r[k] == "True" for k in ("pausa_ash_d", "pausa_ash_w", "extendido", "pausa_total"))
+        if nuestro != suyo:
+            dif.append(f"{r['fecha']} pausa D/W/E/total: nuestra {nuestro} · suya {suyo}")
+        for nom, x, y in (("SPY", a["extendido"]["cierre"], float(r["spy"])),
+                          ("SMA 200", a["extendido"]["sma200"], float(r["sma200"]))):
+            if abs(x - y) > 0.001 * y:
+                dif.append(f"{r['fecha']} {nom}: {x:.4f} contra {y:.4f}")
+        info["pausas"] += 1
+    porDia = {}
+    for r in sen:
+        porDia.setdefault(num(r["fecha"]), {})[r["ticker"]] = r
+    info["dias"] = len(porDia)
+    cols = ("wma21", "wma26", "adr", "sobre_min52_pct", "bajo_max52_pct", "macd3d_hist",
+            "macd3d_hist_ant", "ewo1", "ewo2", "ewo_senal", "ash_d_bulls", "ash_d_bears", "atr_pct")
+    escala = {c: float(np.median([abs(float(r[c])) for r in sen if r[c] not in ("", None)] or [0]))
+              for c in cols}
+    for d, suyos in sorted(porDia.items()):
+        dd = M.dia(d)
+        # aca NO se saca a UPS: calificar y ser candidata son dos cosas; el
+        # backtest lo lista calificando 5 dias de jul-nov
+        nuestros = {t for t, x in dd.items() if x["califica"]}
+        antes = len(dif)
+        for t in sorted(nuestros - set(suyos)):
+            dif.append(f"{d} {t}: califica para nosotros y no en el backtest")
+        for t in sorted(set(suyos) - nuestros):
+            x = dd.get(t)
+            por = ("sin dato" if x is None else
+                   "falla " + ",".join(str(i + 1) for i, f in enumerate(x["f"]) if not f)
+                   + f" (RS {x['rs']:.0f})")
+            dif.append(f"{d} {t}: califica en el backtest y no para nosotros ({por})")
+        for t in sorted(nuestros & set(suyos)):
+            r, x, s = suyos[t], dd[t], M.se[t]
+            j = x["j"]
+            k = s["cierre"][j] / float(r["cierre"])
+            if abs(k - 1) > 0.001:
+                info["ajuste"].setdefault(t, round(float(k), 4))
+            if abs(x["rs"] - float(r["rs"])) > 1:
+                dif.append(f"{d} {t} RS: {x['rs']:.0f} contra {float(r['rs']):.0f}")
+            if int(s["st_dir"][j]) != int(float(r["supertrend_dir"])):
+                dif.append(f"{d} {t} Supertrend: {int(s['st_dir'][j])} contra {r['supertrend_dir']}")
+            if (r["regimen"] == "True") != bool(s["regimen"][j]):
+                dif.append(f"{d} {t} regimen distinto")
+            if (r["pausa"] == "True") != M.pausado(d):
+                dif.append(f"{d} {t} pausa distinta")
+            if int(float(r["dias_desde_cruce"])) != int(s["dias_cruce"][j]):
+                dif.append(f"{d} {t} dias desde el cruce: {s['dias_cruce'][j]} contra {r['dias_desde_cruce']}")
+            ok = True
+            for col, v, kk, piso in (
+                    ("wma21", s["wma21"][j], k, 0), ("wma26", s["wma26"][j], k, 0),
+                    ("adr", s["adr"][j], 1, 0),
+                    ("sobre_min52_pct", s["sobre_min"][j] * 100, 1, 0),
+                    ("bajo_max52_pct", s["bajo_max"][j] * 100, 1, 0),
+                    ("macd3d_hist", s["hist3"][j], k, 0), ("macd3d_hist_ant", s["hist3_ant"][j], k, 0),
+                    ("ewo1", s["ewo1"][j], k, 0), ("ewo2", s["ewo2"][j], 1, 0),
+                    ("ewo_senal", s["ewo_senal"][j], 1, 0),
+                    ("ash_d_bulls", s["ash9_bulls"][j], k, 0), ("ash_d_bears", s["ash9_bears"][j], k, 0),
+                    ("atr_pct", s["atr_pct"][j] * 100, 1, 0),
+                    ("prioridad", x["prio"], 1, 0.01)):
+                y = float(r[col])
+                tol = 0.001 * abs(y) + 0.001 * escala.get(col, 0) + piso + 1e-4
+                if col.endswith("52_pct"):
+                    tol = 0.1 * (1 + y / 100)
+                if col.startswith("ash_d_"):
+                    # Bulls y Bears son RESTAS de dos maximos o minimos seguidos:
+                    # un numero chico. Medido el 6/11: cada tramo distinto lo
+                    # explica UNA vela con el Low corrido medio centavo o uno
+                    # (0,002-0,007 % del precio; redondeo o revision de Yahoo),
+                    # que en la columna son 0,2-0,5 %. El piso es lo que mueve un
+                    # centavo en una vela: 0,01 USD por el peso maximo de la ALMA.
+                    tol += 0.01 * PESO_MAX_ALMA14
+                if not np.isfinite(v) or abs(v / kk - y) > tol:
+                    dif.append(f"{d} {t} {col}: {v / kk:.4f} contra {y:.4f}")
+                    ok = False
+            info["coinciden"] += ok
+        if d in FECHAS_V33:
+            info["fechas"][d] = {"suyos": len(suyos), "nuestros": len(nuestros),
+                                 "diferencias": len(dif) - antes}
+    return dif, info
+
+
 def simular_v33(M, ops, curva):
     """La cartera desde el 31/12/2024, con las diez abiertas de ese dia."""
     cur = {num(r["fecha"]): (float(r["capital"]), float(r["expo"])) for r in curva}
@@ -508,6 +605,17 @@ def main():
     print(f"   operaciones desde el 31/12/2024: {i33['iguales']} de {i33['total']} iguales · "
           f"curva: desvio maximo {i33['desvio_curva']:+.2f} % ({i33['fecha_desvio']}) · "
           f"capital {i33['capital']} contra {i33['capital_suyo']}")
+    sen33, spy33 = leer("v33/senales_v33.csv"), leer("v33/spy_v33.csv")
+    d33s, i33s = comparar_senales_v33(M33, sen33, spy33)
+    print(f"   senales jul-nov: pausa {i33s['pausas']} dias · {i33s['coinciden']} de "
+          f"{i33s['filas']} papeles-dia identicos · diferencias: {len(d33s)}")
+    for d, x in sorted(i33s["fechas"].items(), reverse=True):
+        print(f"     {d}: califican {x['suyos']} en el backtest, {x['nuestros']} aca · "
+              f"diferencias {x['diferencias']}")
+    if i33s["ajuste"]:
+        print("   precio reajustado distinto (dividendos): "
+              + ", ".join(f"{t} x{k}" for t, k in i33s["ajuste"].items()))
+    d33 = d33 + d33s
     print("== v3.3, modo vivo (todos adentro)")
     M33v = Motor(P)
     R33v, _ = simular_v33(M33v, ops33, curva33)
@@ -548,6 +656,8 @@ def main():
             "generado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             "datos": P.get("fecha"), "ok": ok,
             "v33": dict(i33, sin_datos=list(SIN_DATOS_V33),
+                        senales={k: i33s[k] for k in ("filas", "coinciden", "dias", "pausas")},
+                        fechas={str(k): v for k, v in i33s["fechas"].items()},
                         vivo={"iguales": i33v["iguales"], "diferencias": len(d33v),
                               "ejemplos": d33v[:20]}),
             "v31": {"senales": {"coinciden": info["coinciden"], "filas": info["filas"],

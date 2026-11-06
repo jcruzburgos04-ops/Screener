@@ -690,6 +690,15 @@ después.
   número del screener sale de ahí.
 - **La COMPRA dice cuántos CEDEARs son** cuando hay capital cargado.
 
+**Sin ruido (6/11/2026).** El usuario: *«aparecen todos los valores de los
+indicadores, visualmente es molesto»*. Los diez filtros van en **una** columna
+«Filtros» —`✔ 10/10` o el nombre del que falla en rojo, más la v3.1— con cada
+valor en el globito; el detalle columna por columna vuelve con «ver valores de
+los filtros» (`ESTRD.detalle`). El estado del mercado es una línea de cuatro
+pastillas (OK / PAUSA, valores en el globito), la validación una línea, las
+casi-señales no llevan plan ni «Entré», y la marca «nueva» reemplaza a la
+columna «Nueva hoy».
+
 ### La cartera: el orden de cada día, del usuario (5/11/2026)
 
 `simular_cartera` / `simularCartera`. Cada día: **B** salen las posiciones
@@ -727,11 +736,23 @@ Python sobre los datos reales (83 cerradas, abiertas y curva idénticas).
 > con él. Si el usuario confirma que no tuvo datos, queda así; si los tuvo,
 > hay que buscar qué filtro le da distinto.
 
-> **Faltan `spy_v33.csv` y `senales_v33.csv`** (el día por día de la v3.3
-> en jul–nov). La especificación pide comparar el 4/11, el 1/10 y el 1/7;
-> las operaciones y la curva ya validan los filtros 9 y 10 y la pausa E de
-> punta a punta, pero cuando lleguen hay que sumar la comparación columna por
-> columna, como la de la v3.1.
+**El día por día también coincide** (`spy_v33.csv`, `senales_v33.csv`,
+llegaron el 6/11): **89 de 89** días de pausa (D, W, E y total, con el SPY y su
+SMA 200) y **1022 de 1022** papeles-día que califican con todas las columnas;
+las tres fechas pedidas, exactas (4/11: 25 papeles, 1/10: 4, 1/7: 10). Dos
+cosas que salieron comparando:
+
+- **UPS califica** en su archivo (5 días): calificar y ser candidata son dos
+  cosas, así que esta comparación no lo saca.
+- **`ash_d_bears` se iba 0,2-0,5 %** en 36 papeles-día, y `ash_d_bulls` nunca.
+  Medido tramo por tramo, cada uno lo explica **una sola vela** con el Low
+  corrido medio centavo o uno (0,002-0,007 % del precio): los Bears son la resta
+  de dos mínimos seguidos, un número chico. La tolerancia de esas dos columnas
+  suma lo que mueve un centavo en una vela (0,01 × el peso máximo de la ALMA
+  14). Ninguna decisión cambia.
+
+SMSN.IL no aparece en su `senales_v33.csv` y acá califica el 22-25/9: más
+evidencia de que su corrida no lo tuvo.
 
 ### La v3.1, que ahora es la columna «califica v3.1»
 

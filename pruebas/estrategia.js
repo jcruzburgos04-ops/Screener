@@ -367,7 +367,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
 (async()=>{
   const A=almacen();
   const VAL={generado:'2026-11-05 22:00 UTC',ok:false,version:33,
-    v33:{iguales:90,total:91,desvio_curva:-0.19},
+    v33:{iguales:90,total:91,desvio_curva:-0.19,senales:{coinciden:1022,filas:1022,dias:89,pausas:89}},
     v31:{senales:{coinciden:960,filas:961,dias:66,pausas:66},operaciones:{iguales:94,total:94},etsy:{ok:true}},
     diferencias:['AMD 20260410: el backtest entro y nosotros no']};
   let w=await abrir(A,VAL);const $=s=>w.document.querySelector(s),$$=s=>[...w.document.querySelectorAll(s)];
@@ -377,11 +377,15 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const res=w.eval('calcularEstrategia()');
   const cartel=$('.es-cartel').textContent;
   ok('el cartel dice lo que dice el ASH del SPY',res.mercado.pausa?cartel.startsWith('PAUSA'):cartel==='SE PUEDE ENTRAR',cartel);
-  ok('muestra SmthBulls y SmthBears de los dos, y el SPY contra su SMA 200 (pausa E)',$$('.es-asd').length===3&&$$('.es-asd-v b').length===6
-    &&$$('.es-asd-t')[2].textContent.includes('SMA 200'));
-  ok('dice también la pausa de la v3.1 (sólo D o W)',$('#estrCuerpo').textContent.includes('Pausa de la v3.1 (sólo D o W): '+(res.mercado.pausa31?'sí':'no')));
+  const asd=$$('.es-asd');
+  ok('el estado del mercado en una línea: las tres pausas y la de la v3.1, cada una OK o PAUSA',
+    asd.length===4&&asd[2].textContent.includes('SMA 200')&&asd[3].textContent.includes(res.mercado.pausa31?'en pausa':'sin pausa')
+    &&asd.slice(0,3).every((x,k)=>x.querySelector('b').textContent===([res.mercado.diario,res.mercado.semanal,res.mercado.extendido][k].pausa?'PAUSA':'OK')),
+    asd.map(x=>x.textContent.replace(/\s+/g,' ')).join(' / '));
+  ok('los valores (SmthBulls, SmthBears, SMA 200) van en el globito, no en la pantalla',
+    asd[0].title.includes('SmthBulls')&&asd[2].title.includes('SMA 200')&&!$('.es-asds').textContent.includes('SmthBulls'));
   ok('la validación contra el backtest se ve, y avisa si no coincide',
-    !!$('.es-valid.mal')&&$('.es-valid').textContent.includes('90 de 91 operaciones')&&$('.es-valid').textContent.includes('960 de 961'),$('.es-valid')&&$('.es-valid').textContent);
+    !!$('.es-valid.mal')&&$('.es-valid').textContent.includes('90/91 operaciones')&&$('.es-valid').title.includes('960 de 961'),$('.es-valid')&&$('.es-valid').textContent);
   ok('los ETFs son candidatos y llevan su etiqueta',res.filas.some(f=>f.t==='SPY'&&f.etf));
   ok('UPS cuenta en los percentiles…',res.filas.some(f=>f.t==='UPS')||!P.simbolos.some(s=>s.t==='UPS'));
   const filas=()=>[...$$('#estrCuerpo .es-tabla')[0].querySelectorAll('tbody tr[data-t]')];
@@ -393,15 +397,23 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   const res2=w.eval('calcularEstrategia()');Object.assign(res,res2);
   ok('…pero nunca aparece como candidata',!filas().some(tr=>tr.dataset.t==='UPS'));
   const th=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent);
-  ok('las columnas en el orden pedido: primero lo que se mira para decidir, después los filtros',
-    th.slice(0,29).join('|')===['Ticker','Prioridad','Señal','Nueva hoy','Entrada óptima','Rendimiento en el backtest',
-    'SL','TP','Activación → salida móvil','Precio hoy · vs óptima','CEDEAR (teórico · BYMA)',
-    'Entry (si entro hoy)','SL (precio · %)','TP','Activación +20 %',
-    'Días desde el cruce','WMA 21 / WMA 26','ADR%(20)','RS','% sobre mín. 52 s','% bajo máx. 52 s',
-    'Régimen SMA 50/200','MACD 3D hist (valor · anterior)','EWO D (ewo1 · ewo2 · señal)',
-    'ASH D ADX 14/1 (AvgBulls · AvgBears)','Supertrend 4/21 (dir. · línea)','Califica v3.1','ATR%(14)','SMA 40'].join('|'),th.join('|'));
+  const COLS_CORTAS=['Ticker','Prioridad','Señal','Entrada óptima','Rendimiento en el backtest',
+    'SL','TP','Salida móvil','Precio hoy','CEDEAR','Filtros','Si entro hoy',''];
+  ok('sin ruido: lo que se mira para decidir, los diez filtros en UNA columna, y nada más',
+    th.join('|')===COLS_CORTAS.join('|'),th.join('|'));
   ok('cada fila tiene tantas celdas como encabezados',filas().every(tr=>tr.children.length===th.length),
     filas().map(tr=>tr.children.length).join(',')+' vs '+th.length);
+  {const tr=filas()[0],cel=tr&&tr.children[10];
+   ok('la columna Filtros dice 10/10 y la v3.1, con cada valor en el globito',
+     !!cel&&/10\/10|✘/.test(cel.textContent)&&cel.textContent.includes('v3.1')&&cel.title.split('\n').length===10&&cel.title.includes('Supertrend'),
+     cel&&cel.textContent+' | '+cel.title);}
+  // «ver valores de los filtros» devuelve el detalle, y queda guardado
+  $('#esDetalle').checked=true;$('#esDetalle').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
+  {const th2=[...$$('.es-tabla')[0].querySelectorAll('th')].map(x=>x.textContent);
+   ok('«ver valores de los filtros» agrega el detalle de cada uno',th2.length===COLS_CORTAS.length+13&&th2.includes('ASH D ADX 14/1 (AvgBulls · AvgBears)')
+     &&th2.includes('Supertrend 4/21 (dir. · línea)')&&filas().every(tr=>tr.children.length===th2.length),th2.length);
+   ok('y queda guardado',JSON.parse(A._m.screener_ash_estrategia).detalle===true);}
+  $('#esDetalle').checked=false;$('#esDetalle').dispatchEvent(new w.Event('change',{bubbles:true}));await esperar(30);
   // grupos: primero las validas (califican + senal abierta), por prioridad y despues ticker
   const cl=f=>w.eval(`clasificarEstr(calcularEstrategia(),calcularEstrategia().filas.find(x=>x.t===${JSON.stringify(f.t)}))`);
   const validas=res.filas.filter(f=>f.pasa&&f.t!=='UPS'&&cl(f).valida);
@@ -413,7 +425,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
     pr.every((f,i)=>!i||pr[i-1].prio>f.prio||(pr[i-1].prio===f.prio&&pr[i-1].t<f.t)));
   ok('el resto va atenuado',trs.slice(validas.length).every(tr=>tr.classList.contains('es-at')));
   ok('una señal que pasó sólo en pausa dice «sin señal válida»',
-    trs.every(tr=>tr.children[5].textContent.trim()!==''));
+    trs.every(tr=>tr.children[4].textContent.trim()!==''));
   ok('la prueba tiene señales válidas con que trabajar',validas.length>=2,validas.length);
   w.eval('memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:true});renderEstrategia()');
   ok('en pausa ninguna es COMPRA',$$('.es-et.comprar').length===0);
@@ -452,7 +464,7 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
   w.eval(`(()=>{const E=calcularEstrategia(),h=Object.assign({},historiaEstr(E,E.filas.find(x=>x.t===${JSON.stringify(vc)})),
     {salida:'SL',salida_fecha:E.R,salida_precio:1});E.historias.set(${JSON.stringify(vc)},h);renderEstrategia();})()`);
   const trc=filas().find(tr=>tr.dataset.t===vc);
-  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[5].textContent.startsWith('cerrada por SL'));
+  ok('y vuelve atenuada, con su salida, con «ver señales cerradas»',!!trc&&trc.classList.contains('es-at')&&trc.children[4].textContent.startsWith('cerrada por SL'));
   ok('ver señales cerradas las agrega, atenuadas y con su salida',filas().length===sinCerr+nCerr,
     `${filas().length} vs ${sinCerr}+${nCerr}`);
   ok('los interruptores quedan guardados',JSON.parse(A._m.screener_ash_estrategia).casi===true&&
@@ -462,26 +474,28 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
    const tb=w.document.createElement('tbody');
    tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h)},{cierre:110,pasa:true})`)+'</tr>';
    const c=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
-   ok('Señal: fecha y hace cuánto',c[0]==='09/10/2026 · hace 4 ruedas',c[0]);
-   ok('Nueva hoy: no',c[1]==='no');
-   ok('Entrada óptima, y SL y TP con el ATR% de ese día',c[2]==='100,00'&&c[4]==='93,00 · −7,00 %'&&c[5]==='300,00',c.join(' | '));
-   ok('Precio hoy y vs óptima, sin colores',c[7]==='110,00 · +10,0 %'&&!tb.children[0].children[7].className,c[7]);
-   ok('Rendimiento en el backtest: cerrada por SL con gap, con fecha y resultado neto',c[3]==='cerrada por SL con gap el 14/10/2026 (-7,6 %)',c[3]);
-   ok('cerrada: no hay salida móvil que mostrar',c[6]==='—');
+   ok('Señal: fecha y hace cuánto',c[0]==='09/10 · hace 4 ruedas',c[0]);
+   ok('Señal vieja: sin la marca «nueva»',!tb.querySelector('.es-nueva'));
+   ok('Entrada óptima, y SL y TP con el ATR% de ese día',c[1]==='100,00'&&c[3]==='93,00 (−7,0 %)'&&c[4]==='300,00',c.join(' | '));
+   ok('Precio hoy y vs óptima, sin colores',c[6]==='110,00 (+10,0 %)'&&!tb.children[0].children[6].className,c[6]);
+   ok('Rendimiento en el backtest: cerrada por SL con gap, con fecha y resultado neto',c[2]==='cerrada por SL con gap el 14/10/2026 (-7,6 %)',c[2]);
+   ok('cerrada: no hay salida móvil que mostrar',c[5]==='—');
    const h2=Object.assign({},h,{ruedas:0,salida:null,activa:false});
    tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h2)},{cierre:100,pasa:true,sma40:95})`)+'</tr>';
    const c2=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
-   ok('la de hoy: nueva hoy = sí, abierta en el backtest con la comisión (−0,7 %)',
-     c2[0].endsWith('hoy')&&c2[1]==='sí'&&c2[3]==='abierta en el backtest (-0,7 %)',c2.join(' | '));
-   ok('sin activar: dice a qué cierre se activa, cuánto falta, y que después la salida es la SMA 40',
-     c2[6]==='se activa con cierre ≥ 120,00 (falta +20,0 %) · después sale si cierra < SMA 40 (hoy 95,00)',c2[6]);
+   ok('la de hoy: marca «nueva», abierta en el backtest con la comisión (−0,7 %)',
+     c2[0]==='09/10 · hoynueva'&&!!tb.querySelector('.es-nueva')&&c2[2]==='abierta (-0,7 %)',c2.join(' | '));
+   const t2=tb.children[0].children[5].title;
+   ok('sin activar: dice a qué precio se activa y cuánto falta; el porqué va en el globito',
+     c2[5]==='se activa en 120,00 (falta +20,0 %)'&&t2.includes('CIERRE ≥ 120,00')&&t2.includes('SMA 40 (hoy 95,00)'),c2[5]+' | '+t2);
    const h3=Object.assign({},h2,{activa:true,plan:{desde:20261012}});
    tb.innerHTML='<tr>'+w.eval(`celdasSenal(${JSON.stringify(h3)},{cierre:130,pasa:true,sma40:117})`)+'</tr>';
-   const c3=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim());
-   ok('activada: desde cuándo y dónde está hoy la salida móvil (la SMA 40) contra el precio',
-     c3[6]==='activada el 12/10/2026 · sale si cierra < SMA 40: 117,00 (-10,0 % del precio)',c3[6]);
+   const c3=[...tb.querySelectorAll('td')].map(x=>x.textContent.trim()),t3=tb.children[0].children[5].title;
+   ok('activada: dónde está hoy la salida móvil (la SMA 40) contra el precio, y desde cuándo en el globito',
+     c3[5]==='activada · SMA 40 en 117,00 (-10,0 %)'&&t3.includes('activada el 12/10/2026'),c3[5]+' | '+t3);
    tb.innerHTML='<tr>'+w.eval(`celdasSenal({fecha:null,enPausa:20261008},{cierre:100,pasa:true})`)+'</tr>';
-   ok('si sólo calificó en pausa: sin señal válida',tb.textContent.includes('sin señal válida (pausa del SPY en todos los días)'));}
+   ok('si sólo calificó en pausa: lo dice corto, y entero en el globito',tb.textContent.includes('sólo en pausa')
+     &&tb.querySelector('td').title.includes('sin señal válida (pausa del SPY en todos los días)'));}
   // EL CEDEAR: teorico = USD x CCL x acciones / cedears; BYMA al lado, solo para comparar
   {const t=w.eval("DATOS.simbolos.find(s=>s.t==='AAPL')")?'AAPL':null;
    if(!t)ok('la fixtura trae AAPL',false);
@@ -507,8 +521,11 @@ function almacen(ini){return {_m:Object.assign({screener_ash_yahoo_auto:'0'},ini
      w.eval("memoEstr.res.mercado=Object.assign({},memoEstr.res.mercado,{pausa:false});ESTRD.capital='100000';renderEstrategia()");
      const conRatio=filas().filter(tr=>tr.querySelector('.es-et.comprar')&&w.eval(`!!cedearDe(${JSON.stringify(tr.dataset.t)},1).ratio`));
      ok('con capital cargado, la COMPRA dice cuántos CEDEARs son',conRatio.length>0&&
-       conRatio.every(tr=>/≈ \d+ CEDEARs/.test(tr.querySelector('.es-et.comprar').textContent)),
-       conRatio.map(tr=>tr.querySelector('.es-et.comprar').textContent).join(' / '));
+       conRatio.every(tr=>/≈ \d+ CEDEARs/.test(tr.children[0].textContent)),
+       conRatio.map(tr=>tr.children[0].textContent).join(' / '));
+     const casiF=filas().filter(tr=>tr.children[10].textContent.includes('✘ ')&&!tr.children[10].textContent.startsWith('✔'));
+     ok('y las casi-señales no tienen plan de compra ni botón «Entré»',casiF.length>0&&
+       casiF.every(tr=>!tr.querySelector('.es-pe')&&!tr.querySelector('.es-entre')),casiF.length);
      w.eval("ESTRD.capital='';CEDBYMA.precios=null;renderEstrategia()");}}
   // registro: Entre / posiciones / Sali
   const tr0=filas()[0];
