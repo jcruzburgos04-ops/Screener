@@ -1,0 +1,108 @@
+{
+ "version": 33,
+ "generado": "2026-11-07 07:31 UTC",
+ "datos": "2026-11-07 07:31",
+ "ok": true,
+ "v33": {
+  "iguales": 91,
+  "total": 91,
+  "desvio_curva": -0.192,
+  "fecha_desvio": 20250605,
+  "capital": 220.47,
+  "capital_suyo": 220.888509,
+  "hasta": 20261104,
+  "sin_datos": [
+   "SMSN.IL"
+  ],
+  "senales": {
+   "filas": 1022,
+   "coinciden": 1022,
+   "dias": 89,
+   "pausas": 89
+  },
+  "fechas": {
+   "20260701": {
+    "suyos": 10,
+    "nuestros": 10,
+    "diferencias": 0
+   },
+   "20261001": {
+    "suyos": 4,
+    "nuestros": 4,
+    "diferencias": 0
+   },
+   "20261104": {
+    "suyos": 25,
+    "nuestros": 25,
+    "diferencias": 0
+   }
+  },
+  "vivo": {
+   "iguales": 85,
+   "diferencias": 13,
+   "ejemplos": [
+    "AMD 20260410: el backtest entro (media 2026-07-16) y nosotros no",
+    "SMSN.IL 20260410: entramos y el backtest no",
+    "CRWD 20260701: entramos y el backtest no",
+    "CRWD 20260702: el backtest entro (media 2026-10-16) y nosotros no",
+    "XYZ 20260702: entramos y el backtest no",
+    "UGP 20260707: entramos y el backtest no",
+    "CIBR 20260714: entramos y el backtest no",
+    "UGP 20260714: el backtest entro (media 2026-10-26) y nosotros no",
+    "HOG 20260716: el backtest entro (abierta al final ) y nosotros no",
+    "XYZ 20260716: el backtest entro (abierta al final ) y nosotros no",
+    "HAL 20261028: el backtest entro (SL 2026-11-04) y nosotros no",
+    "HOG 20261028: entramos y el backtest no",
+    "curva: -6.06 % el 20260710"
+   ]
+  }
+ },
+ "v31": {
+  "senales": {
+   "coinciden": 961,
+   "filas": 961,
+   "dias": 66,
+   "pausas": 66
+  },
+  "operaciones": {
+   "iguales": 94,
+   "total": 94
+  },
+  "orden": {
+   "iguales": 8,
+   "dias": 8
+  },
+  "etsy": {
+   "dias": 6,
+   "ok": true
+  },
+  "sin_datos": [
+   "UNH",
+   "UPS",
+   "UAL"
+  ]
+ },
+ "ajuste": {
+  "FMX": 0.9853,
+  "TXN": 0.9952,
+  "BMY": 1.0104,
+  "PM": 1.0086,
+  "SCCO": 0.9901,
+  "DELL": 0.9986,
+  "FCX": 0.9978,
+  "CSCO": 1.0039,
+  "DAL": 0.9972,
+  "GE": 0.9985,
+  "AKO-B": 0.9918,
+  "CAH": 1.0023,
+  "C": 0.9945,
+  "ASML": 0.9987,
+  "MS": 0.994,
+  "HMY": 0.9726,
+  "ABBV": 0.9939,
+  "AGRO": 0.9869,
+  "CRESY": 0.9305,
+  "CAT": 0.9976
+ },
+ "diferencias": []
+}
